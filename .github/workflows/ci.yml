@@ -22,6 +22,10 @@ on:
 permissions:
   contents: read
 
+# JavaScript ベースの Actions を Node 24 ランタイムで実行させる（Node 20 廃止対応）。
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 # 同一ブランチで新しい push が来たら古い実行を打ち切る（無駄なランナー消費を避ける）。
 concurrency:
   group: ci-${{ github.ref }}

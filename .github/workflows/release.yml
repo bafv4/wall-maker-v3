@@ -20,6 +20,10 @@ on:
       - 'v*'
   workflow_dispatch:
 
+# JavaScript ベースの Actions を Node 24 ランタイムで実行させる（Node 20 廃止対応）。
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build:
     permissions:
@@ -79,6 +83,14 @@ jobs:
           releaseBody: |
             Pre-release. 詳細は CHANGELOG / commit history を参照。
 
+            ### 配布物
+            - **インストーラ**: Windows `.msi` / `.exe`(NSIS)、macOS `.dmg`。
+            - **ポータブル版**（インストール不要）:
+              - Windows: `WallMaker-*-portable-windows-x64.exe`（単一実行ファイル。
+                Windows 10/11 標準の WebView2 ランタイムを使用。同梱はしていません）。
+              - macOS: `WallMaker-*-portable-macos-universal.zip`（解凍した `.app` を
+                そのまま実行。Intel / Apple Silicon 両対応）。
+
             ### 起動時の警告について
             - **macOS**: 「開発元を検証できない」警告が出ます。Finder で右クリック →
               「開く」 → 確認ダイアログで「開く」を選んでください（ad-hoc 署名のため）。
@@ -88,6 +100,36 @@ jobs:
           # version に `-dev`/`-beta`/`-rc` を含むなら prerelease 扱い
           prerelease: ${{ contains(github.ref_name, '-dev') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-rc') }}
           args: ${{ matrix.args }}
+
+      # ---- ポータブル版（インストーラ不要） ----
+      # Win: tauri/cargo が出す単一 .exe（フロント資産は exe に埋め込み済み）。
+      #      WebView2 は同梱せず OS 既定ランタイムを使う。
+      # Mac: .app バンドル自体がポータブル。zip して配布する。
+      - name: Stage portable (Windows — standalone .exe)
+        if: matrix.platform == 'windows-latest'
+        shell: bash
+        run: |
+          mkdir -p portable
+          # target/release 直下の主実行ファイル（bundle/ 配下のインストーラは含めない）
+          EXE=$(find src-tauri/target/release -maxdepth 1 -name '*.exe' | head -n1)
+          echo "portable exe: $EXE"
+          cp "$EXE" "portable/WallMaker-${{ github.ref_name }}-portable-windows-x64.exe"
+
+      - name: Stage portable (macOS — zipped .app)
+        if: matrix.platform == 'macos-latest'
+        run: |
+          mkdir -p portable
+          APP=$(find src-tauri/target/universal-apple-darwin/release/bundle/macos -maxdepth 1 -name '*.app' | head -n1)
+          echo "portable app: $APP"
+          # ditto で .app をリソースフォーク保持のまま zip 化（macOS 標準）
+          ditto -c -k --sequesterRsrc --keepParent "$APP" "portable/WallMaker-${{ github.ref_name }}-portable-macos-universal.zip"
+
+      - name: Attach portable to release (tag push)
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${{ github.ref_name }}" portable/* --clobber
 
       - name: Upload bundles (manual dispatch only)
         if: github.event_name == 'workflow_dispatch'
@@ -99,5 +141,6 @@ jobs:
             src-tauri/target/release/bundle/**/*.msi
             src-tauri/target/release/bundle/**/*.exe
             src-tauri/target/universal-apple-darwin/release/bundle/**/*.dmg
+            portable/**
           retention-days: 14
           if-no-files-found: warn
