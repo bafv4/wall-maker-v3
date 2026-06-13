@@ -1,0 +1,103 @@
+# Wall Maker — Win / Mac リリースビルド
+#
+# 仕様: REWRITE_SPEC.md 第10章 Phase 9 / CLAUDE.md「配布対象は Win+Mac、自動更新なし、
+# 署名最小限（未署名警告は許容）」。
+#
+# トリガ:
+#   - `v*` タグ push      → ドラフトリリースを自動生成して両 OS 用バンドルを添付
+#   - workflow_dispatch  → 手動実行。リリースは作らず、各 OS のバンドルを Workflow Artifacts に保存
+#
+# 署名:
+#   - macOS  : ad-hoc 署名（tauri.conf.json > bundle.macOS.signingIdentity = "-"）。
+#              「unidentified developer」警告は出るが、右クリック→開くで起動可能。
+#   - Windows: 未署名。SmartScreen 警告は許容（READMEに記載）。
+
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    permissions:
+      contents: write  # tauri-action がリリースに添付するため必要
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: 'macos-latest'
+            # Intel/Apple Silicon どちらでも動くユニバーサルバイナリ
+            args: '--target universal-apple-darwin'
+          - platform: 'windows-latest'
+            args: ''
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          # macOS のユニバーサルバイナリは x86_64 + arm64 両方の rust target が必要
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Install frontend deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Build app & (optionally) attach to release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # タグ push のときだけリリースを作る。手動実行では tagName を空にして
+          # ビルドのみ行い、artifacts は後段の upload-artifact が拾う。
+          tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
+          releaseName: 'Wall Maker ${{ github.ref_name }}'
+          releaseBody: |
+            Pre-release. 詳細は CHANGELOG / commit history を参照。
+
+            ### 起動時の警告について
+            - **macOS**: 「開発元を検証できない」警告が出ます。Finder で右クリック →
+              「開く」 → 確認ダイアログで「開く」を選んでください（ad-hoc 署名のため）。
+            - **Windows**: SmartScreen の警告が出ます。「詳細情報」→「実行」で起動できます
+              （未署名のため）。
+          releaseDraft: true
+          # version に `-dev`/`-beta`/`-rc` を含むなら prerelease 扱い
+          prerelease: ${{ contains(github.ref_name, '-dev') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-rc') }}
+          args: ${{ matrix.args }}
+
+      - name: Upload bundles (manual dispatch only)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: bundles-${{ matrix.platform }}
+          path: |
+            src-tauri/target/release/bundle/**/*.dmg
+            src-tauri/target/release/bundle/**/*.msi
+            src-tauri/target/release/bundle/**/*.exe
+            src-tauri/target/universal-apple-darwin/release/bundle/**/*.dmg
+          retention-days: 14
+          if-no-files-found: warn

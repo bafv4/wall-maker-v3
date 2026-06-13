@@ -1,9 +1,10 @@
 [package]
 name = "wall-maker-v3"
-version = "0.1.0"
-description = "A Tauri App"
-authors = ["you"]
+version = "3.0.0"
+description = "SeedQueue Wall Maker — Minecraft Speedrunning 用 SeedQueue リソースパックエディタ"
+authors = ["bafv4"]
 edition = "2021"
+license = "GPL-3.0-or-later"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -20,6 +21,9 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-store = "2"
+tauri-plugin-os = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 

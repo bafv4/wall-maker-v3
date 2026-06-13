@@ -20,22 +20,19 @@
 export type VirtualPack = Map<string, Uint8Array | string>;
 
 /**
- * VirtualPack を環境に応じた形で書き出す。
- * - Web: JSZip → ダウンロード
- * - Desktop: Tauri `write_pack` command 経由でフォルダ/ZIP に書き込み
+ * パック読込ソース。プラットフォーム間の入力差を吸収する判別共用体。
+ *  - `webZip`        : Web の `<input type=file>` で得た File（.zip）
+ *  - `desktopZip`    : Desktop で選択された .zip パス
+ *  - `desktopFolder` : Desktop で選択されたフォルダパス
+ *
+ * 書き出しは `Uint8Array` (zip) または `VirtualPack` (folder) を直接受け取る関数
+ * （`adapters/index.ts` の `saveZipBytes` / `adapters/desktop.ts` の `saveAsFolder`
+ * `overwriteFolder`）で吸収する。Writer/Reader インターフェースは持たない。
  */
-export interface PackWriter {
-  write(pack: VirtualPack, packName: string): Promise<void>;
-}
-
-/**
- * ユーザが選んだパック（.zip / フォルダ）を VirtualPack として読み込む。
- * - Web: `<input type=file>` で .zip を受け、JSZip で展開
- * - Desktop: Tauri 経由でフォルダ/.zip を読む
- */
-export interface PackReader {
-  read(): Promise<VirtualPack>;
-}
+export type PackReadSource =
+  | { kind: 'webZip'; file: File }
+  | { kind: 'desktopZip'; path: string }
+  | { kind: 'desktopFolder'; path: string };
 
 // ---------------------------------------------------------------------------
 // SeedQueue リソースパックのフォーマット定数（第6章）

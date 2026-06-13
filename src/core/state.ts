@@ -104,10 +104,20 @@ export interface ImageLayer {
   source: BinaryRef;
   opacity: number;
   visible: boolean;
-  /** 画像の配置モード。stretch=解像度に伸縮 / cover=切り抜き / contain=余白。 */
-  fit: 'stretch' | 'cover' | 'contain';
+  /**
+   * 画像の配置モード。
+   *  - stretch: 解像度に伸縮
+   *  - cover:   余白なしで切り抜き
+   *  - contain: 全部見える余白あり
+   *  - manual:  `transform` 矩形で自由配置（ユーザがプレビューで move/resize）
+   */
+  fit: 'stretch' | 'cover' | 'contain' | 'manual';
+  /** fit='manual' のときの宛先矩形（絶対 px・整数）。未設定なら stretch 同等。 */
+  transform?: { x: number; y: number; width: number; height: number };
   /** 画像内のクロップ矩形（fit に応じて使用）。省略時は全体。 */
   crop?: { x: number; y: number; width: number; height: number };
+  /** UI 表示用の元ファイル名（任意）。 */
+  originalFileName?: string;
 }
 
 export interface GradientLayer {

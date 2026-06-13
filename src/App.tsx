@@ -1,192 +1,147 @@
 /**
- * Phase 2 検証 UI（最小）。
- * デフォルト WallState を保持し、buildPack → JSZip → ダウンロードまで通すだけ。
- * 本格的な UI 移植は Phase 4。Web アダプタの正式実装は Phase 6。
+ * App — シェル。
+ * 左: タブ式エディタ（Desktop は最左に「ファイル」タブを差し込む）
+ * 右: WallPreview
+ * 上: Header（Web のみ。Desktop ではヘッダーを表示せずファイルタブに集約）
+ *
+ * レスポンシブ:
+ *  - md (>=768px): 2 カラム（エディタ 1 / プレビュー 2）の固定高さレイアウト。
+ *    内部の長いコンテンツはタブ本文の `overflow-y-auto` でスクロール。
+ *  - 狭幅 (<768px): 縦並びの自然な高さレイアウトに切り替え、`main` 自体が縦スクロール。
+ *    `h-full` + `flex-1` の入れ子は親が auto-height だと 0 に潰れるため、
+ *    `md:` プレフィックスで固定高さ前提の構造を解除する。
  */
-import { useState } from 'react';
-import JSZip from 'jszip';
-import { buildPack } from './core/buildPack';
-import { createDefaultWallState, type WallState } from './core/state';
+
+import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { isTauri } from './adapters';
+import { AppHeader } from './components/AppHeader';
+import { BackgroundEditor } from './components/BackgroundEditor';
+import { FileEditor } from './components/FileEditor';
+import { LayoutEditor } from './components/LayoutEditor';
+import { LockImagesEditor } from './components/LockImagesEditor';
+import { PackInfoEditor } from './components/PackInfoEditor';
+import { SoundsEditor } from './components/SoundsEditor';
+import { WallPreview } from './components/WallPreview';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+  ToastRoot,
+  cn,
+} from './components/ui';
+import { FileOperationsProvider } from './hooks/useFileOperations';
+import { useWallStore } from './store/useWallStore';
+import './App.css';
 
 function App() {
-  const [state, setState] = useState<WallState>(() => createDefaultWallState());
-  const [busy, setBusy] = useState(false);
-  const [log, setLog] = useState<string[]>([]);
+  const { t } = useTranslation();
+  // Tauri webview 内かどうか。__TAURI_INTERNALS__ は webview 起動時に注入され
+  // 後から変わることはないので、レンダー時に都度参照しても問題ない。
+  const desktop = isTauri();
 
-  const append = (line: string) =>
-    setLog((prev) => [...prev, `[${new Date().toLocaleTimeString()}] ${line}`]);
+  const [tab, setTab] = useState(desktop ? 'file' : 'info');
+  const [hydrated, setHydrated] = useState(false);
 
-  async function handleExport() {
-    setBusy(true);
-    try {
-      const pack = await buildPack(state);
-      const zip = new JSZip();
-      for (const [path, value] of pack) {
-        zip.file(path, value);
-      }
-      const blob = await zip.generateAsync({ type: 'blob' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      const name = state.packInfo.name.trim() || 'seedqueue-pack';
-      a.href = url;
-      a.download = `${name}.zip`;
-      a.click();
-      URL.revokeObjectURL(url);
-      append(`exported "${name}.zip" — ${pack.size} files`);
-    } catch (e) {
-      append(`error: ${e instanceof Error ? e.message : String(e)}`);
-    } finally {
-      setBusy(false);
-    }
+  useEffect(() => {
+    const unsub = useWallStore.persist.onFinishHydration(() => setHydrated(true));
+    if (useWallStore.persist.hasHydrated()) setHydrated(true);
+    return unsub;
+  }, []);
+
+  if (!hydrated) {
+    return (
+      <div className="flex h-screen items-center justify-center text-sm text-fg-subtle">
+        {t('app.loading')}
+      </div>
+    );
   }
 
   return (
-    <main style={{ padding: 24, fontFamily: 'system-ui, sans-serif' }}>
-      <h1 style={{ fontSize: 20, marginBottom: 16 }}>
-        SeedQueue Wall Maker — Phase 2 dev harness
-      </h1>
+    <FileOperationsProvider>
+      <div className="flex h-screen flex-col bg-canvas text-fg">
+        {!desktop && <AppHeader />}
 
-      <fieldset style={{ marginBottom: 16, padding: 12 }}>
-        <legend>Pack info</legend>
-        <label style={{ display: 'block', marginBottom: 8 }}>
-          Name:&nbsp;
-          <input
-            value={state.packInfo.name}
-            onChange={(e) =>
-              setState({
-                ...state,
-                packInfo: { ...state.packInfo, name: e.target.value },
-              })
-            }
-          />
-        </label>
-        <label style={{ display: 'block' }}>
-          Description:&nbsp;
-          <input
-            value={state.packInfo.description}
-            onChange={(e) =>
-              setState({
-                ...state,
-                packInfo: { ...state.packInfo, description: e.target.value },
-              })
-            }
-            style={{ width: 360 }}
-          />
-        </label>
-      </fieldset>
+        <main className="flex-1 min-h-0 overflow-y-auto md:overflow-hidden">
+          <div
+            className={cn(
+              'mx-auto max-w-[1920px] md:h-full',
+              // Desktop は AppHeader が無いぶん上下にも余白が必要。全方向に均等な余白を取り、
+              // Web より少し広めにして「ウィンドウ枠とコンテンツ」のリズムを揃える。
+              desktop ? 'p-6' : 'px-5 py-5',
+            )}
+          >
+            <div className="grid grid-cols-1 gap-5 md:h-full md:grid-cols-3">
+              {/* Left: Editors */}
+              <div className="md:col-span-1 md:min-h-0">
+                <div className="flex flex-col rounded-lg border border-border bg-surface md:h-full">
+                  <Tabs
+                    value={tab}
+                    onValueChange={setTab}
+                    className="flex flex-col md:h-full"
+                  >
+                    {/* タブが入り切らない場合は横スクロール。内側に inline-flex の TabsList が並ぶ。 */}
+                    <div className="border-b border-border p-3 md:flex-shrink-0">
+                      <div className="overflow-x-auto">
+                        <TabsList>
+                          {desktop && (
+                            <TabsTrigger value="file">{t('tab.file')}</TabsTrigger>
+                          )}
+                          <TabsTrigger value="info">{t('tab.info')}</TabsTrigger>
+                          <TabsTrigger value="layout">{t('tab.layout')}</TabsTrigger>
+                          <TabsTrigger value="background">{t('tab.background')}</TabsTrigger>
+                          <TabsTrigger value="lock">{t('tab.lock')}</TabsTrigger>
+                          <TabsTrigger value="sound">{t('tab.sound')}</TabsTrigger>
+                        </TabsList>
+                      </div>
+                    </div>
+                    <div className="p-4 md:min-h-0 md:flex-1 md:overflow-y-auto">
+                      {desktop && (
+                        <TabsContent value="file">
+                          <FileEditor />
+                        </TabsContent>
+                      )}
+                      <TabsContent value="info">
+                        <PackInfoEditor />
+                      </TabsContent>
+                      <TabsContent value="layout">
+                        <LayoutEditor />
+                      </TabsContent>
+                      <TabsContent value="background" className="md:h-full">
+                        <BackgroundEditor />
+                      </TabsContent>
+                      <TabsContent value="lock">
+                        <LockImagesEditor />
+                      </TabsContent>
+                      <TabsContent value="sound">
+                        <SoundsEditor />
+                      </TabsContent>
+                    </div>
+                  </Tabs>
+                </div>
+              </div>
 
-      <fieldset style={{ marginBottom: 16, padding: 12 }}>
-        <legend>Resolution</legend>
-        <label>
-          W:&nbsp;
-          <input
-            type="number"
-            min={1}
-            value={state.resolution.width}
-            onChange={(e) =>
-              setState({
-                ...state,
-                resolution: {
-                  ...state.resolution,
-                  width: Math.max(1, Math.floor(Number(e.target.value) || 0)),
-                },
-              })
-            }
-            style={{ width: 80 }}
-          />
-        </label>
-        &nbsp;&nbsp;
-        <label>
-          H:&nbsp;
-          <input
-            type="number"
-            min={1}
-            value={state.resolution.height}
-            onChange={(e) =>
-              setState({
-                ...state,
-                resolution: {
-                  ...state.resolution,
-                  height: Math.max(1, Math.floor(Number(e.target.value) || 0)),
-                },
-              })
-            }
-            style={{ width: 80 }}
-          />
-        </label>
-      </fieldset>
-
-      <fieldset style={{ marginBottom: 16, padding: 12 }}>
-        <legend>Main grid</legend>
-        <label>
-          rows:&nbsp;
-          <input
-            type="number"
-            min={1}
-            value={state.layout.main.rows}
-            onChange={(e) =>
-              setState({
-                ...state,
-                layout: {
-                  ...state.layout,
-                  main: {
-                    ...state.layout.main,
-                    rows: Math.max(1, Math.floor(Number(e.target.value) || 1)),
-                  },
-                },
-              })
-            }
-            style={{ width: 60 }}
-          />
-        </label>
-        &nbsp;&nbsp;
-        <label>
-          columns:&nbsp;
-          <input
-            type="number"
-            min={1}
-            value={state.layout.main.columns}
-            onChange={(e) =>
-              setState({
-                ...state,
-                layout: {
-                  ...state.layout,
-                  main: {
-                    ...state.layout.main,
-                    columns: Math.max(
-                      1,
-                      Math.floor(Number(e.target.value) || 1),
-                    ),
-                  },
-                },
-              })
-            }
-            style={{ width: 60 }}
-          />
-        </label>
-      </fieldset>
-
-      <button
-        onClick={handleExport}
-        disabled={busy}
-        style={{ padding: '8px 16px', fontSize: 14 }}
-      >
-        {busy ? 'Building…' : 'Export Pack (.zip)'}
-      </button>
-
-      <pre
-        style={{
-          marginTop: 16,
-          padding: 12,
-          background: '#f5f5f5',
-          minHeight: 80,
-          fontSize: 12,
-          whiteSpace: 'pre-wrap',
-        }}
-      >
-        {log.length === 0 ? '(no actions yet)' : log.join('\n')}
-      </pre>
-    </main>
+              {/* Right: Preview */}
+              <div className="md:col-span-2 md:min-h-0">
+                <div className="flex flex-col rounded-lg border border-border bg-surface p-4 md:h-full">
+                  <h2 className="mb-3 text-sm font-semibold text-fg">
+                    {t('preview.title')}
+                  </h2>
+                  <div className="md:flex-1 md:min-h-0">
+                    <WallPreview />
+                  </div>
+                  <p className="mt-3 text-xs text-fg-subtle">
+                    {t('preview.hint')}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </main>
+        <ToastRoot />
+      </div>
+    </FileOperationsProvider>
   );
 }
 

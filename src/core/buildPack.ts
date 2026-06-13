@@ -12,15 +12,12 @@
  */
 
 import { floorArea, floorCell, floorInt } from './coords';
+import { renderBackgroundToCanvas } from './renderBackground';
 import {
   SOUND_EVENT_KEYS,
   type AreaCell,
   type BinaryRef,
-  type ColorLayer,
-  type GradientLayer,
-  type ImageLayer,
   type MainArea,
-  type Resolution,
   type SoundEntry,
   type VisibleArea,
   type WallState,
@@ -214,109 +211,9 @@ async function renderBackgroundPng(
   if (visibleLayers.length === 0) {
     return null;
   }
-
   const canvas = createCanvas(state.resolution.width, state.resolution.height);
-  const ctx = canvas.getContext('2d');
-  if (!ctx) {
-    throw new Error('buildPack: failed to acquire 2D context');
-  }
-
-  for (const layer of visibleLayers) {
-    ctx.save();
-    ctx.globalAlpha = clamp01(layer.opacity);
-    switch (layer.type) {
-      case 'color':
-        drawColorLayer(ctx, layer, state.resolution);
-        break;
-      case 'image':
-        await drawImageLayer(ctx, layer, state.resolution);
-        break;
-      case 'gradient':
-        drawGradientLayer(ctx, layer, state.resolution);
-        break;
-    }
-    ctx.restore();
-  }
-
+  await renderBackgroundToCanvas(canvas, state.background, state.resolution);
   return canvasToPngBytes(canvas);
-}
-
-function drawColorLayer(
-  ctx: CanvasRenderingContext2D,
-  layer: ColorLayer,
-  res: Resolution,
-): void {
-  ctx.fillStyle = layer.color;
-  ctx.fillRect(0, 0, res.width, res.height);
-}
-
-async function drawImageLayer(
-  ctx: CanvasRenderingContext2D,
-  layer: ImageLayer,
-  res: Resolution,
-): Promise<void> {
-  const bytes = resolveInline(layer.source);
-  const blob = new Blob([new Uint8Array(bytes)], {
-    type: layer.source.mimeType ?? 'image/png',
-  });
-  const bitmap = await createImageBitmap(blob);
-
-  try {
-    const sx = layer.crop?.x ?? 0;
-    const sy = layer.crop?.y ?? 0;
-    const sw = layer.crop?.width ?? bitmap.width;
-    const sh = layer.crop?.height ?? bitmap.height;
-
-    let dx = 0;
-    let dy = 0;
-    let dw = res.width;
-    let dh = res.height;
-
-    if (layer.fit === 'cover') {
-      const scale = Math.max(res.width / sw, res.height / sh);
-      dw = sw * scale;
-      dh = sh * scale;
-      dx = (res.width - dw) / 2;
-      dy = (res.height - dh) / 2;
-    } else if (layer.fit === 'contain') {
-      const scale = Math.min(res.width / sw, res.height / sh);
-      dw = sw * scale;
-      dh = sh * scale;
-      dx = (res.width - dw) / 2;
-      dy = (res.height - dh) / 2;
-    }
-    // fit === 'stretch' は dw/dh = 解像度のまま
-
-    ctx.drawImage(bitmap, sx, sy, sw, sh, dx, dy, dw, dh);
-  } finally {
-    bitmap.close();
-  }
-}
-
-function drawGradientLayer(
-  ctx: CanvasRenderingContext2D,
-  layer: GradientLayer,
-  res: Resolution,
-): void {
-  // angle=0 は上→下、90 は左→右。
-  // 中心から両端へ伸びる対角線長を勾配長として使う（端で stop=0/1 が当たるよう）。
-  const angleRad = (layer.angle * Math.PI) / 180;
-  const cx = res.width / 2;
-  const cy = res.height / 2;
-  const dx = Math.sin(angleRad);
-  const dy = -Math.cos(angleRad);
-  const half = Math.hypot(res.width, res.height) / 2;
-  const x0 = cx - dx * half;
-  const y0 = cy - dy * half;
-  const x1 = cx + dx * half;
-  const y1 = cy + dy * half;
-
-  const gradient = ctx.createLinearGradient(x0, y0, x1, y1);
-  for (const stop of layer.stops) {
-    gradient.addColorStop(clamp01(stop.offset), stop.color);
-  }
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, res.width, res.height);
 }
 
 // ===========================================================================
@@ -349,12 +246,21 @@ async function addLockImages(
   });
 }
 
+// lock 無効化時の透明プレースホルダはサイズ固定（PLACEHOLDER_LOCK_SIZE）かつ常に同じバイト列。
+// 初回だけ生成して再利用する（毎回 Canvas + convertToBlob を回さない）。
+let _transparentPngPromise: Promise<Uint8Array> | null = null;
 async function transparentPngBytes(
   width: number,
   height: number,
 ): Promise<Uint8Array> {
+  if (width === PLACEHOLDER_LOCK_SIZE && height === PLACEHOLDER_LOCK_SIZE) {
+    if (!_transparentPngPromise) {
+      const canvas = createCanvas(width, height);
+      _transparentPngPromise = canvasToPngBytes(canvas);
+    }
+    return _transparentPngPromise;
+  }
   const canvas = createCanvas(width, height);
-  // 何も描かない → 全透明
   return canvasToPngBytes(canvas);
 }
 
@@ -407,30 +313,18 @@ function resolveInline(ref: BinaryRef): Uint8Array {
   );
 }
 
-function createCanvas(width: number, height: number): HTMLCanvasElement {
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-  return canvas;
+/**
+ * `OffscreenCanvas` を使うことで main thread / Web Worker のどちらでも同じコードで動かせる。
+ * OffscreenCanvas は Chrome/Edge/Safari/Firefox いずれもサポート済み。
+ * Tauri webview（WebView2 / WKWebView）も対応している。
+ */
+function createCanvas(width: number, height: number): OffscreenCanvas {
+  return new OffscreenCanvas(width, height);
 }
 
-function canvasToPngBytes(canvas: HTMLCanvasElement): Promise<Uint8Array> {
-  return new Promise((resolve, reject) => {
-    canvas.toBlob((blob) => {
-      if (!blob) {
-        reject(new Error('canvas.toBlob returned null'));
-        return;
-      }
-      blob
-        .arrayBuffer()
-        .then((buf) => resolve(new Uint8Array(buf)))
-        .catch(reject);
-    }, 'image/png');
-  });
+async function canvasToPngBytes(canvas: OffscreenCanvas): Promise<Uint8Array> {
+  const blob = await canvas.convertToBlob({ type: 'image/png' });
+  const buf = await blob.arrayBuffer();
+  return new Uint8Array(buf);
 }
 
-function clamp01(n: number): number {
-  if (n < 0) return 0;
-  if (n > 1) return 1;
-  return n;
-}

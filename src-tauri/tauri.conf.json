@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "wall-maker-v3",
-  "version": "0.1.0",
+  "productName": "Wall Maker",
+  "version": "3.0.0",
   "identifier": "com.yuanq.wall-maker-v3",
   "build": {
     "beforeDevCommand": "pnpm dev",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "wall-maker-v3",
+        "title": "SeedQueue Wall Maker",
         "width": 800,
         "height": 600
       }
@@ -30,6 +30,9 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "macOS": {
+      "signingIdentity": "-"
+    }
   }
 }

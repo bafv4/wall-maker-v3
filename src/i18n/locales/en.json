@@ -1,0 +1,285 @@
+{
+  "app": {
+    "title": "SeedQueue Wall Maker",
+    "loading": "Restoring saved settings…"
+  },
+  "tab": {
+    "file": "File",
+    "info": "Pack Info",
+    "layout": "Layout",
+    "background": "Background",
+    "lock": "Lock",
+    "sound": "Sound"
+  },
+  "preview": {
+    "title": "Preview",
+    "hint": "Click an area to select. Drag to move; use corner / edge handles to resize. All values are stored as integers."
+  },
+  "common": {
+    "add": "Add",
+    "remove": "Remove",
+    "delete": "Delete",
+    "cancel": "Cancel",
+    "apply": "Apply",
+    "ok": "OK",
+    "close": "Close",
+    "open": "Open",
+    "clear": "Clear",
+    "change": "Change…",
+    "edit": "Edit",
+    "save": "Save",
+    "processing": "Working…",
+    "loading": "Loading…",
+    "yes": "Yes",
+    "no": "No"
+  },
+  "header": {
+    "import": "Import (.zip)",
+    "importing": "Loading…",
+    "reset": "Reset",
+    "export": "Export (.zip)",
+    "exporting": "Working…",
+    "aboutTooltip": "About / Licenses"
+  },
+  "fileEditor": {
+    "import": {
+      "title": "Import",
+      "description": "Load a .zip pack or an already-extracted pack folder. A resolution selector will open during import.",
+      "openZip": "Open .zip",
+      "openFolder": "Open folder",
+      "loading": "Loading…"
+    },
+    "save": {
+      "title": "Save (folder)",
+      "description": "Write the resource pack as a folder. \"Save As\" picks a destination each time; \"Overwrite\" replaces the folder you opened or last saved to.",
+      "currentTargetLabel": "Editing resource pack",
+      "currentTargetEmpty": "Not set (will be assigned when you open a folder or use \"Save As\")",
+      "saveAs": "Save As…",
+      "overwrite": "Overwrite",
+      "processing": "Working…"
+    },
+    "export": {
+      "title": "Export (.zip)",
+      "description": "Save a single .zip file. Useful for sharing / distribution.",
+      "button": "Export as .zip…",
+      "processing": "Working…"
+    },
+    "reset": {
+      "title": "Reset",
+      "description": "Revert all edits to defaults. Saved layout and settings are also cleared.",
+      "button": "Reset",
+      "confirm": "Revert edits to defaults. Continue?"
+    },
+    "about": {
+      "title": "About / Licenses",
+      "description": "Version, third-party licenses (FFmpeg / ffmpeg.wasm), and related links.",
+      "button": "Open About"
+    }
+  },
+  "importDialog": {
+    "title": "Import — Select resolution",
+    "fileLine": "Loading <0>{{filename}}</0>.",
+    "warning": "Current edits will be overwritten. Select a resolution to continue.",
+    "suggestedDetected": "The pack's background.png is {{width}} × {{height}} (shown as the suggested default). Change it if the pack was made for a different resolution.",
+    "suggestedMissing": "No background.png was found, so the resolution could not be estimated. Please specify one.",
+    "confirm": "Import",
+    "importing": "Importing…"
+  },
+  "resolution": {
+    "title": "Resolution",
+    "preset": "Preset",
+    "width": "Width (px)",
+    "height": "Height (px)",
+    "current": "Current: {{width}} × {{height}} px",
+    "presetOptions": {
+      "fhd": "FHD (1920×1080)",
+      "wqhd": "WQHD (2560×1440)",
+      "uhd": "4K (3840×2160)",
+      "custom": "Custom…"
+    }
+  },
+  "packInfo": {
+    "nameLabel": "Pack name",
+    "descriptionLabel": "Description",
+    "iconLabel": "Pack icon (pack.png)",
+    "iconDropHint": "Click or\ndrag & drop",
+    "iconReplaceHint": "Click to replace",
+    "iconAria": "Choose pack icon",
+    "iconImageRequired": "Please pick an image file",
+    "iconDefaultName": "pack.png",
+    "iconClear": "Clear"
+  },
+  "layoutEditor": {
+    "presetTitle": "Layout preset",
+    "presetPlaceholder": "Select a preset…",
+    "applyPreset": "Apply",
+    "presetHint": "Scaled to the current resolution and replaces the whole layout (main / locked / preparing).",
+    "replaceLockedInstances": "Replace locked instances",
+    "preparingTitle": "preparing ({{count}})",
+    "preparingEmpty": "No preparing groups yet.",
+    "preparingNumbered": "preparing #{{n}}",
+    "addPreparing": "+ Add"
+  },
+  "areaEditor": {
+    "show": "Show",
+    "remove": "Remove",
+    "positionSize": "Position / Size",
+    "x": "X",
+    "y": "Y",
+    "width": "Width",
+    "height": "Height",
+    "centerH": "Center horizontally",
+    "centerV": "Center vertically",
+    "grid": "Grid",
+    "useGrid": "Use grid",
+    "rows": "rows",
+    "columns": "columns",
+    "padding": "padding (px)",
+    "tooManyCells": "Too many grid cells (rows × columns > 30)"
+  },
+  "background": {
+    "addColor": "+ Color",
+    "addImage": "+ Image",
+    "addGradient": "+ Gradient",
+    "drawOrderHint": "In the list, ↑ = back (drawn first), ↓ = front (drawn last)",
+    "layerListTitle": "Layers ({{count}})",
+    "layerListEmpty": "No background layers.",
+    "editLayer": "Edit {{type}} layer",
+    "selectLayer": "Select a layer",
+    "selectPrompt": "Select a layer from the list above to edit it here.",
+    "moveBack": "Move back",
+    "moveFront": "Move front",
+    "delete": "Delete",
+    "type": {
+      "color": "Color",
+      "image": "Image",
+      "gradient": "Gradient"
+    },
+    "opacity": "Opacity",
+    "image": {
+      "none": "No image",
+      "replace": "Replace image",
+      "crop": "Crop…",
+      "fitMode": "Fit mode",
+      "fit": {
+        "cover": "cover (crop)",
+        "contain": "contain (letterbox)",
+        "stretch": "stretch",
+        "manual": "manual (free placement)"
+      },
+      "manualTitle": "Free placement (transform)",
+      "manualHint": "Editable in preview too"
+    },
+    "gradient": {
+      "angle": "Angle",
+      "stopsTitle": "Stops ({{count}})",
+      "addStop": "+ Add",
+      "selectStopAria": "Select stop {{n}}",
+      "stopColorPrompt": "Color of selected stop (#{{n}})",
+      "fileImage": "Image ({{size}} KB)",
+      "imageRef": "Image (ref)"
+    },
+    "selectStopAlias": "Selected stop"
+  },
+  "cropModal": {
+    "title": "Crop image",
+    "imageNotLoaded": "Could not load image.",
+    "imageSize": "Image size: {{width}}×{{height}} px",
+    "reset": "Reset (full image)"
+  },
+  "lock": {
+    "title": "Use lock images",
+    "description": "Turn off to disable the lock overlay.",
+    "addImage": "+ Add image",
+    "specNote": "SeedQueue will not load any lock-N.png if lock.png is missing. The first image in this list is always written as lock.png. Images are stored at their original size (aspect ratio preserved).",
+    "specMemo": "Format notes (click to expand)",
+    "required": "Required",
+    "noName": "No name",
+    "moveUp": "Up",
+    "moveDown": "Down",
+    "delete": "Delete",
+    "status": {
+      "disabled": "Disabled: a transparent 128×128 will be written as lock.png on export (blocks the SeedQueue default).",
+      "emptyEnabled": "Enabled with no images: falls back to the mod default lock.png (nothing is written).",
+      "active": "Enabled with {{count}} image(s): the first is written as lock.png; the rest as lock-1.png onward."
+    },
+    "toast": {
+      "notImage": "{{filename}}: not an image file",
+      "addedCount": "Added {{count}} image(s)",
+      "addFailed": "Failed to add image(s): {{error}}"
+    }
+  },
+  "sound": {
+    "modeOptions": {
+      "default": "Default",
+      "off": "Silent",
+      "custom": "Custom OGG"
+    },
+    "outputMode": "Output mode",
+    "perEventLabel": "Per-event configuration",
+    "allOffLabel": "Silence all events",
+    "allOffNote": "\"Silence all events\" is on: per-event settings are not exported (the settings are preserved).",
+    "resetUnifiedTitle": "Group reset events",
+    "resetUnifiedDescription": "Consolidate reset_instance / reset_all / reset_column / reset_row into one row.",
+    "unifiedRowLabel": "Reset events (grouped)",
+    "builtinBadge": "Built-in sound",
+    "converting": "Converting to OGG…",
+    "customDefault": "custom.ogg",
+    "replace": "Replace",
+    "specMemo": "Format notes (click to expand)",
+    "specDefault": "default: nothing is written to sounds.json (falls back to mod defaults). Events with built-in sounds (lock_instance / reset_instance) still play.",
+    "specOff": "off: writes {\"replace\": true, \"sounds\": []} to silence the event.",
+    "specCustom": "custom: places assets/seedqueue/sounds/<event>.ogg and overrides.",
+    "specFormat": "Audio formats: OGG is passed through. MP3/WAV/FLAC/AAC/M4A/OPUS/WEBM are converted to Ogg Vorbis (q:6) via self-hosted ffmpeg.wasm. Core assets (a few MB) are downloaded on first conversion.",
+    "unsupported": "{{filename}}: unsupported audio format (supported: ogg / mp3 / wav / flac / aac / m4a / opus / webm)",
+    "convertSuccess": "Converted {{filename}} to OGG",
+    "convertFailed": "Failed to convert {{filename}}: {{error}}",
+    "events": {
+      "play_instance": "Play instance",
+      "lock_instance": "Lock instance",
+      "reset_instance": "Reset instance",
+      "reset_all": "Reset all",
+      "reset_column": "Reset column",
+      "reset_row": "Reset row",
+      "schedule_join": "Schedule join",
+      "schedule_all": "Schedule all",
+      "scheduled_join_warning": "Scheduled-join warning",
+      "start_benchmark": "Start benchmark",
+      "finish_benchmark": "Finish benchmark",
+      "open_wall": "Open wall",
+      "bypass_wall": "Bypass wall"
+    }
+  },
+  "about": {
+    "title": "About SeedQueue Wall Maker",
+    "appHeading": "SeedQueue Wall Maker",
+    "appDescription": "A GUI for creating and editing resource packs for the <0>SeedQueue</0> Minecraft Speedrunning mod. Same codebase ships a Web build (browser) and a Desktop build (Tauri).",
+    "appLicenseLine": "Copyright (C) 2026 bafv4 and contributors. Licensed under <0>the GNU GPL v3 or later</0>. This program is distributed WITHOUT ANY WARRANTY. See the bundled LICENSE for details.",
+    "ffmpegHeading": "Audio conversion: FFmpeg",
+    "ffmpegIntro": "MP3/WAV/AAC/M4A/FLAC/OPUS/WEBM files are converted to Ogg Vorbis using ffmpeg.wasm (FFmpeg compiled to WebAssembly). The core assets are bundled with the app (self-hosted) — no external CDN.",
+    "ffmpegCore": "FFmpeg / @ffmpeg/core — Copyright (c) the FFmpeg developers. The bundled ffmpeg-core.wasm is licensed under <strong>GPL v2 or later</strong> (ffmpeg.wasm's default core build).",
+    "ffmpegWasm": "ffmpeg.wasm JS wrappers (@ffmpeg/ffmpeg / @ffmpeg/util) — <strong>MIT License</strong>.",
+    "ffmpegNote": "To satisfy GPL requirements, ffmpeg-core is shipped as a separate, replaceable asset. You can drop your own ffmpeg-core.js / ffmpeg-core.wasm into public/ffmpeg/. See the README for details.",
+    "linksHeading": "Links",
+    "linkSeedQueue": "SeedQueue (Minecraft mod): {{repo}}",
+    "linkRepo": "Source / Issues: {{repo}}",
+    "languageHeading": "Language",
+    "languageDescription": "Choose the display language. The selection is stored in your browser.",
+    "languageJa": "日本語",
+    "languageEn": "English"
+  },
+  "toast": {
+    "exportSuccess": "Exported to {{dest}}",
+    "exportFailed": "Export failed: {{error}}",
+    "saveSuccess": "Saved to {{dest}}",
+    "saveFailed": "Save failed: {{error}}",
+    "overwriteSuccess": "Overwrote {{dest}}",
+    "overwriteFailed": "Overwrite failed: {{error}}",
+    "overwriteNoTarget": "No save target yet — use \"Save As\" first",
+    "importSuccess": "Imported {{filename}}",
+    "importFailed": "Import failed: {{error}}",
+    "readZipFailed": "Failed to read .zip: {{error}}",
+    "readFailed": "Read failed: {{error}}",
+    "writeCanceled": "Export canceled"
+  }
+}

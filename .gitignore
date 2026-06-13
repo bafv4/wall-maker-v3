@@ -12,6 +12,10 @@ dist
 dist-ssr
 *.local
 
+# @ffmpeg/core の UMD 配布物のコピー先（vite.config.ts の copyFFmpegCore プラグインが生成）。
+# 依存からの派生物なので追跡しない。dev/build 起動時に自動で再配置される。
+public/ffmpeg/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

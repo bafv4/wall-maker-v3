@@ -1,0 +1,83 @@
+# Wall Maker — CI チェック（型 / Lint / ビルド / Rust コンパイル）
+#
+# 目的: PR・main への push で壊れた変更を早期に検出する。リリースは release.yml が担当。
+#
+# トリガ:
+#   - pull_request          → すべての PR
+#   - push (main)           → main 直 push の保険
+#
+# 構成（単一ジョブ・直列）:
+#   フロント検査（型 / Lint / Vite ビルド）で `dist/` を生成 → その dist を使って
+#   Rust 側（Tauri）の `cargo check` を実行する。`generate_context!` が
+#   frontendDist(=../dist) を読むため、cargo check の前に build しておく必要がある。
+#   Linux で cargo check するには Tauri のシステム依存（webkit2gtk 等）が必要。
+
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# 同一ブランチで新しい push が来たら古い実行を打ち切る（無駄なランナー消費を避ける）。
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install frontend deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Type check
+        run: pnpm type-check
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Build (web) — also produces dist/ for cargo check
+        run: pnpm build
+
+      # ---- Rust / Tauri ----
+      - name: Install Tauri system deps (Linux)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            librsvg2-dev \
+            libappindicator3-dev \
+            patchelf
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Cargo check
+        working-directory: src-tauri
+        run: cargo check --locked

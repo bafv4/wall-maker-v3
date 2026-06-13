@@ -1,0 +1,285 @@
+{
+  "app": {
+    "title": "SeedQueue Wall Maker",
+    "loading": "保存された設定を復元中…"
+  },
+  "tab": {
+    "file": "ファイル",
+    "info": "パック情報",
+    "layout": "レイアウト",
+    "background": "背景",
+    "lock": "Lock",
+    "sound": "サウンド"
+  },
+  "preview": {
+    "title": "プレビュー",
+    "hint": "エリアをクリックで選択。ドラッグで移動、角・辺のハンドルでリサイズできます。操作値はすべて整数で記録されます。"
+  },
+  "common": {
+    "add": "追加",
+    "remove": "削除",
+    "delete": "削除",
+    "cancel": "キャンセル",
+    "apply": "適用",
+    "ok": "OK",
+    "close": "閉じる",
+    "open": "開く",
+    "clear": "クリア",
+    "change": "変更…",
+    "edit": "編集",
+    "save": "保存",
+    "processing": "処理中…",
+    "loading": "読込中…",
+    "yes": "はい",
+    "no": "いいえ"
+  },
+  "header": {
+    "import": "インポート（.zip）",
+    "importing": "読込中…",
+    "reset": "リセット",
+    "export": "エクスポート（.zip）",
+    "exporting": "処理中…",
+    "aboutTooltip": "About / ライセンス情報"
+  },
+  "fileEditor": {
+    "import": {
+      "title": "インポート",
+      "description": ".zip ファイル または 展開済みのパックフォルダから読み込みます。読込時に解像度を選択するダイアログが開きます。",
+      "openZip": ".zip を開く",
+      "openFolder": "フォルダを開く",
+      "loading": "読込中…"
+    },
+    "save": {
+      "title": "保存（フォルダ形式）",
+      "description": "リソースパックをフォルダ形式で書き出します。「名前を付けて保存」は毎回保存先を選択し、「上書き保存」はフォルダから開いた／一度保存した場所をそのまま上書きします。",
+      "currentTargetLabel": "編集中のリソースパック",
+      "currentTargetEmpty": "未設定（フォルダから開く、または「名前を付けて保存」で設定されます）",
+      "saveAs": "名前を付けて保存…",
+      "overwrite": "上書き保存",
+      "processing": "処理中…"
+    },
+    "export": {
+      "title": "エクスポート（.zip）",
+      "description": "1 ファイルの .zip として保存します。共有・配布用。",
+      "button": ".zip エクスポート…",
+      "processing": "処理中…"
+    },
+    "reset": {
+      "title": "リセット",
+      "description": "編集中の内容をデフォルトに戻します。保存されたレイアウト・設定も初期化されます。",
+      "button": "リセット",
+      "confirm": "編集内容をデフォルトに戻します。よろしいですか？"
+    },
+    "about": {
+      "title": "About / ライセンス",
+      "description": "バージョン、サードパーティライセンス（FFmpeg / ffmpeg.wasm）、関連リンクを表示します。",
+      "button": "About を開く"
+    }
+  },
+  "importDialog": {
+    "title": "インポート — 解像度を選択",
+    "fileLine": "<0>{{filename}}</0> を読み込みます。",
+    "warning": "現在の編集内容は上書きされます。続行するには解像度を選択してください。",
+    "suggestedDetected": "パック内の background.png のサイズは {{width}} × {{height}}（推定値として初期表示）。違う解像度を想定したパックの場合は変更してください。",
+    "suggestedMissing": "background.png が見つからなかったため、解像度を推定できませんでした。適切な解像度を指定してください。",
+    "confirm": "インポート",
+    "importing": "インポート中…"
+  },
+  "resolution": {
+    "title": "解像度",
+    "preset": "プリセット",
+    "width": "幅 (px)",
+    "height": "高さ (px)",
+    "current": "現在: {{width}} × {{height}} px",
+    "presetOptions": {
+      "fhd": "FHD (1920×1080)",
+      "wqhd": "WQHD (2560×1440)",
+      "uhd": "4K (3840×2160)",
+      "custom": "カスタム…"
+    }
+  },
+  "packInfo": {
+    "nameLabel": "パック名",
+    "descriptionLabel": "説明",
+    "iconLabel": "パックアイコン (pack.png)",
+    "iconDropHint": "クリックまたは\nドラッグ&ドロップ",
+    "iconReplaceHint": "クリックで差替",
+    "iconAria": "パックアイコンを選択",
+    "iconImageRequired": "画像ファイルを選択してください",
+    "iconDefaultName": "pack.png",
+    "iconClear": "クリア"
+  },
+  "layoutEditor": {
+    "presetTitle": "レイアウトプリセット",
+    "presetPlaceholder": "プリセットを選択…",
+    "applyPreset": "適用",
+    "presetHint": "現在の解像度に合わせてスケールし、レイアウト全体（main / locked / preparing）を置き換えます。",
+    "replaceLockedInstances": "ロック済みインスタンスを置き換える",
+    "preparingTitle": "preparing ({{count}})",
+    "preparingEmpty": "preparing グループは現在ありません。",
+    "preparingNumbered": "preparing #{{n}}",
+    "addPreparing": "+ 追加"
+  },
+  "areaEditor": {
+    "show": "表示",
+    "remove": "削除",
+    "positionSize": "位置 / サイズ",
+    "x": "X",
+    "y": "Y",
+    "width": "幅",
+    "height": "高さ",
+    "centerH": "水平中央",
+    "centerV": "垂直中央",
+    "grid": "グリッド",
+    "useGrid": "グリッドを使う",
+    "rows": "rows",
+    "columns": "columns",
+    "padding": "padding (px)",
+    "tooManyCells": "グリッド分割が多すぎます（rows × columns > 30）"
+  },
+  "background": {
+    "addColor": "+ 色",
+    "addImage": "+ 画像",
+    "addGradient": "+ グラデーション",
+    "drawOrderHint": "一覧で ↑=奥（先に描画） / ↓=手前（最後に描画）",
+    "layerListTitle": "レイヤ一覧 ({{count}})",
+    "layerListEmpty": "背景レイヤがありません。",
+    "editLayer": "{{type}} レイヤを編集",
+    "selectLayer": "レイヤを選択",
+    "selectPrompt": "上の一覧からレイヤを選択すると、ここに編集画面が表示されます。",
+    "moveBack": "奥へ",
+    "moveFront": "手前へ",
+    "delete": "削除",
+    "type": {
+      "color": "色",
+      "image": "画像",
+      "gradient": "グラデ"
+    },
+    "opacity": "不透明度",
+    "image": {
+      "none": "画像なし",
+      "replace": "画像を差替",
+      "crop": "クロップ…",
+      "fitMode": "表示モード",
+      "fit": {
+        "cover": "cover（切り抜き）",
+        "contain": "contain（余白あり）",
+        "stretch": "stretch（伸縮）",
+        "manual": "manual（自由配置）"
+      },
+      "manualTitle": "自由配置 (transform)",
+      "manualHint": "プレビューでも操作可"
+    },
+    "gradient": {
+      "angle": "角度",
+      "stopsTitle": "ストップ ({{count}})",
+      "addStop": "+ 追加",
+      "selectStopAria": "ストップ {{n}} を選択",
+      "stopColorPrompt": "選択中のストップの色（#{{n}}）",
+      "fileImage": "画像 ({{size}} KB)",
+      "imageRef": "画像 (ref)"
+    },
+    "selectStopAlias": "選択中のストップ"
+  },
+  "cropModal": {
+    "title": "画像をクロップ",
+    "imageNotLoaded": "画像が読み込めません。",
+    "imageSize": "画像サイズ: {{width}}×{{height}} px",
+    "reset": "リセット（全領域）"
+  },
+  "lock": {
+    "title": "Lock画像を使う",
+    "description": "OFF にするとロック画像表示を無効化します。",
+    "addImage": "+ 画像を追加",
+    "specNote": "SeedQueue は lock.png が存在しない場合、lock-1.png 以降を一切読み込みません。そのため複数画像でも 1 枚目は必ず lock.png として出力されます。画像はリサイズせずそのまま格納されます（アスペクト比保持）。",
+    "specMemo": "仕様メモ（クリックで展開）",
+    "required": "必須",
+    "noName": "名前なし",
+    "moveUp": "上へ",
+    "moveDown": "下へ",
+    "delete": "削除",
+    "status": {
+      "disabled": "無効化中: 出力時に透明 128×128 を lock.png として書き出します（SeedQueue 既定をブロック）。",
+      "emptyEnabled": "有効化中・画像 0 件: 出力されず、MOD 既定の lock.png にフォールバックします。",
+      "active": "有効化中・{{count}} 件: 1 枚目が lock.png、以降 lock-1.png から番号が振られます。"
+    },
+    "toast": {
+      "notImage": "{{filename}}: 画像ファイルではありません",
+      "addedCount": "{{count}} 件の画像を追加しました",
+      "addFailed": "画像追加に失敗: {{error}}"
+    }
+  },
+  "sound": {
+    "modeOptions": {
+      "default": "デフォルト",
+      "off": "無音にする",
+      "custom": "カスタム音源"
+    },
+    "outputMode": "出力モード",
+    "perEventLabel": "個別に設定",
+    "allOffLabel": "全イベント無音",
+    "allOffNote": "「全イベント無音」を選択中: 個別設定はエクスポートに反映されません（設定は保持されます）。",
+    "resetUnifiedTitle": "リセット系を一括設定",
+    "resetUnifiedDescription": "reset_instance / reset_all / reset_column / reset_row を 1 行に集約します。",
+    "unifiedRowLabel": "リセット系（一括）",
+    "builtinBadge": "既定音あり",
+    "converting": "OGG に変換中…",
+    "customDefault": "custom.ogg",
+    "replace": "差替",
+    "specMemo": "仕様メモ（クリックで展開）",
+    "specDefault": "default: sounds.json に何も書きません（MOD 既定にフォールバック）。既定音がある lock_instance / reset_instance はそのまま鳴ります。",
+    "specOff": "off: {\"replace\": true, \"sounds\": []} を出力して無音にします。",
+    "specCustom": "custom: assets/seedqueue/sounds/<event>.ogg を配置して上書きします。",
+    "specFormat": "音声形式: OGG はそのまま、MP3/WAV/FLAC/AAC/M4A/OPUS/WEBM は ffmpeg.wasm（self-host）で Ogg Vorbis (q:6) に変換します。初回変換時のみ ffmpeg core 資材のダウンロードが入ります（数 MB）。",
+    "unsupported": "{{filename}}: 未対応の音声形式です（対応: ogg / mp3 / wav / flac / aac / m4a / opus / webm）",
+    "convertSuccess": "{{filename}} を OGG に変換しました",
+    "convertFailed": "{{filename}} の変換に失敗しました: {{error}}",
+    "events": {
+      "play_instance": "インスタンスをプレイ",
+      "lock_instance": "インスタンスをロック",
+      "reset_instance": "インスタンスをリセット",
+      "reset_all": "すべてリセット",
+      "reset_column": "列をリセット",
+      "reset_row": "行をリセット",
+      "schedule_join": "参加を予約",
+      "schedule_all": "すべて参加を予約",
+      "scheduled_join_warning": "参加予約の警告",
+      "start_benchmark": "ベンチマーク開始",
+      "finish_benchmark": "ベンチマーク終了",
+      "open_wall": "Wall を開く",
+      "bypass_wall": "Wall をスキップ"
+    }
+  },
+  "about": {
+    "title": "SeedQueue Wall Maker について",
+    "appHeading": "SeedQueue Wall Maker",
+    "appDescription": "Minecraft Speedrunning 用 <0>SeedQueue</0> mod のリソースパックを GUI で作成・編集するツール。同一コードベースで Web 版（ブラウザ）と Desktop 版（Tauri）を提供します。",
+    "appLicenseLine": "Copyright (C) 2026 bafv4 and contributors. <0>GNU GPL v3 以降</0> でライセンスされています。本プログラムは無保証で配布されます。詳細は同梱の LICENSE を参照。",
+    "ffmpegHeading": "音声変換: FFmpeg",
+    "ffmpegIntro": "本アプリは MP3/WAV/AAC/M4A/FLAC/OPUS/WEBM ファイルを Ogg Vorbis に変換するために ffmpeg.wasm（FFmpeg を WebAssembly にポートしたもの）を使用しています。コア資材は外部 CDN を使わず、アプリ内に同梱（self-host）されています。",
+    "ffmpegCore": "FFmpeg / @ffmpeg/core — Copyright (c) the FFmpeg developers. 本アプリに同梱している ffmpeg-core.wasm は <strong>GPL v2 以降</strong> でライセンスされた版です（ffmpeg.wasm 既定の core ビルド）。",
+    "ffmpegWasm": "ffmpeg.wasm JS ラッパー（@ffmpeg/ffmpeg / @ffmpeg/util）— <strong>MIT License</strong>。",
+    "ffmpegNote": "GPL の要請に応えるため、ffmpeg-core は差し替え可能な独立ファイルとして同梱されています。ユーザは自身でビルドした ffmpeg-core.js / ffmpeg-core.wasm を public/ffmpeg/ に置いて利用できます。詳細は README を参照。",
+    "linksHeading": "関連リンク",
+    "linkSeedQueue": "SeedQueue (Minecraft mod): {{repo}}",
+    "linkRepo": "ソース / Issues: {{repo}}",
+    "languageHeading": "言語",
+    "languageDescription": "表示言語を選択します。設定はブラウザに保存されます。",
+    "languageJa": "日本語",
+    "languageEn": "English"
+  },
+  "toast": {
+    "exportSuccess": "{{dest}} に書き出しました",
+    "exportFailed": "エクスポートに失敗しました: {{error}}",
+    "saveSuccess": "{{dest}} に保存しました",
+    "saveFailed": "保存に失敗しました: {{error}}",
+    "overwriteSuccess": "{{dest}} を上書き保存しました",
+    "overwriteFailed": "上書き保存に失敗しました: {{error}}",
+    "overwriteNoTarget": "上書き保存先がありません（先に「保存」してください）",
+    "importSuccess": "{{filename}} をインポートしました",
+    "importFailed": "インポートに失敗しました: {{error}}",
+    "readZipFailed": "zip の読み込みに失敗しました: {{error}}",
+    "readFailed": "読み込みに失敗しました: {{error}}",
+    "writeCanceled": "書き出しをキャンセルしました"
+  }
+}
