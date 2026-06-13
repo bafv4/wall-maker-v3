@@ -171,3 +171,16 @@ export function getLayoutPresets(res: Resolution): LayoutPreset[] {
     layout: scalePreset(preset, res),
   }));
 }
+
+/** アプリ初期状態に使う既定プリセットの id。 */
+export const DEFAULT_PRESET_ID = 'default';
+
+/**
+ * 「Default」プリセットを指定解像度に展開したレイアウト。
+ * 初期 state（`createDefaultWallState`）とプリセットメニューで同じ定義を共有する。
+ */
+export function getDefaultPresetLayout(res: Resolution): PresetLayout {
+  const preset = PRESET_RATIOS.find((p) => p.id === DEFAULT_PRESET_ID);
+  // PRESET_RATIOS は静的定義で必ず 'default' を含む（保険として最初の要素にフォールバック）。
+  return scalePreset(preset ?? PRESET_RATIOS[0], res);
+}

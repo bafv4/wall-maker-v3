@@ -3,6 +3,10 @@
  * 仕様: REWRITE_SPEC.md 第6章（SeedQueue ソース由来＝絶対的な正） / 第7.1章。
  */
 
+// 初期レイアウトは layoutPresets の「Default」を共有する（値 import）。
+// layoutPresets 側は state から型のみ import（type-only・実行時依存なし）なので循環しない。
+import { getDefaultPresetLayout } from './layoutPresets';
+
 // ---------------------------------------------------------------------------
 // バイナリ参照（永続化境界を型で明示）
 // インメモリでは bytes を持ち、永続化レイヤを跨ぐと storageKey 参照に置換される。
@@ -297,33 +301,11 @@ export function createDefaultSoundSettings(): SoundSettings {
 }
 
 export function createDefaultWallState(): WallState {
+  const resolution: Resolution = { width: 1920, height: 1080 };
   return {
-    resolution: { width: 1920, height: 1080 },
-    layout: {
-      main: {
-        x: 0,
-        y: 0,
-        width: 1280,
-        height: 1080,
-        rows: 2,
-        columns: 3,
-        useGrid: true,
-        padding: 0,
-        mainFillOrder: 'FORWARD',
-      },
-      locked: {
-        x: 1280,
-        y: 0,
-        width: 640,
-        height: 540,
-        rows: 2,
-        columns: 2,
-        useGrid: true,
-        padding: 0,
-        show: false,
-      },
-      preparing: [],
-    },
+    resolution,
+    // 初期レイアウトは「Default」プリセット（定義は layoutPresets.ts に集約）。
+    layout: getDefaultPresetLayout(resolution),
     background: {
       layers: [
         {
