@@ -1,0 +1,82 @@
+# Wall Maker — Web 版を GitHub Pages へデプロイ
+#
+# main への push（または手動実行）で Web ビルドを GitHub Pages に公開する。
+# Desktop（Tauri）版は release.yml が担当。
+#
+# 重要: GitHub Pages のプロジェクトサイトは `https://<user>.github.io/<repo>/` 配下に
+# 配信されるため、Vite の base を `/<repo>/` にする必要がある（`BASE_PATH` で注入）。
+# これを忘れると CSS/JS/ffmpeg core が 404 になる。
+#
+# 事前設定（このワークフローだけでは完結しない・後述）:
+#   リポジトリ Settings → Pages → Build and deployment → Source を
+#   「GitHub Actions」に変更しておくこと（初回のみ・手動）。
+
+name: deploy-pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# GitHub Pages デプロイに必要な権限（OIDC で deploy-pages が認証する）。
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# JavaScript ベースの Actions を Node 24 ランタイムで実行させる（Node 20 廃止対応）。
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+# 進行中のデプロイは保護し、キューは 1 つに集約（古い実行は走り切らせる）。
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Install deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Build (web, with Pages base path)
+        # プロジェクトサイトのサブパス（/<repo>/）を base に注入する。
+        # 末尾スラッシュ必須（import.meta.env.BASE_URL がそれを前提にしている）。
+        env:
+          BASE_PATH: /${{ github.event.repository.name }}/
+        run: pnpm build
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -53,6 +53,11 @@ function copyFFmpegCore(): PluginOption {
 
 // https://vite.dev/config/
 export default defineConfig(async () => ({
+  // 配信ベースパス。GH Pages のプロジェクトサイトは `/<repo>/` 配下になるため、
+  // Pages デプロイ時のみ `BASE_PATH`（例 `/wall-maker-v3/`）を環境変数で渡す。
+  // Tauri / ローカル / CI（未設定）はルート `/`。`import.meta.env.BASE_URL` に反映される。
+  base: process.env.BASE_PATH || '/',
+
   plugins: [
     react(),
     tailwindcss(),

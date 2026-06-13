@@ -1,7 +1,7 @@
 {
   "name": "wall-maker-v3",
   "private": false,
-  "version": "v3.0.0",
+  "version": "v3.0.1",
   "type": "module",
   "license": "GPL-3.0-or-later",
   "scripts": {

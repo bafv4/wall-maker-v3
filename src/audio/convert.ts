@@ -24,9 +24,14 @@
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { toBlobURL } from '@ffmpeg/util';
 
-/** Vite プラグイン `copyFFmpegCore` がコピーする静的配信パス。 */
-const CORE_JS_URL = '/ffmpeg/ffmpeg-core.js';
-const CORE_WASM_URL = '/ffmpeg/ffmpeg-core.wasm';
+/**
+ * Vite プラグイン `copyFFmpegCore` がコピーする静的配信パス。
+ * `import.meta.env.BASE_URL`（= Vite の base、末尾 `/`）を前置して、GH Pages の
+ * サブパス配信（例 `/wall-maker-v3/`）でも 404 にならないようにする。
+ * Tauri / ルート配信では BASE_URL=`/` なので従来どおり。
+ */
+const CORE_JS_URL = `${import.meta.env.BASE_URL}ffmpeg/ffmpeg-core.js`;
+const CORE_WASM_URL = `${import.meta.env.BASE_URL}ffmpeg/ffmpeg-core.wasm`;
 
 const OGG_EXT = 'ogg';
 
