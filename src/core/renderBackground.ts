@@ -61,7 +61,8 @@ function getCachedBitmap(source: BinaryRef): Promise<ImageBitmap> {
   }
   const cached = bitmapCache.get(source.bytes);
   if (cached) return cached;
-  const blob = new Blob([source.bytes], {
+  // Uint8Array<ArrayBufferLike> → BlobPart 非互換（TS 5.7+）。実 ArrayBuffer 由来なので絞り込む。
+  const blob = new Blob([source.bytes as Uint8Array<ArrayBuffer>], {
     type: source.mimeType ?? 'image/png',
   });
   const promise = createImageBitmap(blob);

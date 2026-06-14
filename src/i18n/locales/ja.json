@@ -44,7 +44,7 @@
   "fileEditor": {
     "import": {
       "title": "インポート",
-      "description": ".zip ファイル または 展開済みのパックフォルダから読み込みます。読込時に解像度を選択するダイアログが開きます。",
+      "description": ".zip ファイル または 展開済みのリソースパックフォルダから読み込みます。読込時に解像度を選択するダイアログが開きます。",
       "openZip": ".zip を開く",
       "openFolder": "フォルダを開く",
       "loading": "読込中…"
@@ -80,7 +80,7 @@
     "title": "インポート — 解像度を選択",
     "fileLine": "<0>{{filename}}</0> を読み込みます。",
     "warning": "現在の編集内容は上書きされます。続行するには解像度を選択してください。",
-    "suggestedDetected": "パック内の background.png のサイズは {{width}} × {{height}}（推定値として初期表示）。違う解像度を想定したパックの場合は変更してください。",
+    "suggestedDetected": "リソースパック内の background.png のサイズは {{width}} × {{height}}（推定値として初期表示）。違う解像度を想定したリソースパックの場合は変更してください。",
     "suggestedMissing": "background.png が見つからなかったため、解像度を推定できませんでした。適切な解像度を指定してください。",
     "confirm": "インポート",
     "importing": "インポート中…"
@@ -99,12 +99,12 @@
     }
   },
   "packInfo": {
-    "nameLabel": "パック名",
+    "nameLabel": "リソースパック名",
     "descriptionLabel": "説明",
-    "iconLabel": "パックアイコン (pack.png)",
+    "iconLabel": "リソースパックアイコン (pack.png)",
     "iconDropHint": "クリックまたは\nドラッグ&ドロップ",
     "iconReplaceHint": "クリックで差替",
-    "iconAria": "パックアイコンを選択",
+    "iconAria": "リソースパックアイコンを選択",
     "iconImageRequired": "画像ファイルを選択してください",
     "iconDefaultName": "pack.png",
     "iconClear": "クリア"
@@ -144,6 +144,7 @@
     "drawOrderHint": "一覧で ↑=奥（先に描画） / ↓=手前（最後に描画）",
     "layerListTitle": "レイヤ一覧 ({{count}})",
     "layerListEmpty": "背景レイヤがありません。",
+    "visibilityHint": "左のトグルでの非表示は、プレビューだけでなく書き出すリソースパックからも除外されます（background.png に含まれません）。",
     "editLayer": "{{type}} レイヤを編集",
     "selectLayer": "レイヤを選択",
     "selectPrompt": "上の一覧からレイヤを選択すると、ここに編集画面が表示されます。",

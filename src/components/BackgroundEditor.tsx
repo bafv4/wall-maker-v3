@@ -123,7 +123,8 @@ function ImageEditor({
   const previewUrl = useMemo(() => {
     if (layer.source.kind !== 'inline') return null;
     return URL.createObjectURL(
-      new Blob([layer.source.bytes], {
+      // Uint8Array<ArrayBufferLike> → BlobPart 非互換（TS 5.7+）。実 ArrayBuffer 由来なので絞り込む。
+      new Blob([layer.source.bytes as Uint8Array<ArrayBuffer>], {
         type: layer.source.mimeType ?? 'image/png',
       }),
     );
@@ -530,12 +531,20 @@ function LayerListItem({
         'group flex cursor-pointer items-center gap-2 rounded-md border bg-surface p-2 transition-colors',
         'focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500',
         selected
-          ? 'border-blue-400 ring-2 ring-blue-100'
+          ? // ring-blue-100 はダーク面（neutral-900）で白く浮くため、
+            // ダークのみ半透明ブルーのハローに切り替える。
+            'border-blue-400 ring-2 ring-blue-100 dark:border-blue-500 dark:ring-blue-500/30'
           : 'border-border hover:border-border-strong hover:bg-muted',
       )}
       title={headline}
     >
-      <span onClick={stop} onPointerDown={stop}>
+      {/* ラッパーを flex 化。inline のままだと中の Switch がベースラインに乗り、
+          下にディセンダ分の余白ができて上寄りに見えるため。 */}
+      <span
+        className="flex flex-shrink-0 items-center"
+        onClick={stop}
+        onPointerDown={stop}
+      >
         <Switch checked={layer.visible} onChange={onVisibleChange} />
       </span>
       <span
@@ -729,6 +738,11 @@ export function BackgroundEditor() {
           <h3 className="flex-shrink-0 text-xs font-semibold uppercase tracking-wide text-fg-subtle">
             {t('background.layerListTitle', { count: layers.length })}
           </h3>
+          {layers.length > 0 && (
+            <p className="flex-shrink-0 text-[11px] text-fg-subtle">
+              {t('background.visibilityHint')}
+            </p>
+          )}
           {layers.length === 0 ? (
             <p className="flex-shrink-0 rounded border border-dashed border-border-strong p-3 text-xs text-fg-subtle">
               {t('background.layerListEmpty')}

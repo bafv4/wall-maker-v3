@@ -31,7 +31,8 @@ function LockImageRow({ image, index, total, onMoveUp, onMoveDown, onDelete }: R
   const previewUrl = useMemo(() => {
     if (image.source.kind !== 'inline') return null;
     return URL.createObjectURL(
-      new Blob([image.source.bytes], {
+      // Uint8Array<ArrayBufferLike> → BlobPart 非互換（TS 5.7+）。実 ArrayBuffer 由来なので絞り込む。
+      new Blob([image.source.bytes as Uint8Array<ArrayBuffer>], {
         type: image.source.mimeType ?? 'image/png',
       }),
     );

@@ -519,7 +519,10 @@ export async function detectBackgroundResolution(
   const bytes = readBytes(pack, `${PACK_PATHS.texturesGuiWall}/background.png`);
   if (!bytes) return null;
   try {
-    const blob = new Blob([bytes], { type: 'image/png' });
+    // Uint8Array<ArrayBufferLike> → BlobPart 非互換（TS 5.7+）。実 ArrayBuffer 由来なので絞り込む。
+    const blob = new Blob([bytes as Uint8Array<ArrayBuffer>], {
+      type: 'image/png',
+    });
     const bitmap = await createImageBitmap(blob);
     const result: Resolution = {
       width: bitmap.width,

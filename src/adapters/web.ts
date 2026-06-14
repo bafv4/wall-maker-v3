@@ -56,7 +56,11 @@ export function saveZipBytesAsDownload(
   packName: string,
 ): string {
   const filename = `${normalizePackName(packName)}.zip`;
-  const blob = new Blob([zipBytes], { type: 'application/zip' });
+  // TS 5.7+ の Uint8Array<ArrayBufferLike> は BlobPart(ArrayBufferView<ArrayBuffer>) に
+  // 直接渡せない。本アプリのバイナリは常に実 ArrayBuffer 由来なので安全に絞り込む。
+  const blob = new Blob([zipBytes as Uint8Array<ArrayBuffer>], {
+    type: 'application/zip',
+  });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;

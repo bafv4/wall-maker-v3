@@ -238,7 +238,10 @@ export function PackInfoEditor() {
     const icon = packInfo.icon;
     if (!icon || icon.kind !== 'inline') return null;
     return URL.createObjectURL(
-      new Blob([icon.bytes], { type: icon.mimeType ?? 'image/png' }),
+      // Uint8Array<ArrayBufferLike> → BlobPart 非互換（TS 5.7+）。実 ArrayBuffer 由来なので絞り込む。
+      new Blob([icon.bytes as Uint8Array<ArrayBuffer>], {
+        type: icon.mimeType ?? 'image/png',
+      }),
     );
   }, [packInfo.icon]);
 

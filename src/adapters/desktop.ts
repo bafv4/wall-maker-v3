@@ -104,7 +104,7 @@ export async function saveAsFolder(
   const parent = await open({
     directory: true,
     multiple: false,
-    title: '保存先（親フォルダ）を選択 — 配下に pack 名のフォルダを作成します',
+    title: '保存先（親フォルダ）を選択 — 配下にリソースパック名のフォルダを作成します',
   });
   if (typeof parent !== 'string') return null;
 

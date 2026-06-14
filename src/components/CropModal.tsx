@@ -94,7 +94,8 @@ export function CropModal({ layer, onClose, onApply }: CropModalProps) {
   const imageUrl = useMemo(() => {
     if (layer.source.kind !== 'inline') return null;
     return URL.createObjectURL(
-      new Blob([layer.source.bytes], {
+      // Uint8Array<ArrayBufferLike> → BlobPart 非互換（TS 5.7+）。実 ArrayBuffer 由来なので絞り込む。
+      new Blob([layer.source.bytes as Uint8Array<ArrayBuffer>], {
         type: layer.source.mimeType ?? 'image/png',
       }),
     );
