@@ -1,6 +1,6 @@
 [package]
 name = "wall-maker-v3"
-version = "3.0.1"
+version = "3.0.2"
 description = "SeedQueue Wall Maker — Minecraft Speedrunning 用 SeedQueue リソースパックエディタ"
 authors = ["bafv4"]
 edition = "2021"
