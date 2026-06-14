@@ -241,13 +241,19 @@
       "reset_all": "Reset all",
       "reset_column": "Reset column",
       "reset_row": "Reset row",
-      "schedule_join": "Schedule join",
+      "schedule_join": "Schedule",
       "schedule_all": "Schedule all",
-      "scheduled_join_warning": "Scheduled-join warning",
+      "scheduled_join_warning": "Schedule (warning)",
       "start_benchmark": "Start benchmark",
       "finish_benchmark": "Finish benchmark",
       "open_wall": "Open wall",
-      "bypass_wall": "Bypass wall"
+      "bypass_wall": "Bypass"
+    },
+    "eventInfo": {
+      "schedule_join": "Reserve a not-yet-ready instance to enter automatically as soon as it becomes ready.",
+      "schedule_all": "Reserve to enter the first instance that becomes ready.",
+      "scheduled_join_warning": "A warning related to a scheduled join (e.g. the target instance isn't ready yet).",
+      "bypass_wall": "Enter a prepared instance directly, skipping the wall screen."
     }
   },
   "about": {

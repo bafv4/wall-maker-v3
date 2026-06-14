@@ -241,13 +241,19 @@
       "reset_all": "すべてリセット",
       "reset_column": "列をリセット",
       "reset_row": "行をリセット",
-      "schedule_join": "参加を予約",
-      "schedule_all": "すべて参加を予約",
-      "scheduled_join_warning": "参加予約の警告",
+      "schedule_join": "スケジュール",
+      "schedule_all": "すべてスケジュール",
+      "scheduled_join_warning": "スケジュール（警告）",
       "start_benchmark": "ベンチマーク開始",
       "finish_benchmark": "ベンチマーク終了",
       "open_wall": "Wall を開く",
-      "bypass_wall": "Wall をスキップ"
+      "bypass_wall": "バイパス"
+    },
+    "eventInfo": {
+      "schedule_join": "準備中のインスタンスに「準備でき次第、自動で入室する」を予約する操作です。",
+      "schedule_all": "「最初に準備できたインスタンスに入る」をまとめて予約する操作です。",
+      "scheduled_join_warning": "予約はしたが対象がまだ準備できていない等、スケジュールに関する注意喚起です。",
+      "bypass_wall": "Wall 画面を表示せず、準備済みのインスタンスへ直接入室する動作です。"
     }
   },
   "about": {

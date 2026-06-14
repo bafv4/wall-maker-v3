@@ -26,7 +26,7 @@ import {
   type SoundEventKey,
 } from '../core/state';
 import { useWallStore } from '../store/useWallStore';
-import { Select, Switch, toast } from './ui';
+import { InfoTooltip, Select, Switch, toast } from './ui';
 import { cn } from './ui/cn';
 
 const MODE_VALUES = ['default', 'off', 'custom'] as const;
@@ -71,6 +71,8 @@ interface EventRowProps {
   onChange: (next: SoundEntry) => void;
   disabled?: boolean;
   highlight?: boolean;
+  /** 補足説明（あれば ⓘ ツールチップを表示）。 */
+  info?: string;
 }
 
 function EventRow({
@@ -80,6 +82,7 @@ function EventRow({
   onChange,
   disabled,
   highlight,
+  info,
 }: EventRowProps) {
   const { t } = useTranslation();
   const modeOptions = MODE_VALUES.map((value) => ({
@@ -148,10 +151,11 @@ function EventRow({
         rowDisabled && 'opacity-60',
       )}
     >
-      <div className="min-w-[140px] flex-1">
+      <div className="flex min-w-[140px] flex-1 items-center gap-1.5">
         <span className="font-medium text-fg">{label}</span>
+        {info && <InfoTooltip text={info} />}
         {hasBuiltin && (
-          <span className="ml-1 rounded bg-muted px-1 py-0.5 text-[10px] text-fg-subtle">
+          <span className="rounded bg-muted px-1 py-0.5 text-[10px] text-fg-subtle">
             {t('sound.builtinBadge')}
           </span>
         )}
@@ -320,6 +324,9 @@ export function SoundsEditor() {
             <EventRow
               key={key}
               label={t(`sound.events.${key}`)}
+              // eventInfo を持つイベント（スケジュール系 / バイパス）だけ ⓘ を表示。
+              // 未定義キーは空文字を返し、EventRow 側でアイコン非表示になる。
+              info={t(`sound.eventInfo.${key}`, { defaultValue: '' })}
               hasBuiltin={HAS_BUILTIN[key]}
               entry={sounds.events[key]}
               onChange={(entry) => setSoundEvent(key, entry)}
