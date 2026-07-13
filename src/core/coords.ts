@@ -99,7 +99,8 @@ export function previewToReal(
 // ---------------------------------------------------------------------------
 // 解像度変更時の一括スケール
 // 旧実装はエリアのみスケールし背景レイヤがズレていた（第8章 #9）。
-// 新実装はエリア＋背景レイヤ（image レイヤの crop）の両方をスケールし floor する。
+// 新実装はエリア＋背景レイヤ（image レイヤの transform）の両方をスケールし floor する。
+// crop は元画像の自然 px 空間のソース矩形なので解像度変更では触らない。
 // ---------------------------------------------------------------------------
 
 export function scaleArea<T extends Area>(
@@ -122,6 +123,10 @@ export function scaleArea<T extends Area>(
       height: p.height * scaleY,
     }));
   }
+  if (area.padding !== undefined) {
+    // X/Y 非等倍時は保守的に小さい方の倍率を採用（間隔が広がり過ぎてはみ出すのを防ぐ）
+    scaled.padding = Math.max(0, area.padding * Math.min(scaleX, scaleY));
+  }
   return floorArea(scaled);
 }
 
@@ -130,14 +135,14 @@ export function scaleBackgroundLayer(
   scaleX: number,
   scaleY: number,
 ): BackgroundLayer {
-  if (layer.type === 'image' && layer.crop) {
+  if (layer.type === 'image' && layer.transform) {
     return {
       ...layer,
-      crop: {
-        x: Math.floor(layer.crop.x * scaleX),
-        y: Math.floor(layer.crop.y * scaleY),
-        width: Math.floor(layer.crop.width * scaleX),
-        height: Math.floor(layer.crop.height * scaleY),
+      transform: {
+        x: Math.floor(layer.transform.x * scaleX),
+        y: Math.floor(layer.transform.y * scaleY),
+        width: Math.floor(layer.transform.width * scaleX),
+        height: Math.floor(layer.transform.height * scaleY),
       },
     };
   }

@@ -42,10 +42,27 @@ function awaitReq<T>(req: IDBRequest<T>): Promise<T> {
   });
 }
 
+/**
+ * 書き込みはトランザクションの complete まで待つ。
+ * QuotaExceededError は request 成功後の commit 段階で abort として現れることがあり、
+ * request 単位の成功で resolve すると「保存できたのに実体が無い」状態を成功扱いしてしまう。
+ */
+function awaitWriteTx(transaction: IDBTransaction): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    transaction.oncomplete = () => resolve();
+    transaction.onabort = () =>
+      reject(transaction.error ?? new Error('idb transaction aborted'));
+    transaction.onerror = () =>
+      reject(transaction.error ?? new Error('idb transaction failed'));
+  });
+}
+
 export class WebBinaryStorage implements BinaryStorage {
   async put(key: string, bytes: Uint8Array): Promise<void> {
     const db = await openDb();
-    await awaitReq(tx(db, 'readwrite').put(bytes, key));
+    const transaction = db.transaction(STORE_NAME, 'readwrite');
+    transaction.objectStore(STORE_NAME).put(bytes, key);
+    await awaitWriteTx(transaction);
   }
 
   async get(key: string): Promise<Uint8Array | null> {
@@ -62,7 +79,9 @@ export class WebBinaryStorage implements BinaryStorage {
 
   async delete(key: string): Promise<void> {
     const db = await openDb();
-    await awaitReq(tx(db, 'readwrite').delete(key));
+    const transaction = db.transaction(STORE_NAME, 'readwrite');
+    transaction.objectStore(STORE_NAME).delete(key);
+    await awaitWriteTx(transaction);
   }
 
   async keys(): Promise<string[]> {

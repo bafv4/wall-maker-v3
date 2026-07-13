@@ -75,6 +75,7 @@ export function FileEditor() {
   } = useFileOperations();
 
   const importing = importPhase === 'loading-zip';
+  // ボタンの活性は busy で一律に制御。otherBusy はラベルの「処理中」表示のみに使う。
   const otherBusy = busy && importPhase === 'idle';
 
   return (
@@ -112,7 +113,7 @@ export function FileEditor() {
         <div className="flex flex-wrap gap-2">
           <Button
             size="sm"
-            disabled={otherBusy}
+            disabled={busy}
             onClick={() => void doSaveAsFolder()}
           >
             {otherBusy ? t('fileEditor.save.processing') : t('fileEditor.save.saveAs')}
@@ -120,7 +121,7 @@ export function FileEditor() {
           <Button
             size="sm"
             variant="outline"
-            disabled={otherBusy || !canOverwrite}
+            disabled={busy || !canOverwrite}
             onClick={() => void doSaveOverwrite()}
           >
             {t('fileEditor.save.overwrite')}
@@ -135,7 +136,7 @@ export function FileEditor() {
         <Button
           size="sm"
           variant="outline"
-          disabled={otherBusy}
+          disabled={busy}
           onClick={() => void doExportZip()}
         >
           {otherBusy ? t('fileEditor.export.processing') : t('fileEditor.export.button')}
@@ -146,7 +147,12 @@ export function FileEditor() {
         title={t('fileEditor.reset.title')}
         description={t('fileEditor.reset.description')}
       >
-        <Button size="sm" variant="danger-outline" onClick={doReset}>
+        <Button
+          size="sm"
+          variant="danger-outline"
+          disabled={busy}
+          onClick={doReset}
+        >
           {t('fileEditor.reset.button')}
         </Button>
       </ActionRow>

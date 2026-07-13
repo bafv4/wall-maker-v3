@@ -287,6 +287,8 @@
     "importFailed": "Import failed: {{error}}",
     "readZipFailed": "Failed to read .zip: {{error}}",
     "readFailed": "Read failed: {{error}}",
-    "writeCanceled": "Export canceled"
+    "writeCanceled": "Export canceled",
+    "persistFailed": "Failed to auto-save your edits (export still works)",
+    "restoreFailed": "Could not restore your previous session — started fresh"
   }
 }

@@ -181,29 +181,39 @@ export function FileOperationsProvider({ children }: { children: ReactNode }) {
 
   const openZipImport = async () => {
     if (!desktop) return;
-    const { open } = await import('@tauri-apps/plugin-dialog');
-    const result = await open({
-      multiple: false,
-      title: t('fileEditor.import.openZip'),
-      filters: [{ name: 'Resource pack (.zip)', extensions: ['zip'] }],
-    });
-    if (typeof result !== 'string') return;
-    await startImport({ kind: 'desktopZip', path: result }, basename(result));
+    try {
+      const { open } = await import('@tauri-apps/plugin-dialog');
+      const result = await open({
+        multiple: false,
+        title: t('fileEditor.import.openZip'),
+        filters: [{ name: 'Resource pack (.zip)', extensions: ['zip'] }],
+      });
+      if (typeof result !== 'string') return;
+      await startImport({ kind: 'desktopZip', path: result }, basename(result));
+    } catch (e) {
+      console.error('open zip import failed', e);
+      toast.error(t('toast.readFailed', { error: errMsg(e) }));
+    }
   };
 
   const openFolderImport = async () => {
     if (!desktop) return;
-    const { open } = await import('@tauri-apps/plugin-dialog');
-    const result = await open({
-      directory: true,
-      multiple: false,
-      title: t('fileEditor.import.openFolder'),
-    });
-    if (typeof result !== 'string') return;
-    await startImport(
-      { kind: 'desktopFolder', path: result },
-      basename(result),
-    );
+    try {
+      const { open } = await import('@tauri-apps/plugin-dialog');
+      const result = await open({
+        directory: true,
+        multiple: false,
+        title: t('fileEditor.import.openFolder'),
+      });
+      if (typeof result !== 'string') return;
+      await startImport(
+        { kind: 'desktopFolder', path: result },
+        basename(result),
+      );
+    } catch (e) {
+      console.error('open folder import failed', e);
+      toast.error(t('toast.readFailed', { error: errMsg(e) }));
+    }
   };
 
   // ---- 書き出し系 ----

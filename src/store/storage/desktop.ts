@@ -1,33 +1,47 @@
 /**
- * Desktop 向け BinaryStorage 実装（Phase 7 で本実装）。
- * appDataDir/binaries/ 配下に <key> ファイルとして書く想定。
- * 現段階はスタブ。Phase 7 で Tauri fs/path API を動的 import して実装する。
+ * Desktop 向け BinaryStorage 実装。
+ * appDataDir/binaries/<key> に実ファイルとして置く（CLAUDE.md 第7.2章）。
+ *
+ * fs プラグインのフロント API スコープは開けない方針（lib.rs 冒頭参照）のため、
+ * Rust 側の専用コマンド binary_put / binary_get / binary_delete / binary_keys を使う。
+ * 本モジュールは `storage/index.ts` から**動的 import 経由でのみ**到達するので、
+ * `@tauri-apps/api` の静的 import が Web バンドルに混入することはない。
  */
 
+import { invoke } from '@tauri-apps/api/core';
 import type { BinaryStorage } from './types';
 
+/**
+ * Rust から戻る `Vec<u8>` は serde 既定で JSON 数値配列になる。
+ * `adapters/desktop.ts` の `toUint8Array` と同じ受け方（ファイル間依存を避けて再掲）。
+ */
+function toUint8Array(value: unknown): Uint8Array {
+  if (!Array.isArray(value)) {
+    throw new Error('binary_get: Rust から想定外の型が返りました（数値配列を期待）');
+  }
+  return Uint8Array.from(value as number[]);
+}
+
 export class DesktopBinaryStorage implements BinaryStorage {
-  put(_key: string, _bytes: Uint8Array): Promise<void> {
-    return Promise.reject(
-      new Error('DesktopBinaryStorage: not implemented (Phase 7)'),
-    );
+  async put(key: string, bytes: Uint8Array): Promise<void> {
+    await invoke('binary_put', { key, bytes });
   }
 
-  get(_key: string): Promise<Uint8Array | null> {
-    return Promise.reject(
-      new Error('DesktopBinaryStorage: not implemented (Phase 7)'),
-    );
+  async get(key: string): Promise<Uint8Array | null> {
+    const value = await invoke<unknown>('binary_get', { key });
+    if (value === null || value === undefined) return null;
+    return toUint8Array(value);
   }
 
-  delete(_key: string): Promise<void> {
-    return Promise.reject(
-      new Error('DesktopBinaryStorage: not implemented (Phase 7)'),
-    );
+  async delete(key: string): Promise<void> {
+    await invoke('binary_delete', { key });
   }
 
-  keys(): Promise<string[]> {
-    return Promise.reject(
-      new Error('DesktopBinaryStorage: not implemented (Phase 7)'),
-    );
+  async keys(): Promise<string[]> {
+    const value = await invoke<unknown>('binary_keys');
+    if (!Array.isArray(value)) {
+      throw new Error('binary_keys: Rust から想定外の型が返りました（文字列配列を期待）');
+    }
+    return (value as unknown[]).map((k) => String(k));
   }
 }

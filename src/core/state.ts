@@ -129,7 +129,7 @@ export interface GradientLayer {
   type: 'gradient';
   /** stops は offset 0..1。最低 2 個。 */
   stops: GradientStop[];
-  /** 角度（度数法）。0=上→下、90=左→右 等。実装側で正規化する。 */
+  /** 角度（度数法）。0=下→上（CSS linear-gradient と同じ）、90=左→右。実装側で正規化する。 */
   angle: number;
   opacity: number;
   visible: boolean;

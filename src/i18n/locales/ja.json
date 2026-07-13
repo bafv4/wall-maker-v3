@@ -287,6 +287,8 @@
     "importFailed": "インポートに失敗しました: {{error}}",
     "readZipFailed": "zip の読み込みに失敗しました: {{error}}",
     "readFailed": "読み込みに失敗しました: {{error}}",
-    "writeCanceled": "書き出しをキャンセルしました"
+    "writeCanceled": "書き出しをキャンセルしました",
+    "persistFailed": "編集内容の自動保存に失敗しました（エクスポートは可能です）",
+    "restoreFailed": "前回の編集内容を復元できなかったため、初期状態で起動しました"
   }
 }

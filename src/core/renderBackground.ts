@@ -170,21 +170,31 @@ export function drawGradientLayer(
  *   1) 必要な ImageBitmap を**並列で先行 decode**（cache hit なら即座に resolve）。
  *   2) clearRect で全消し → 同じ tick の中で全レイヤを同期描画 → drawImage。
  *      これにより「消去後 / 描画前」の一瞬の透過状態が発生しない。
+ *
+ * `isCancelled` が decode 完了時点で true を返す場合は何も描かずに終了する
+ * （後発の描画結果を先発の古い描画で上書きしないための順序保証）。
  */
 export async function renderBackgroundToCanvas(
   canvas: AnyCanvas,
   background: BackgroundField,
   resolution: Resolution,
+  isCancelled?: () => boolean,
 ): Promise<void> {
   const ctx = get2DContext(canvas);
   if (!ctx) throw new Error('renderBackgroundToCanvas: 2D context unavailable');
 
   // 1) 必要な bitmap を並列で先行 decode（キャッシュヒットでは microtask 解決）
+  //    source が未解決の ref（永続化復元の一時失敗でバイト未ロード）のレイヤは
+  //    描画をスキップする。1 レイヤの未解決で背景全体の描画を落とさない。
   const bitmaps = await Promise.all(
     background.layers.map((l) =>
-      l.type === 'image' && l.visible ? getCachedBitmap(l.source) : null,
+      l.type === 'image' && l.visible && l.source.kind === 'inline'
+        ? getCachedBitmap(l.source)
+        : null,
     ),
   );
+
+  if (isCancelled?.()) return;
 
   // 2) ここから同期処理。clear → draw を 1 tick 内で完結させる。
   ctx.save();

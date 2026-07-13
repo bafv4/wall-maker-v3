@@ -12,6 +12,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { errMsg } from '../core/errors';
+import { normalizeToPngBytes } from '../core/pngNormalize';
 import type { LockImage } from '../core/state';
 import { useWallStore } from '../store/useWallStore';
 import { Button, Switch, toast } from './ui';
@@ -128,21 +129,27 @@ export function LockImagesEditor() {
           toast.error(t('lock.toast.notImage', { filename: file.name }));
           continue;
         }
-        const buf = await file.arrayBuffer();
-        addLockImage({
-          id: crypto.randomUUID(),
-          source: {
-            kind: 'inline',
-            bytes: new Uint8Array(buf),
-            mimeType: file.type || 'image/png',
-          },
-          originalFileName: file.name,
-        });
-        added++;
+        // 失敗はファイル単位で通知し、残りのファイルの追加は続行する
+        // （1 枚の破損画像が複数選択全体を巻き込まないように）。
+        try {
+          const buf = await file.arrayBuffer();
+          // Minecraft は PNG しか読めないため、PNG 以外はここで再エンコードする
+          const png = await normalizeToPngBytes(new Uint8Array(buf));
+          addLockImage({
+            id: crypto.randomUUID(),
+            source: {
+              kind: 'inline',
+              bytes: png,
+              mimeType: 'image/png',
+            },
+            originalFileName: file.name,
+          });
+          added++;
+        } catch (e) {
+          toast.error(t('lock.toast.addFailed', { error: errMsg(e) }));
+        }
       }
       if (added > 0) toast.success(t('lock.toast.addedCount', { count: added }));
-    } catch (e) {
-      toast.error(t('lock.toast.addFailed', { error: errMsg(e) }));
     } finally {
       setPickingNow(false);
     }

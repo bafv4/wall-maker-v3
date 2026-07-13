@@ -9,6 +9,9 @@
 //  * `write_file`        — 任意パスに 1 ファイルを書き出す（.zip エクスポート用）
 //  * `read_pack_zip`     — 任意の .zip パスを丸ごとバイト列で返す
 //  * `read_pack_folder`  — 任意のフォルダを再帰 walk し、相対パス → バイト列の map を返す
+//  * `binary_put` / `binary_get` / `binary_delete` / `binary_keys`
+//    — 永続化バイナリ（画像/音声）の実体ストア。appDataDir/binaries/<key> に置く
+//      （フロントの `store/storage/desktop.ts` が使う。CLAUDE.md 第7.2章）
 //
 // 設計メモ:
 //  * パストラバーサル（`..`）や絶対パスを VirtualPack のキーとして含めない（書込側で拒否）。
@@ -18,6 +21,8 @@
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+
+use tauri::Manager;
 
 /// VirtualPack を `<root>/` 直下に展開する（root 自体がパックフォルダ）。
 ///
@@ -162,10 +167,90 @@ fn walk_dir(
     Ok(())
 }
 
+// ---------------------------------------------------------------------------
+// 永続化バイナリストア（appDataDir/binaries/<key>）
+// 画像・音声の実体を JSON(store/localStorage) に載せないための逃がし先。
+// fs プラグインのフロント API スコープを開けない方針のため、専用コマンドで閉じる。
+// ---------------------------------------------------------------------------
+
+/// キーはフロントが発行する UUID（英数字とハイフン）のみ許可。
+/// パス区切りや `..` を含むキーで appDataDir 外へ書かれるのを防ぐ。
+fn validate_binary_key(key: &str) -> Result<(), String> {
+    if key.is_empty()
+        || !key
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-')
+    {
+        return Err(format!("不正なバイナリキー: {key}"));
+    }
+    Ok(())
+}
+
+fn binaries_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("appDataDir の取得に失敗: {e}"))?
+        .join("binaries");
+    fs::create_dir_all(&dir)
+        .map_err(|e| format!("binaries フォルダ作成に失敗 {}: {e}", dir.display()))?;
+    Ok(dir)
+}
+
+#[tauri::command]
+fn binary_put(app: tauri::AppHandle, key: String, bytes: Vec<u8>) -> Result<(), String> {
+    validate_binary_key(&key)?;
+    let path = binaries_dir(&app)?.join(&key);
+    fs::write(&path, &bytes)
+        .map_err(|e| format!("バイナリ書き込みに失敗 {}: {e}", path.display()))
+}
+
+#[tauri::command]
+fn binary_get(app: tauri::AppHandle, key: String) -> Result<Option<Vec<u8>>, String> {
+    validate_binary_key(&key)?;
+    let path = binaries_dir(&app)?.join(&key);
+    if !path.is_file() {
+        return Ok(None);
+    }
+    fs::read(&path)
+        .map(Some)
+        .map_err(|e| format!("バイナリ読み込みに失敗 {}: {e}", path.display()))
+}
+
+#[tauri::command]
+fn binary_delete(app: tauri::AppHandle, key: String) -> Result<(), String> {
+    validate_binary_key(&key)?;
+    let path = binaries_dir(&app)?.join(&key);
+    if !path.exists() {
+        return Ok(());
+    }
+    fs::remove_file(&path)
+        .map_err(|e| format!("バイナリ削除に失敗 {}: {e}", path.display()))
+}
+
+#[tauri::command]
+fn binary_keys(app: tauri::AppHandle) -> Result<Vec<String>, String> {
+    let dir = binaries_dir(&app)?;
+    let entries = fs::read_dir(&dir)
+        .map_err(|e| format!("read_dir 失敗 {}: {e}", dir.display()))?;
+    let mut out = Vec::new();
+    for entry in entries {
+        let entry = entry.map_err(|e| format!("dir entry エラー: {e}"))?;
+        if !entry.path().is_file() {
+            continue;
+        }
+        let name = entry.file_name().to_string_lossy().to_string();
+        // 外来ファイル（.DS_Store 等）はキーとして返さない。返すと GC が
+        // binary_delete（validate_binary_key で拒否）に失敗し続けるため。
+        if validate_binary_key(&name).is_ok() {
+            out.push(name);
+        }
+    }
+    Ok(out)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    use tauri::Manager;
-
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -189,6 +274,10 @@ pub fn run() {
             write_file,
             read_pack_zip,
             read_pack_folder,
+            binary_put,
+            binary_get,
+            binary_delete,
+            binary_keys,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

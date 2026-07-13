@@ -148,6 +148,8 @@ function ImageEditor({
         mimeType: file.type || 'image/png',
       },
       originalFileName: file.name,
+      // crop は旧画像の px 座標なので新画像では画像外を指し得る。transform は wall 座標系なので維持。
+      crop: undefined,
     });
   };
 
@@ -522,6 +524,8 @@ function LayerListItem({
       aria-pressed={selected}
       onClick={onSelect}
       onKeyDown={(e) => {
+        // 子要素（Switch / 並び替え / 削除）からバブルしたキー操作は横取りしない
+        if (e.target !== e.currentTarget) return;
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
           onSelect();

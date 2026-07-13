@@ -5,6 +5,7 @@
  * 不変条件:
  *  - 座標は store 側の `mergeAreaPatch`（coords.ts）で必ず Math.floor。ここでは入力検証のみ。
  *  - rows/columns は 1 以上の整数。空欄や 0/負は blur で 1 に丸める。
+ *  - width/height は 1 以上。空欄や 0/負は blur で 1 に丸める（x/y は負も許容、空欄は 0）。
  */
 
 import { useCallback, useEffect, useState } from 'react';
@@ -42,10 +43,21 @@ export function AreaEditor({
   showVisibilityToggle = false,
 }: AreaEditorProps) {
   const { t } = useTranslation();
-  // rows/columns/padding は空欄入力を許すためローカル管理
+  // 数値入力（x/y/width/height/rows/columns/padding）は空欄入力を許すためローカル管理
+  const [localX, setLocalX] = useState(String(area.x));
+  const [localY, setLocalY] = useState(String(area.y));
+  const [localWidth, setLocalWidth] = useState(String(area.width));
+  const [localHeight, setLocalHeight] = useState(String(area.height));
   const [localRows, setLocalRows] = useState(String(area.rows));
   const [localColumns, setLocalColumns] = useState(String(area.columns));
   const [localPadding, setLocalPadding] = useState(String(area.padding ?? 0));
+
+  useEffect(() => {
+    setLocalX(String(area.x));
+    setLocalY(String(area.y));
+    setLocalWidth(String(area.width));
+    setLocalHeight(String(area.height));
+  }, [area.x, area.y, area.width, area.height]);
 
   useEffect(() => {
     setLocalRows(String(area.rows));
@@ -53,12 +65,31 @@ export function AreaEditor({
     setLocalPadding(String(area.padding ?? 0));
   }, [area.rows, area.columns, area.padding]);
 
-  const handleNum = useCallback(
-    (field: 'x' | 'y' | 'width' | 'height') =>
-      (e: React.ChangeEvent<HTMLInputElement>) =>
-        onChange({ [field]: Number(e.target.value) || 0 }),
-    [onChange],
-  );
+  const commitX = useCallback(() => {
+    const v = localX === '' ? 0 : Math.floor(Number(localX));
+    onChange({ x: v });
+    setLocalX(String(v));
+  }, [localX, onChange]);
+
+  const commitY = useCallback(() => {
+    const v = localY === '' ? 0 : Math.floor(Number(localY));
+    onChange({ y: v });
+    setLocalY(String(v));
+  }, [localY, onChange]);
+
+  const commitWidth = useCallback(() => {
+    const v =
+      localWidth === '' ? 1 : Math.max(1, Math.floor(Number(localWidth)));
+    onChange({ width: v });
+    setLocalWidth(String(v));
+  }, [localWidth, onChange]);
+
+  const commitHeight = useCallback(() => {
+    const v =
+      localHeight === '' ? 1 : Math.max(1, Math.floor(Number(localHeight)));
+    onChange({ height: v });
+    setLocalHeight(String(v));
+  }, [localHeight, onChange]);
 
   const commitRows = useCallback(() => {
     const v = localRows === '' ? 1 : Math.max(1, Math.floor(Number(localRows)));
@@ -132,28 +163,32 @@ export function AreaEditor({
           <Input
             label={t('areaEditor.x')}
             type="number"
-            value={area.x}
-            onChange={handleNum('x')}
+            value={localX}
+            onChange={(e) => setLocalX(e.target.value)}
+            onBlur={commitX}
           />
           <Input
             label={t('areaEditor.y')}
             type="number"
-            value={area.y}
-            onChange={handleNum('y')}
+            value={localY}
+            onChange={(e) => setLocalY(e.target.value)}
+            onBlur={commitY}
           />
           <Input
             label={t('areaEditor.width')}
             type="number"
             min={1}
-            value={area.width}
-            onChange={handleNum('width')}
+            value={localWidth}
+            onChange={(e) => setLocalWidth(e.target.value)}
+            onBlur={commitWidth}
           />
           <Input
             label={t('areaEditor.height')}
             type="number"
             min={1}
-            value={area.height}
-            onChange={handleNum('height')}
+            value={localHeight}
+            onChange={(e) => setLocalHeight(e.target.value)}
+            onBlur={commitHeight}
           />
         </div>
         <div className="mt-2 flex gap-2">

@@ -53,6 +53,13 @@ interface DragState {
   startClientX: number;
   startClientY: number;
   startCell: AreaCell;
+  /**
+   * startCell を最初の pointermove で store から読み直したか。
+   * 数値入力欄の blur コミットは pointerdown の後・最初の pointermove の前に発火するため、
+   * pointerdown 時に捕捉した startCell はコミット直前の旧値であり得る。
+   * そのまま全フィールドを dispatch すると、blur でコミットした値を旧値で巻き戻してしまう。
+   */
+  startCellRefreshed: boolean;
   pxToRealX: number;
   pxToRealY: number;
 }
@@ -93,7 +100,12 @@ const BackgroundCanvas = memo(function BackgroundCanvas({
     canvas.width = resolution.width;
     canvas.height = resolution.height;
     let cancelled = false;
-    void renderBackgroundToCanvas(canvas, background, resolution).catch((e) => {
+    void renderBackgroundToCanvas(
+      canvas,
+      background,
+      resolution,
+      () => cancelled,
+    ).catch((e) => {
       if (!cancelled) console.error('background render failed', e);
     });
     return () => {
@@ -415,32 +427,32 @@ export function WallPreview() {
   );
 
   // ---- 開始セルの取得 ----
-  const getStartCell = useCallback(
-    (refId: AreaRef): AreaCell | null => {
-      switch (refId.kind) {
-        case 'main':
-          return layout.main;
-        case 'locked':
-          return layout.locked;
-        case 'preparing':
-          return layout.preparing[refId.index] ?? null;
-        case 'layer': {
-          const l = background.layers.find((x) => x.id === refId.layerId);
-          if (!l || l.type !== 'image') return null;
-          if (l.fit !== 'manual') return null;
-          return (
-            l.transform ?? {
-              x: 0,
-              y: 0,
-              width: resolution.width,
-              height: resolution.height,
-            }
-          );
-        }
+  // 購読 state のクロージャではなく store を直接読む。イベントハンドラ内では
+  // React の再レンダーを待たず常に最新の state を基準にするため。
+  const getStartCell = useCallback((refId: AreaRef): AreaCell | null => {
+    const wall = useWallStore.getState().wall;
+    switch (refId.kind) {
+      case 'main':
+        return wall.layout.main;
+      case 'locked':
+        return wall.layout.locked;
+      case 'preparing':
+        return wall.layout.preparing[refId.index] ?? null;
+      case 'layer': {
+        const l = wall.background.layers.find((x) => x.id === refId.layerId);
+        if (!l || l.type !== 'image') return null;
+        if (l.fit !== 'manual') return null;
+        return (
+          l.transform ?? {
+            x: 0,
+            y: 0,
+            width: wall.resolution.width,
+            height: wall.resolution.height,
+          }
+        );
       }
-    },
-    [layout, background.layers, resolution],
-  );
+    }
+  }, []);
 
   // ---- 反映 ----
   const dispatchCell = useCallback(
@@ -483,6 +495,7 @@ export function WallPreview() {
         startClientX: e.clientX,
         startClientY: e.clientY,
         startCell,
+        startCellRefreshed: false,
         pxToRealX: resolution.width / preview.width,
         pxToRealY: resolution.height / preview.height,
       };
@@ -507,6 +520,12 @@ export function WallPreview() {
     (e: ReactPointerEvent<HTMLDivElement>) => {
       const drag = dragRef.current;
       if (!drag) return;
+      if (!drag.startCellRefreshed) {
+        // DragState.startCellRefreshed のコメント参照（blur コミット後の値で基準を取り直す）
+        drag.startCellRefreshed = true;
+        const fresh = getStartCell(drag.ref);
+        if (fresh) drag.startCell = fresh;
+      }
       const dxReal = (e.clientX - drag.startClientX) * drag.pxToRealX;
       const dyReal = (e.clientY - drag.startClientY) * drag.pxToRealY;
       let nextCell: AreaCell;
@@ -538,7 +557,7 @@ export function WallPreview() {
       dispatchCell(drag.ref, nextCell);
       setDragOverlay({ cell: nextCell, hitX, hitY });
     },
-    [buildSnapCandidates, dispatchCell],
+    [buildSnapCandidates, dispatchCell, getStartCell],
   );
 
   const onPointerUp = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {

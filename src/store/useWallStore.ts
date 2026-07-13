@@ -128,7 +128,14 @@ function mergeAreaPatch<T extends Area>(area: T, patch: Partial<T>): T {
   if (patch.rows !== undefined) merged.rows = Math.max(1, floorInt(patch.rows));
   if (patch.columns !== undefined)
     merged.columns = Math.max(1, floorInt(patch.columns));
-  return floorArea(merged);
+  const floored = floorArea(merged);
+  // 負サイズ禁止（CLAUDE.md 不変条件）。UI 側のクランプが破れても state には入れない。
+  floored.width = Math.max(1, floored.width);
+  floored.height = Math.max(1, floored.height);
+  if (floored.padding !== undefined) {
+    floored.padding = Math.max(0, floored.padding);
+  }
+  return floored;
 }
 
 /** 既存レイヤと同じ判別子のみマージできるよう型安全に適用。種別不一致は no-op。 */
@@ -433,6 +440,11 @@ export const useWallStore = create<WallStoreState>()(
       version: 1,
       storage: wallStorePersistStorage,
       partialize: (s): PersistedWallStore => ({ wall: s.wall }),
+      // getItem は reject しない設計（persistAdapter 参照）だが、万一の hydration
+      // エラーを黙殺させないための保険。未設定だと zustand は例外を握り潰す。
+      onRehydrateStorage: () => (_state, error) => {
+        if (error) console.error('wall-store: hydration failed', error);
+      },
     },
   ),
 );

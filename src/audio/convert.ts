@@ -88,27 +88,46 @@ async function getFFmpeg(): Promise<FFmpeg> {
 // 変換 API
 // ---------------------------------------------------------------------------
 
+// 共有 FFmpeg インスタンスの仮想 FS はグローバルなので、変換は必ず直列実行する。
+// 並行実行を許すと exec 同士が干渉するほか、固定ファイル名では入力の上書きで
+// 「別イベントの音が割り当たる」事故になる。ファイル名の連番は掃除漏れ対策の保険。
+let _convertQueue: Promise<unknown> = Promise.resolve();
+let _convertSeq = 0;
+
 /**
  * 任意の audio バイナリを OGG (Vorbis) に変換する。
  * すでに OGG なら ffmpeg をロードせずそのまま返す。
+ * 並行呼び出しは内部キューで直列化される（呼び出し側の抑止は不要）。
  *
  * @param input          入力バイト列
  * @param inputExtension 拡張子（小文字 / `.` なし）。ffmpeg のフォーマット推定に使う
  * @throws 変換失敗時は ffmpeg からの stderr を含むエラー
  */
-export async function convertToOgg(
+export function convertToOgg(
   input: Uint8Array,
   inputExtension: string,
 ): Promise<Uint8Array> {
   const ext = inputExtension.toLowerCase();
-  if (ext === OGG_EXT) return input;
+  if (ext === OGG_EXT) return Promise.resolve(input);
   if (!SUPPORTED_EXTS.has(ext)) {
-    throw new Error(`未対応のファイル形式です: .${ext}`);
+    return Promise.reject(new Error(`未対応のファイル形式です: .${ext}`));
   }
 
+  // 前段の成否に関わらず自分の変換を実行する（reject の連鎖を断つ）。
+  const run = (): Promise<Uint8Array> => convertToOggExclusive(input, ext);
+  const p = _convertQueue.then(run, run);
+  _convertQueue = p.catch(() => undefined);
+  return p;
+}
+
+async function convertToOggExclusive(
+  input: Uint8Array,
+  ext: string,
+): Promise<Uint8Array> {
   const ffmpeg = await getFFmpeg();
-  const inputName = `input.${ext}`;
-  const outputName = 'output.ogg';
+  const seq = ++_convertSeq;
+  const inputName = `input-${seq}.${ext}`;
+  const outputName = `output-${seq}.ogg`;
 
   try {
     await ffmpeg.writeFile(inputName, input);

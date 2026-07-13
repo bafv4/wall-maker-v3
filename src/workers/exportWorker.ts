@@ -48,17 +48,23 @@ const handlers: {
   buildPack: (state) => buildPack(state),
 };
 
-/** 結果から transferable な ArrayBuffer を収集する。 */
+/**
+ * 結果から transferable な ArrayBuffer を収集する。
+ * 同一バッファを複数エントリが共有し得るため重複排除が必須
+ * （postMessage は重複 transfer を DataCloneError で拒否する）。
+ */
 function collectTransferables(result: unknown): Transferable[] {
-  if (result instanceof Uint8Array) return [result.buffer];
-  if (result instanceof Map) {
-    const out: Transferable[] = [];
+  // TS 5.7+ の Uint8Array.buffer は ArrayBufferLike（SharedArrayBuffer を含む）だが、
+  // 本アプリのバイナリは常に実 ArrayBuffer 由来なので絞り込んで扱う。
+  const buffers = new Set<ArrayBuffer>();
+  if (result instanceof Uint8Array) {
+    buffers.add(result.buffer as ArrayBuffer);
+  } else if (result instanceof Map) {
     for (const v of result.values()) {
-      if (v instanceof Uint8Array) out.push(v.buffer);
+      if (v instanceof Uint8Array) buffers.add(v.buffer as ArrayBuffer);
     }
-    return out;
   }
-  return [];
+  return [...buffers];
 }
 
 const ctx: DedicatedWorkerGlobalScope =

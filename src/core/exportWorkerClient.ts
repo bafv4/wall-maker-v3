@@ -50,7 +50,10 @@ function ensureWorker(): Worker {
     else slot.reject(new Error(e.data.error));
   };
   worker.onerror = (e) => {
-    const err = new Error(`exportWorker fatal: ${errMsg(e)}`);
+    // e は Error ではなく ErrorEvent。String(e) では "[object ErrorEvent]" に
+    // なるため、message プロパティを優先して取り出す。
+    const detail = e instanceof ErrorEvent && e.message ? e.message : errMsg(e);
+    const err = new Error(`exportWorker fatal: ${detail}`);
     for (const slot of pending.values()) slot.reject(err);
     pending.clear();
     worker?.terminate();

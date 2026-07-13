@@ -8,6 +8,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { normalizeToPngBytes } from '../core/pngNormalize';
 import { useWallStore } from '../store/useWallStore';
 import { presetValueOf, useResolutionPresets } from './resolutionPresets';
 import { Button, Input, Select, toast } from './ui';
@@ -252,15 +253,21 @@ export function PackInfoEditor() {
   }, [iconPreviewUrl]);
 
   const handleIconUpload = async (file: File) => {
-    const buf = await file.arrayBuffer();
-    setPackInfo({
-      icon: {
-        kind: 'inline',
-        bytes: new Uint8Array(buf),
-        mimeType: file.type || 'image/png',
-      },
-    });
-    setIconFileName(file.name);
+    try {
+      const buf = await file.arrayBuffer();
+      // Minecraft は PNG しか読めないため、PNG 以外はここで再エンコードする
+      const png = await normalizeToPngBytes(new Uint8Array(buf));
+      setPackInfo({
+        icon: {
+          kind: 'inline',
+          bytes: png,
+          mimeType: 'image/png',
+        },
+      });
+      setIconFileName(file.name);
+    } catch {
+      toast.error(t('packInfo.iconImageRequired'));
+    }
   };
 
   return (

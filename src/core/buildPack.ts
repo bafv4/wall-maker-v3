@@ -255,12 +255,30 @@ async function transparentPngBytes(
 ): Promise<Uint8Array> {
   if (width === PLACEHOLDER_LOCK_SIZE && height === PLACEHOLDER_LOCK_SIZE) {
     if (!_transparentPngPromise) {
-      const canvas = createCanvas(width, height);
-      _transparentPngPromise = canvasToPngBytes(canvas);
+      _transparentPngPromise = renderTransparentPng(width, height);
+      // reject をキャッシュすると以降のエクスポートが全て同じ失敗になるため、失敗時は捨てる。
+      _transparentPngPromise.catch(() => {
+        _transparentPngPromise = null;
+      });
     }
-    return _transparentPngPromise;
+    // キャッシュの実体ではなくコピーを返す。Worker はパックのバイト列を transfer で
+    // 所有権ごと返す（exportWorker.ts）ため、実体を渡すと初回の転送で detach され、
+    // 2 回目以降のエクスポートに壊れたバッファが混入する。
+    const cached = await _transparentPngPromise;
+    return new Uint8Array(cached);
   }
+  return renderTransparentPng(width, height);
+}
+
+function renderTransparentPng(
+  width: number,
+  height: number,
+): Promise<Uint8Array> {
   const canvas = createCanvas(width, height);
+  // convertToBlob はコンテキスト未生成（context mode "none"）の OffscreenCanvas を
+  // InvalidStateError で reject する。描画は不要だがコンテキストだけ生成しておく
+  // （取得時点で透明ビットマップに初期化される）。
+  canvas.getContext('2d');
   return canvasToPngBytes(canvas);
 }
 

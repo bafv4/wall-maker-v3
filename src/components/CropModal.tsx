@@ -83,6 +83,13 @@ function clampToImage(c: AreaCell, w: number, h: number): AreaCell {
   return { x, y, width, height };
 }
 
+/** move 用: サイズ不変のまま画像内に収める（clampToImage は端でサイズを削るため使わない）。 */
+function clampMoveToImage(c: AreaCell, w: number, h: number): AreaCell {
+  const x = Math.max(0, Math.min(c.x, Math.max(0, w - c.width)));
+  const y = Math.max(0, Math.min(c.y, Math.max(0, h - c.height)));
+  return { ...c, x, y };
+}
+
 export interface CropModalProps {
   layer: ImageLayer;
   onClose: () => void;
@@ -185,17 +192,22 @@ export function CropModal({ layer, onClose, onApply }: CropModalProps) {
       if (!drag || !natural) return;
       const dxImage = (e.clientX - drag.startClientX) * drag.pxToImage;
       const dyImage = (e.clientY - drag.startClientY) * drag.pxToImage;
-      let next: AreaCell;
       if (drag.mode.type === 'move') {
-        next = {
+        const next = {
           ...drag.startCrop,
           x: drag.startCrop.x + dxImage,
           y: drag.startCrop.y + dyImage,
         };
+        setCrop(clampMoveToImage(next, natural.w, natural.h));
       } else {
-        next = applyResize(drag.startCrop, drag.mode.handle, dxImage, dyImage);
+        const next = applyResize(
+          drag.startCrop,
+          drag.mode.handle,
+          dxImage,
+          dyImage,
+        );
+        setCrop(clampToImage(next, natural.w, natural.h));
       }
-      setCrop(clampToImage(next, natural.w, natural.h));
     },
     [natural],
   );
@@ -212,13 +224,18 @@ export function CropModal({ layer, onClose, onApply }: CropModalProps) {
   );
 
   // ---- 数値入力 ----
+  // x/y の編集は移動と同じくサイズ不変クランプ、width/height の編集のみサイズを削るクランプ。
   const handleField =
     (field: 'x' | 'y' | 'width' | 'height') =>
     (e: React.ChangeEvent<HTMLInputElement>) => {
       if (!natural) return;
       const v = Math.floor(Number(e.target.value) || 0);
       const next = { ...crop, [field]: v };
-      setCrop(clampToImage(next, natural.w, natural.h));
+      setCrop(
+        field === 'x' || field === 'y'
+          ? clampMoveToImage(next, natural.w, natural.h)
+          : clampToImage(next, natural.w, natural.h),
+      );
     };
 
   const handleReset = () => {

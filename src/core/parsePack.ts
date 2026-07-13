@@ -20,6 +20,9 @@
  *
  * 不変条件:
  *  - 出力 WallState は座標が整数化されていること（buildPack と対称の保証）。
+ *  - x/y/width/height は SeedQueue 仕様どおり「小数点を含むリテラル＝framebuffer 割合」と解釈し、
+ *    x/width は解像度幅・y/height は解像度高を乗じて絶対 px 化してから整数化する（第6.3.1章）。
+ *    `1.0` と `1` の区別が必要なため判定は JSON.parse の source access で行う（`parseLayoutJson`）。
  *  - rows/columns は 1 以上の整数。
  *  - 背景レイヤ id は新規発行（旧 id は import 元に依存しない）。
  */
@@ -107,7 +110,14 @@ export async function parsePack(
     ? ({ kind: 'inline' as const, bytes: iconBytes, mimeType: 'image/png' })
     : null;
 
-  // 3) custom_layout.json（必須）
+  // 3) 解像度（呼び出し側指定・必ず正の整数に正規化）
+  //    custom_layout.json の割合座標→絶対px 変換に使うため、layout パースより先に確定させる。
+  const resolution: Resolution = {
+    width: Math.max(1, floorInt(options.resolution.width)),
+    height: Math.max(1, floorInt(options.resolution.height)),
+  };
+
+  // 4) custom_layout.json（必須）
   const layoutText = readString(pack, PACK_PATHS.customLayout);
   if (!layoutText) {
     throw new Error(
@@ -116,18 +126,12 @@ export async function parsePack(
   }
   let rawLayout: RawLayout;
   try {
-    rawLayout = JSON.parse(layoutText) as RawLayout;
+    rawLayout = parseLayoutJson(layoutText, resolution);
   } catch (e) {
     throw new Error(
       `parsePack: custom_layout.json を解析できませんでした: ${errMsg(e)}`,
     );
   }
-
-  // 4) 解像度（呼び出し側指定・必ず正の整数に正規化）
-  const resolution: Resolution = {
-    width: Math.max(1, floorInt(options.resolution.width)),
-    height: Math.max(1, floorInt(options.resolution.height)),
-  };
 
   // 5) 背景レイヤ復元（1 枚の image layer として）
   const backgroundPath = `${PACK_PATHS.texturesGuiWall}/background.png`;
@@ -150,7 +154,7 @@ export async function parsePack(
       ]
     : [];
 
-  // 6) layout
+  // 6) layout（座標は parseLayoutJson で絶対 px 変換済み）
   const main = parseMain(rawLayout.main, rawLayout.mainFillOrder);
   const locked = parseLocked(rawLayout.locked);
   const preparing = parsePreparing(rawLayout.preparing);
@@ -193,7 +197,7 @@ export async function parsePack(
   }
 
   // 8) lock 画像
-  const lockImages = parseLockImages(pack);
+  const lockImages = await parseLockImages(pack);
 
   // 9) sounds
   const sounds = parseSounds(pack);
@@ -258,6 +262,45 @@ function warnPackFormatMismatch(pack: VirtualPack): void {
 // ===========================================================================
 // layout
 // ===========================================================================
+
+/** 割合→絶対px 変換の対象キー。custom_layout.json 内では Group / position の座標にしか現れない。 */
+const RATIO_WIDTH_KEYS: ReadonlySet<string> = new Set(['x', 'width']);
+const RATIO_HEIGHT_KEYS: ReadonlySet<string> = new Set(['y', 'height']);
+
+/**
+ * custom_layout.json 専用の JSON.parse。
+ *
+ * SeedQueue の座標解釈（第6.3.1章）は**数値リテラルの表記**で決まる:
+ * 小数点を含む表記（例 `0.85`、`1.0`）= framebuffer 割合 / 含まない（例 `1632`）= 絶対px。
+ * JSON.parse 後の number では `1.0` と `1` が区別できないため、reviver の source access
+ * （ES2023。Chromium 114+ / 近年の WebKit・Gecko が対応）でリテラル表記を見て、
+ * 割合値はこの段階で絶対 px に変換する（小数のまま返し、floor は後段の floorArea に任せる）。
+ * source access 非対応環境では Number.isInteger による近似判定にフォールバックする
+ * （`1.0` 表記だけは絶対 1px と誤読するが、それ以外は同一挙動）。
+ */
+function parseLayoutJson(text: string, resolution: Resolution): RawLayout {
+  const reviver = (
+    key: string,
+    value: unknown,
+    context?: { source?: string },
+  ): unknown => {
+    if (typeof value !== 'number') return value;
+    const isWidthAxis = RATIO_WIDTH_KEYS.has(key);
+    const isHeightAxis = RATIO_HEIGHT_KEYS.has(key);
+    if (!isWidthAxis && !isHeightAxis) return value;
+    const source = context?.source;
+    const isRatio =
+      typeof source === 'string'
+        ? source.includes('.') || !Number.isInteger(value)
+        : !Number.isInteger(value);
+    if (!isRatio) return value;
+    return value * (isWidthAxis ? resolution.width : resolution.height);
+  };
+  return JSON.parse(
+    text,
+    reviver as (this: unknown, key: string, value: unknown) => unknown,
+  ) as RawLayout;
+}
 
 function parseMain(
   rawMain: unknown,
@@ -382,13 +425,19 @@ function parseFillOrder(
 // lock 画像
 // ===========================================================================
 
-function parseLockImages(pack: VirtualPack): WallState['lockImages'] {
+async function parseLockImages(
+  pack: VirtualPack,
+): Promise<WallState['lockImages']> {
   const images: LockImage[] = [];
   const first = readBytes(pack, `${PACK_PATHS.texturesGuiWall}/lock.png`);
   if (!first) {
-    // lock.png が無ければ enabled=false / images=[]（SeedQueue 既定にフォールバック）
-    return { enabled: false, images: [] };
+    // lock.png が無い ＝ MOD 既定の lock にフォールバックする状態。
+    // buildPack の対称は「enabled=true・images=[]（何も出力しない）」。
+    // enabled=false と誤って復元すると、再エクスポートで透明 lock.png が付与され
+    // ゲーム内のロックアイコンが消えてしまう（buildPack との非対称）。
+    return { enabled: true, images: [] };
   }
+
   images.push({
     id: crypto.randomUUID(),
     source: { kind: 'inline', bytes: first, mimeType: 'image/png' },
@@ -406,7 +455,46 @@ function parseLockImages(pack: VirtualPack): WallState['lockImages'] {
       originalFileName: `lock-${i}.png`,
     });
   }
+
+  // buildPack はロック無効時に「全ピクセル透明の lock.png 1 枚だけ」を出力する（第6.5章）。
+  // その形（透明 lock.png 単独）のときに限り enabled=false として復元する。
+  // 透明 lock.png ＋ lock-1.png… の併用は「一部インスタンスだけロック非表示」という
+  // 正当な構成なので、全画像を保持して通常どおり enabled=true にする。
+  // 検査失敗時も通常画像として扱う（安全側フォールバック）。
+  if (images.length === 1 && (await isFullyTransparentImage(first))) {
+    return { enabled: false, images: [] };
+  }
+
   return { enabled: true, images };
+}
+
+/**
+ * 全ピクセルの alpha が 0 か検査する。
+ * デコード・検査に失敗した場合は false（通常画像として扱う安全側フォールバック）。
+ */
+async function isFullyTransparentImage(bytes: Uint8Array): Promise<boolean> {
+  let bitmap: ImageBitmap | null = null;
+  try {
+    // Uint8Array<ArrayBufferLike> → BlobPart 非互換（TS 5.7+）。実 ArrayBuffer 由来なので絞り込む。
+    const blob = new Blob([bytes as Uint8Array<ArrayBuffer>], {
+      type: 'image/png',
+    });
+    bitmap = await createImageBitmap(blob);
+    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+    // OffscreenCanvas は getContext を経由せず使うと描画されない。必ず ctx 経由で描く。
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return false;
+    ctx.drawImage(bitmap, 0, 0);
+    const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+    for (let i = 3; i < data.length; i += 4) {
+      if (data[i] !== 0) return false;
+    }
+    return true;
+  } catch {
+    return false;
+  } finally {
+    bitmap?.close?.();
+  }
 }
 
 // ===========================================================================
@@ -485,20 +573,29 @@ function areResetEventsUnified(
     'reset_column',
     'reset_row',
   ];
-  const ref = entrySignature(events[keys[0]]);
-  return keys.every((k) => entrySignature(events[k]) === ref);
+  const first = events[keys[0]];
+  return keys.every((k) => sameSoundEntry(events[k], first));
 }
 
-/** 比較用のシグネチャ（簡易）。バイト同一性は要求しない。 */
-function entrySignature(entry: SoundEntry): string {
-  switch (entry.mode) {
-    case 'default':
-      return 'default';
-    case 'off':
-      return 'off';
-    case 'custom':
-      return `custom:${entry.originalFileName ?? ''}`;
+/**
+ * custom 同士は ogg の**バイト内容**で比較する。buildPack は各イベントを
+ * `<event>.ogg` の別名で書き出すため（ファイル名は必ず食い違う）、
+ * ファイル名比較では一括設定エクスポートの再インポートで unified 判定が壊れる。
+ */
+function sameSoundEntry(a: SoundEntry, b: SoundEntry): boolean {
+  if (a.mode !== b.mode) return false;
+  if (a.mode !== 'custom' || b.mode !== 'custom') return true;
+  if (a.ogg.kind !== 'inline' || b.ogg.kind !== 'inline') return false;
+  return bytesEqual(a.ogg.bytes, b.ogg.bytes);
+}
+
+function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
+  if (a === b) return true;
+  if (a.byteLength !== b.byteLength) return false;
+  for (let i = 0; i < a.byteLength; i++) {
+    if (a[i] !== b[i]) return false;
   }
+  return true;
 }
 
 // ===========================================================================
