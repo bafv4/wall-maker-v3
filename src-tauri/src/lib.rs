@@ -47,6 +47,18 @@ fn validate_pack_root(root: &str) -> Result<PathBuf, String> {
     if !path.is_absolute() {
         return Err(format!("出力先が絶対パスではありません: {root}"));
     }
+    // 生の文字列でセグメントを見る。`Path::components()` は `.` を**取り除いて**
+    // 正規化するため、`<親>\.`（パック名が `.`）が素通りし、親フォルダ自体が
+    // 削除対象になってしまう。区切りは `/` `\` の両方で割る。
+    if root
+        .split(|c| c == '/' || c == '\\')
+        .any(|seg| seg == "." || seg == "..")
+    {
+        return Err(format!(
+            "出力先パスに \".\" / \"..\" は使えません: {root}"
+        ));
+    }
+    // 上の文字列判定を抜けた場合の保険（OS 依存のパス表現に備える）。
     if path
         .components()
         .any(|c| matches!(c, Component::CurDir | Component::ParentDir))
@@ -289,6 +301,90 @@ fn binary_keys(app: tauri::AppHandle) -> Result<Vec<String>, String> {
         }
     }
     Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_pack_root;
+
+    /// プラットフォーム別の「正常な絶対パス」。
+    #[cfg(windows)]
+    const OK_ROOT: &str = r"C:\Users\runner\resourcepacks\my-pack";
+    #[cfg(not(windows))]
+    const OK_ROOT: &str = "/home/runner/resourcepacks/my-pack";
+
+    #[test]
+    fn accepts_normal_absolute_root() {
+        assert!(validate_pack_root(OK_ROOT).is_ok());
+    }
+
+    /// 本コマンドは root を `remove_dir_all` する。`..` を通すと、ユーザが
+    /// ダイアログで選んでいないディレクトリ（`.minecraft` 全体など）が消える。
+    #[test]
+    fn rejects_parent_dir_segment() {
+        #[cfg(windows)]
+        let cases = [
+            r"C:\Users\runner\.minecraft\resourcepacks\..",
+            r"C:\Users\runner\..\..\Windows",
+            r"C:\Users\runner\resourcepacks\..\..",
+        ];
+        #[cfg(not(windows))]
+        let cases = [
+            "/home/runner/.minecraft/resourcepacks/..",
+            "/home/runner/../../etc",
+            "/home/runner/resourcepacks/../..",
+        ];
+        for case in cases {
+            assert!(
+                validate_pack_root(case).is_err(),
+                "`..` を含む root を通してしまった: {case}"
+            );
+        }
+    }
+
+    /// `.` は選択した親フォルダ自体を指す。パック名が `.` だとそのフォルダが丸ごと消える。
+    #[test]
+    fn rejects_cur_dir_segment() {
+        #[cfg(windows)]
+        let cases = [r"C:\Users\runner\resourcepacks\.", r"C:\Users\.\runner"];
+        #[cfg(not(windows))]
+        let cases = ["/home/runner/resourcepacks/.", "/home/./runner"];
+        for case in cases {
+            assert!(
+                validate_pack_root(case).is_err(),
+                "`.` を含む root を通してしまった: {case}"
+            );
+        }
+    }
+
+    #[test]
+    fn rejects_relative_and_empty_root() {
+        assert!(validate_pack_root("").is_err());
+        assert!(validate_pack_root("resourcepacks/my-pack").is_err());
+        assert!(validate_pack_root("my-pack").is_err());
+    }
+
+    /// ドライブ／ファイルシステムのルートを root にすると全体が削除対象になる。
+    #[test]
+    fn rejects_filesystem_root() {
+        #[cfg(windows)]
+        let cases = [r"C:\", r"\\?\C:\"];
+        #[cfg(not(windows))]
+        let cases = ["/"];
+        for case in cases {
+            assert!(
+                validate_pack_root(case).is_err(),
+                "ルートを root として通してしまった: {case}"
+            );
+        }
+    }
+
+    /// 通った root は入力と同じパスであること（勝手に別の場所を指さない）。
+    #[test]
+    fn returns_the_same_path_when_valid() {
+        let out = validate_pack_root(OK_ROOT).expect("valid root");
+        assert_eq!(out, std::path::PathBuf::from(OK_ROOT));
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
