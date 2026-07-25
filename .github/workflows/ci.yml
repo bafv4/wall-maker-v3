@@ -42,13 +42,17 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 10
+          # lockfile を生成しているローカル環境と揃える（lockfileVersion 9.0）。
+          version: 11
           run_install: false
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # Vite 8 / @vitejs/plugin-react 6 の engines は `^20.19.0 || >=22.12.0`、
+          # ESLint 10 は `^20.19.0 || ^22.13.0 || >=24`。`node-version: 20` だと
+          # 20.x の最新が 20.19 以上である限り通るだけの綱渡りになるため、LTS の 24 に固定する。
+          node-version: 24
           cache: 'pnpm'
 
       - name: Install frontend deps
