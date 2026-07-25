@@ -1,4 +1,4 @@
-# Wall Maker — CI チェック（型 / Lint / ビルド / Rust コンパイル）
+# Wall Maker — CI チェック（型 / Lint / テスト / ビルド / Rust コンパイル・テスト）
 #
 # 目的: PR・main への push で壊れた変更を早期に検出する。リリースは release.yml が担当。
 #
@@ -60,6 +60,11 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      # core の入力バリデーション（パック名サニタイズ / rows・columns クランプ）の
+      # 不変条件テスト。パック出力のフィクスチャ比較は行わない方針（CLAUDE.md）。
+      - name: Test (vitest)
+        run: pnpm test
+
       - name: Build (web) — also produces dist/ for cargo check
         run: pnpm build
 
@@ -85,3 +90,8 @@ jobs:
       - name: Cargo check
         working-directory: src-tauri
         run: cargo check --locked
+
+      # write_pack_folder の root 検証（`.` / `..` によるフォルダ外への再帰削除の遮断）。
+      - name: Cargo test
+        working-directory: src-tauri
+        run: cargo test --locked

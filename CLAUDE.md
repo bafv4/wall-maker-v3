@@ -134,10 +134,15 @@ export async function getPackWriter(): Promise<PackWriter> {
 
 ## Verification
 
-- 自動比較テストは行わない。**代表パターンを出力し Minecraft 実機で読み込んで検証する**のが唯一の手段。
+- **パック出力の**自動比較テストは行わない。**代表パターンを出力し Minecraft 実機で読み込んで検証する**のが唯一の手段。
 - 現行アプリの出力は不具合があり ground truth に使えない。フィクスチャ比較はしない。
 - 検証パターンと手順は `REWRITE_SPEC.md` 第2.3章を参照。
 - `parsePack` は、生成したパックを再インポートしてエディタ状態が復元されることを実機操作で確認する。
+- **例外＝入力バリデーションの単体テスト**（`pnpm test` / `cargo test`）。これは出力の正しさではなく
+  **信頼境界のクランプ・サニタイズが将来の編集で黙って外れないこと**を固定するもので、実機検証を置き換えない。
+  対象は `core/packName.ts`（パック名のパス脱出遮断）、`core/coords.ts` の `clampGridCount`、
+  `parsePack` の rows/columns、Rust の `validate_pack_root`。テストは `src/**/*.test.ts` と `src-tauri` の `#[cfg(test)]`。
+  DOM/Canvas 依存（背景描画・音声変換・store 永続化）はテスト対象外（vitest は node 環境で走らせる）。
 
 ## Quality / Validation
 

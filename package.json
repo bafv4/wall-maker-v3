@@ -13,6 +13,8 @@
     "preview": "vite preview",
     "type-check": "tsc --noEmit",
     "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "tauri": "tauri"
   },
   "dependencies": {
@@ -49,6 +51,7 @@
     "globals": "^17.7.0",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.65.0",
-    "vite": "^8.1.5"
+    "vite": "^8.1.5",
+    "vitest": "^4.1.10"
   }
 }
