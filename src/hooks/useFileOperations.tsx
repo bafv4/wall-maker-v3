@@ -33,6 +33,7 @@ import { isTauri, readPack, saveZipBytes } from '../adapters';
 import { ImportResolutionDialog } from '../components/ImportResolutionDialog';
 import { ConfirmDialog, toast } from '../components/ui';
 import { errMsg } from '../core/errors';
+import { sanitizePackName } from '../core/packName';
 import {
   buildAndZipInWorker,
   buildPackInWorker,
@@ -155,8 +156,11 @@ export function FileOperationsProvider({ children }: { children: ReactNode }) {
     setBusy(true);
     try {
       const wall = await parsePack(payload.pack, { resolution });
+      // ファイル名は外部由来（攻撃者が付けられる）。パック名は後で Desktop の保存先
+      // パスに連結され、Rust 側がその root を再帰削除するため、state に入れる前に
+      // 1 セグメントとして安全化する（`..zip` → stem `.` のようなケースを潰す）。
       const stem = payload.displayName.replace(/\.zip$/i, '').trim();
-      if (stem) wall.packInfo.name = stem;
+      if (stem) wall.packInfo.name = sanitizePackName(stem);
       replaceWallState(wall);
       selectBackgroundLayer(null);
       setSourceFolder(payload.sourceFolder); // フォルダ起点なら覚える、.zip 起点なら null

@@ -27,7 +27,7 @@
  *  - 背景レイヤ id は新規発行（旧 id は import 元に依存しない）。
  */
 
-import { floorArea, floorCell, floorInt } from './coords';
+import { clampGridCount, floorArea, floorCell, floorInt } from './coords';
 import { errMsg } from './errors';
 import {
   SOUND_EVENT_KEYS,
@@ -363,8 +363,10 @@ function parseArea(
 
   const positions = parsePositions(raw.positions);
   const useGrid = positions === null;
-  const rows = useGrid ? Math.max(1, toIntOr(raw.rows, 1)) : 1;
-  const columns = useGrid ? Math.max(1, toIntOr(raw.columns, 1)) : 1;
+  // rows/columns は外部パック由来。上限を付けないと `rows: 1e9` のような値が
+  // そのまま state に入り、プレビューのグリッド線描画で UI が固まる。
+  const rows = useGrid ? clampGridCount(toIntOr(raw.rows, 1)) : 1;
+  const columns = useGrid ? clampGridCount(toIntOr(raw.columns, 1)) : 1;
   const padding = Math.max(0, toIntOr(raw.padding, 0));
 
   const area = floorArea({

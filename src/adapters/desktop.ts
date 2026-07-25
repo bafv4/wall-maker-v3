@@ -19,8 +19,9 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import { open, save } from '@tauri-apps/plugin-dialog';
+import { sanitizePackName } from '../core/packName';
 import type { PackReadSource, VirtualPack } from '../core/types';
-import { DEFAULT_PACK_NAME, TEXT_EXTS, zipFileToVirtualPack } from './web';
+import { TEXT_EXTS, zipFileToVirtualPack } from './web';
 
 // ---------------------------------------------------------------------------
 // 内部ヘルパー
@@ -40,17 +41,11 @@ function packToBytes(pack: VirtualPack): Record<string, Uint8Array> {
 }
 
 /**
- * Windows / macOS のファイル名禁則文字（`\ / : * ? " < > |`）を `_` に置換する。
- * Rust 側でも区切り文字を弾いているため、ここでは UX 用の正規化。
- */
-function sanitizePackName(name: string): string {
-  const trimmed = name.trim().replace(/[\\/:*?"<>|]/g, '_');
-  return trimmed.length > 0 ? trimmed : DEFAULT_PACK_NAME;
-}
-
-/**
  * 親フォルダ + 子セグメントを OS のセパレータでつなぐ。
  * Tauri が返すパスのスタイル（Windows は `\`, それ以外は `/`）を検出して同じスタイルで結合する。
+ *
+ * `child` は必ず {@link sanitizePackName} を通したものを渡すこと（`..` を含む名前を
+ * 連結すると、`write_pack_folder` の再帰削除がユーザの選んでいないフォルダに当たる）。
  */
 function joinPathSegments(parent: string, child: string): string {
   const cleaned = parent.replace(/[/\\]+$/, '');

@@ -15,14 +15,54 @@
 //
 // 設計メモ:
 //  * パストラバーサル（`..`）や絶対パスを VirtualPack のキーとして含めない（書込側で拒否）。
+//  * `write_pack_folder` の root 自体も検証する（`validate_pack_root`）。フロントから届く
+//    パスは信用しない — 既存フォルダを再帰削除する破壊的な操作の直前だから。
 //  * シンボリックリンクは追わない（無視）。
 //  * Zip 生成・展開は JS 側（JSZip）で行う。Rust に zip クレートを足さない。
 
 use std::collections::HashMap;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use tauri::Manager;
+
+/// `write_pack_folder` の `root` を検証する。
+///
+/// `root` は webview から来る **信用できない値**である。フロントはユーザが選んだ
+/// 親フォルダにパック名を連結して組み立てるが、パック名は自由入力であり、さらに
+/// **インポートしたパックのファイル名から自動で入る**。`..` を含む名前を許すと、
+/// 下の `fs::remove_dir_all` がユーザの選んでいないディレクトリ（例: `.minecraft`
+/// 全体）に当たる。フロント側 (`core/packName.ts`) でも弾いているが、IPC は誰でも
+/// 叩けるので **削除の直前にここで必ず検証する**。
+///
+/// 条件:
+///  - 空でないこと / 絶対パスであること
+///  - `.` `..` セグメントを含まないこと（親ディレクトリへの脱出を防ぐ）
+///  - 末尾が通常のフォルダ名であること（`/` や `C:\` のようなルートを root にしない）
+fn validate_pack_root(root: &str) -> Result<PathBuf, String> {
+    let path = PathBuf::from(root);
+    if path.as_os_str().is_empty() {
+        return Err("出力先パスが空です".to_string());
+    }
+    if !path.is_absolute() {
+        return Err(format!("出力先が絶対パスではありません: {root}"));
+    }
+    if path
+        .components()
+        .any(|c| matches!(c, Component::CurDir | Component::ParentDir))
+    {
+        return Err(format!(
+            "出力先パスに \".\" / \"..\" は使えません: {root}"
+        ));
+    }
+    // file_name() が None になるのはルート（`C:\` `/`）のみ。丸ごと消さないため拒否。
+    if path.file_name().is_none() {
+        return Err(format!(
+            "出力先にドライブ／ファイルシステムのルートは指定できません: {root}"
+        ));
+    }
+    Ok(path)
+}
 
 /// VirtualPack を `<root>/` 直下に展開する（root 自体がパックフォルダ）。
 ///
@@ -32,7 +72,8 @@ use tauri::Manager;
 ///  - `files` : VirtualPack。キーはパック内相対パス（POSIX 区切り）、値はバイト列。
 ///
 /// 「名前を付けて保存」と「上書き保存」の両方で本コマンドを使う。命名は呼び出し側
-/// （フロント）の責務で、Rust 側は受け取った root をそのまま使う。
+/// （フロント）の責務だが、**root は信用せず `validate_pack_root` で検証してから使う**
+/// （`..` を含む root を渡されると下の再帰削除が選択外のフォルダに当たるため）。
 ///
 /// 返り値: 書き出した root の絶対パス（toast 表示用）。
 #[tauri::command]
@@ -40,7 +81,8 @@ fn write_pack_folder(
     root: String,
     files: HashMap<String, Vec<u8>>,
 ) -> Result<String, String> {
-    let root_path = PathBuf::from(&root);
+    // 削除・書き込みの前に root を検証する（`..` によるフォルダ外への脱出を拒否）。
+    let root_path = validate_pack_root(&root)?;
 
     // 親フォルダは必須。root 自体は存在しなくてもよい（新規作成）。
     if let Some(parent) = root_path.parent() {

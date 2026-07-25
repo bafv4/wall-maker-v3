@@ -6,7 +6,8 @@
  *
  * 不変条件:
  *  - 座標は floor 済みであること（coords.ts）。state 反映するアクションは座標を Math.floor で整数化する。
- *  - rows/columns は 1 以上の整数（後続バリデーション層で担保。アクションでも最低限の正規化を行う）。
+ *  - rows/columns は 1〜MAX_GRID_COUNT の整数（`clampGridCount`。上限が無いと外部パック由来の
+ *    巨大値がプレビュー描画を固めるため、下限だけでなく上限も境界でクランプする）。
  *  - 解像度変更は `scaleStateForResolution` を必ず通す（背景レイヤと layout を同時にスケール、第8章 #9）。
  *  - import は浅いマージせず WallState を丸ごと差し替える（第8章 #6）。
  */
@@ -14,6 +15,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import {
+  clampGridCount,
   floorArea,
   floorInt,
   scaleStateForResolution,
@@ -125,9 +127,9 @@ export interface WallStoreState {
 /** 座標 patch を Area に当てて floor。rows/columns/padding も整数化する。 */
 function mergeAreaPatch<T extends Area>(area: T, patch: Partial<T>): T {
   const merged: T = { ...area, ...patch };
-  if (patch.rows !== undefined) merged.rows = Math.max(1, floorInt(patch.rows));
+  if (patch.rows !== undefined) merged.rows = clampGridCount(patch.rows);
   if (patch.columns !== undefined)
-    merged.columns = Math.max(1, floorInt(patch.columns));
+    merged.columns = clampGridCount(patch.columns);
   const floored = floorArea(merged);
   // 負サイズ禁止（CLAUDE.md 不変条件）。UI 側のクランプが破れても state には入れない。
   floored.width = Math.max(1, floored.width);

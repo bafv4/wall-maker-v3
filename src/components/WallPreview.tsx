@@ -21,7 +21,7 @@ import {
   useState,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
-import { floorCell, realToPreview } from '../core/coords';
+import { clampGridCount, floorCell, realToPreview } from '../core/coords';
 import { renderBackgroundToCanvas } from '../core/renderBackground';
 import type {
   AreaCell,
@@ -212,8 +212,13 @@ function AreaBox({
   const gridLines = useMemo(() => {
     if (!showGrid || pv.width <= 0 || pv.height <= 0) return null;
     const lines: React.ReactElement[] = [];
-    for (let c = 1; c < area.columns; c++) {
-      const xx = (pv.width * c) / area.columns;
+    // 描画側でも必ずクランプする。state 側（parsePack / store アクション）の
+    // クランプが破れても、あるいは古い永続化 state が復元されても、
+    // グリッド線の数だけメインスレッドを止めないための最後の砦。
+    const columns = clampGridCount(area.columns);
+    const rows = clampGridCount(area.rows);
+    for (let c = 1; c < columns; c++) {
+      const xx = (pv.width * c) / columns;
       lines.push(
         <div
           key={`v${c}`}
@@ -222,8 +227,8 @@ function AreaBox({
         />,
       );
     }
-    for (let r = 1; r < area.rows; r++) {
-      const yy = (pv.height * r) / area.rows;
+    for (let r = 1; r < rows; r++) {
+      const yy = (pv.height * r) / rows;
       lines.push(
         <div
           key={`h${r}`}

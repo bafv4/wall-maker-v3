@@ -12,6 +12,7 @@
  */
 
 import JSZip from 'jszip';
+import { sanitizePackName } from '../core/packName';
 import type { PackReadSource, VirtualPack } from '../core/types';
 
 /**
@@ -21,14 +22,17 @@ import type { PackReadSource, VirtualPack } from '../core/types';
  */
 export const TEXT_EXTS: ReadonlySet<string> = new Set(['json', 'mcmeta', 'txt']);
 
-/** 空名フォールバック。Web のダウンロード名 / Desktop の保存先パック名の既定値の単一ソース。 */
-export const DEFAULT_PACK_NAME = 'seedqueue-pack';
+/**
+ * 空名フォールバック。Web のダウンロード名 / Desktop の保存先パック名の既定値の単一ソース。
+ * 実体は `core/packName` にある（Desktop アダプタと import 経路が同じ実装を共有するため）。
+ */
+export { DEFAULT_PACK_NAME } from '../core/packName';
 
-/** ファイル名の正規化。空白だけ／空のときは {@link DEFAULT_PACK_NAME} にフォールバック。 */
-export function normalizePackName(name: string): string {
-  const trimmed = name.trim();
-  return trimmed.length > 0 ? trimmed : DEFAULT_PACK_NAME;
-}
+/**
+ * ファイル名の正規化。禁則文字・ドットのみの名前・予約名を弾き、
+ * 空になったときは `DEFAULT_PACK_NAME` にフォールバックする（`core/packName` に委譲）。
+ */
+export const normalizePackName = sanitizePackName;
 
 // ---------------------------------------------------------------------------
 // 書き出し

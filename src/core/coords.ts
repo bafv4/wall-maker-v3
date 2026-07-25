@@ -29,6 +29,22 @@ export function floorInt(n: number): number {
   return Math.floor(n);
 }
 
+/**
+ * rows / columns の上限。SeedQueue の実用ウォールはせいぜい数十セルなので十分に広い。
+ *
+ * 上限が必要な理由: `rows`/`columns` は外部パックの `custom_layout.json` 由来で
+ * 完全に信用できない。下限 1 のクランプしか無いと `rows: 1e9` のような値がそのまま
+ * state に入り、プレビューがグリッド線 1 本＝1 要素を作るループで固まる（描画 DoS）。
+ * 信頼境界（parsePack / store アクション）で必ず本関数を通すこと。
+ */
+export const MAX_GRID_COUNT = 256;
+
+/** rows / columns を 1〜{@link MAX_GRID_COUNT} の整数に丸める。NaN は 1。 */
+export function clampGridCount(n: number): number {
+  if (!Number.isFinite(n)) return 1;
+  return Math.min(MAX_GRID_COUNT, Math.max(1, Math.floor(n)));
+}
+
 export function floorCell<T extends AreaCell>(cell: T): T {
   return {
     ...cell,
