@@ -24,6 +24,11 @@
  *    どちらも削除直前に localStorage の現行 JSON を読み直し、
  *    （別タブが書いた可能性のある）参照中キーはスキップする。削除はキー単位で失敗を
  *    隔離し、1 件の失敗（例: appDataDir/binaries への外来ファイル）で残りを打ち切らない。
+ *  - **参照集合が「不明」なときは掃除しない**。永続 JSON が存在しないことは
+ *    「参照ゼロ」ではない。初回起動と、localStorage だけが消えた状態
+ *    （サイトデータ削除 / Desktop の WebView プロファイルリセット。バイナリ側の
+ *    IndexedDB / appDataDir とは独立に消えうる）は区別できないため、
+ *    ここで全走査掃除をするとユーザの画像・変換済み ogg を復旧不能に巻き添えにする。
  *
  * 既知の制限: 複数タブ/ウィンドウでの同時編集は localStorage が last-write-wins のため
  * もともとサポート外（後勝ちで上書き）。GC はその前提の中で「実体バイナリを消さない」
@@ -186,11 +191,16 @@ export const wallStorePersistStorage: PersistStorage<PersistedWallStore> = {
     try {
       const raw = localStorage.getItem(name);
       if (!raw) {
-        // 永続 JSON が無い＝何も参照されていない。残存バイナリ（localStorage だけ
-        // 消された場合など）は孤児として回収する。
-        const storage = await getBinaryStorage();
-        lastReferencedKeys = new Set();
-        void sweepOrphanKeys(storage, new Set(), name);
+        // 永続 JSON が「無い」は「参照が空」ではなく「参照が不明」。
+        // 初回起動と、localStorage だけが消えた状態（ブラウザのサイトデータ削除、
+        // Desktop の WebView プロファイルリセット）を区別できず、後者で掃除すると
+        // IndexedDB / appDataDir に残るユーザの画像・変換済み ogg を復旧不能に消す。
+        // よってここでは何も削除しない。残存バイナリは次の書き込み以降の増分 GC で
+        // 参照が確定してから扱う（孤児が残り続けるコストより喪失回避を優先）。
+        lastReferencedKeys = null;
+        // 掃除はしないが、アダプタの動的 import だけは温めておく
+        // （最初の書き込みが import 解決待ちで長くならないように）。
+        void getBinaryStorage().catch(() => undefined);
         return null;
       }
       const parsed = JSON.parse(raw) as StorageValue<PersistedWallStore>;
