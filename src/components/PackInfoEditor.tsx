@@ -8,6 +8,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { MAX_DIMENSION, toSafeInt } from '../core/coords';
 import { normalizeToPngBytes } from '../core/pngNormalize';
 import { useWallStore } from '../store/useWallStore';
 import { presetValueOf, useResolutionPresets } from './resolutionPresets';
@@ -49,9 +50,15 @@ function ResolutionSection() {
     }
   };
 
+  // `<input type="number">` は "1e999" を正当な入力として返すため、素の
+  // `Math.max(1, Math.floor(Number(v) || 0))` では Infinity が state に入り、
+  // scaleStateForResolution 経由で layout 全体が壊れる（永続化で `x: null` として焼き付く）。
   const applyCustom = () => {
-    const w = Math.max(1, Math.floor(Number(customW) || 0));
-    const h = Math.max(1, Math.floor(Number(customH) || 0));
+    const w = toSafeInt(customW, resolution.width, 1);
+    const h = toSafeInt(customH, resolution.height, 1);
+    // クランプされた場合に入力欄が古い値のまま残らないよう明示的に同期する。
+    setCustomW(String(w));
+    setCustomH(String(h));
     setResolution({ width: w, height: h });
   };
 
@@ -73,6 +80,7 @@ function ResolutionSection() {
               label={t('resolution.width')}
               type="number"
               min={1}
+              max={MAX_DIMENSION}
               value={customW}
               onChange={(e) => setCustomW(e.target.value)}
             />
@@ -80,6 +88,7 @@ function ResolutionSection() {
               label={t('resolution.height')}
               type="number"
               min={1}
+              max={MAX_DIMENSION}
               value={customH}
               onChange={(e) => setCustomH(e.target.value)}
             />

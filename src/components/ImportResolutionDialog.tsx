@@ -12,6 +12,7 @@
 
 import { useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
+import { MAX_DIMENSION, toSafeInt } from '../core/coords';
 import type { Resolution } from '../core/state';
 import { presetValueOf, useResolutionPresets } from './resolutionPresets';
 import { Button, Input, Modal, Select } from './ui';
@@ -62,9 +63,13 @@ export function ImportResolutionDialog({
     }
   };
 
+  // `<input type="number">` は "1e999" を Infinity として返すため、素の
+  // `Math.max(1, Math.floor(Number(v) || 0))` では非有限値が state に流れ込む。
   const handleConfirm = () => {
-    const w = Math.max(1, Math.floor(Number(customW) || 0));
-    const h = Math.max(1, Math.floor(Number(customH) || 0));
+    const w = toSafeInt(customW, initial.width, 1);
+    const h = toSafeInt(customH, initial.height, 1);
+    setCustomW(String(w));
+    setCustomH(String(h));
     onConfirm({ width: w, height: h });
   };
 
@@ -117,6 +122,7 @@ export function ImportResolutionDialog({
               label={t('resolution.width')}
               type="number"
               min={1}
+              max={MAX_DIMENSION}
               value={customW}
               onChange={(e) => setCustomW(e.target.value)}
               disabled={busy}
@@ -125,6 +131,7 @@ export function ImportResolutionDialog({
               label={t('resolution.height')}
               type="number"
               min={1}
+              max={MAX_DIMENSION}
               value={customH}
               onChange={(e) => setCustomH(e.target.value)}
               disabled={busy}
