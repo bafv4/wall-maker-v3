@@ -56,7 +56,11 @@
       "currentTargetEmpty": "Not set (will be assigned when you open a folder or use \"Save As\")",
       "saveAs": "Save As…",
       "overwrite": "Overwrite",
-      "processing": "Working…"
+      "processing": "Working…",
+      "restoredConfirm": {
+        "title": "Overwrite the restored save target?",
+        "message": "The save target \"{{path}}\" was restored from your last session. Overwriting deletes everything in that folder and writes the pack again. Overwrite it with what you are editing now?"
+      }
     },
     "export": {
       "title": "Export (.zip)",
@@ -289,6 +293,7 @@
     "readFailed": "Read failed: {{error}}",
     "writeCanceled": "Export canceled",
     "persistFailed": "Failed to auto-save your edits (export still works)",
-    "restoreFailed": "Could not restore your previous session — started fresh"
+    "restoreFailed": "Could not restore your previous session — started fresh",
+    "saveTargetPersistFailed": "Could not remember the save target (saving still works this session)"
   }
 }

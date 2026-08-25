@@ -17,19 +17,36 @@
  *  - `doSaveAsFolder`    : Desktop のみ — 親フォルダ選択 → `<parent>/<packName>/`
  *  - `doSaveOverwrite`   : Desktop のみ — 既知 `sourceFolder` を上書き保存
  *  - `canOverwrite`      : 上書き保存ボタンの活性条件（`sourceFolder != null`）
- *  - `sourceFolder`      : 「フォルダから開いた／フォルダで保存した」 root（メモリ内のみ）
+ *  - `sourceFolder`      : 「フォルダから開いた／フォルダで保存した」 root
+ *
+ * `sourceFolder` の永続化（Desktop のみ）:
+ *  - パス文字列だけを `tauri-plugin-store` に記憶し、次回起動時に復元する
+ *    （CLAUDE.md「出力先はユーザに選ばせて `tauri-plugin-store` に記憶する」）。
+ *  - 復元時は実在検証（Rust `path_is_dir`）を通す。消えていたら記憶ごと捨てる。
+ *  - 復元した保存先への**初回の上書き保存だけ確認ダイアログを挟む**。編集内容の復元に
+ *    失敗して既定 state で起動した場合でも保存先は復元されうるため、無確認だと
+ *    `write_pack_folder`（root ごと削除して書き直す）がユーザのパックを消してしまう。
+ *  - 実体は `adapters/desktopSaveTarget.ts`。Web では全て no-op。
  */
 
 import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useRef,
   useState,
   type ReactNode,
 } from 'react';
 import { useTranslation } from 'react-i18next';
-import { isTauri, readPack, saveZipBytes } from '../adapters';
+import {
+  forgetSaveTarget,
+  isTauri,
+  loadSaveTarget,
+  readPack,
+  rememberSaveTarget,
+  saveZipBytes,
+} from '../adapters';
 import { ImportResolutionDialog } from '../components/ImportResolutionDialog';
 import { ConfirmDialog, toast } from '../components/ui';
 import { errMsg } from '../core/errors';
@@ -113,15 +130,73 @@ export function FileOperationsProvider({ children }: { children: ReactNode }) {
 
   const [busy, setBusy] = useState(false);
   const [importState, setImportState] = useState<ImportState>({ kind: 'idle' });
-  const [sourceFolder, setSourceFolder] = useState<string | null>(null);
+  const [sourceFolder, setSourceFolderState] = useState<string | null>(null);
   const [confirmResetOpen, setConfirmResetOpen] = useState(false);
+  const [confirmRestoredOpen, setConfirmRestoredOpen] = useState(false);
   const importInputRef = useRef<HTMLInputElement>(null);
+
+  // 保存先が「前回セッションからの復元」で、まだユーザの確認を得ていない状態か。
+  // 上書き保存は Rust 側で root ごと削除して書き直すため、編集内容の復元に失敗して
+  // 既定 state で起動したケースでは、無確認だとユーザのパックを消してしまう。
+  // 初回の上書きだけ確認を挟み、以降はこのセッション中もう聞かない。
+  const [restoredUnconfirmed, setRestoredUnconfirmed] = useState(false);
+
+  // 起動時の非同期復元が、復元完了前のユーザ操作（インポート／保存／リセット）を
+  // あとから上書きしないようにするためのガード。
+  const saveTargetDecidedRef = useRef(false);
+
+  /**
+   * 保存先を更新する唯一の入口。React state と永続化（Desktop）を必ず揃える。
+   * 永続化失敗はセッション内の動作を妨げないが、黙って古い保存先が残り続けると
+   * 次回起動で誤った上書き先が復元されるため、非ブロッキング通知は出す。
+   */
+  const setSourceFolder = useCallback(
+    (path: string | null) => {
+      saveTargetDecidedRef.current = true;
+      setSourceFolderState(path);
+      // このセッションでユーザが明示的に決めた保存先なので、確認は不要。
+      setRestoredUnconfirmed(false);
+      const task = path == null ? forgetSaveTarget() : rememberSaveTarget(path);
+      void task.catch((e: unknown) => {
+        console.error('save target persist failed', e);
+        toast.error(t('toast.saveTargetPersistFailed'));
+      });
+    },
+    [t],
+  );
+
+  // 前回セッションの保存先を復元する（Desktop のみ。実在検証は adapter 側）。
+  useEffect(() => {
+    if (!desktop) return;
+    let canceled = false;
+    void loadSaveTarget()
+      .then((result) => {
+        if (canceled || saveTargetDecidedRef.current) return;
+        if (result.kind === 'missing') {
+          // 記憶はあったが実体が消えている。記憶は adapter が破棄済みなので何もしない。
+          console.warn('remembered save target no longer exists', result.path);
+          return;
+        }
+        if (result.kind !== 'restored') return;
+        setSourceFolderState(result.path);
+        setRestoredUnconfirmed(true);
+      })
+      .catch((e: unknown) => {
+        console.error('save target restore failed', e);
+      });
+    return () => {
+      canceled = true;
+    };
+  }, [desktop]);
 
   // ---- Import 共通: source を受け取って読込→解像度推定→ダイアログ表示 ----
   const startImport = useCallback(
     async (source: PackReadSource, displayName: string) => {
       const sourceFolderPath =
         source.kind === 'desktopFolder' ? source.path : null;
+      // 起動直後にインポートが始まった場合、あとから解決する保存先の復元が
+      // このインポートに割り込まないようにする（確定は handleConfirmImport 側）。
+      saveTargetDecidedRef.current = true;
       setImportState({ kind: 'loading-zip', displayName });
       setBusy(true);
       try {
@@ -255,18 +330,13 @@ export function FileOperationsProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const doSaveOverwrite = async () => {
-    if (!desktop) return;
-    if (!sourceFolder) {
-      toast.error(t('toast.overwriteNoTarget'));
-      return;
-    }
+  const runOverwrite = async (root: string) => {
     setBusy(true);
     try {
       const wall = useWallStore.getState().wall;
       const pack = await buildPackInWorker(wall);
       const { overwriteFolder } = await import('../adapters/desktop');
-      const dest = await overwriteFolder(pack, sourceFolder);
+      const dest = await overwriteFolder(pack, root);
       toast.success(t('toast.overwriteSuccess', { dest }));
     } catch (e) {
       console.error('overwrite failed', e);
@@ -274,6 +344,26 @@ export function FileOperationsProvider({ children }: { children: ReactNode }) {
     } finally {
       setBusy(false);
     }
+  };
+
+  const doSaveOverwrite = async () => {
+    if (!desktop) return;
+    if (!sourceFolder) {
+      toast.error(t('toast.overwriteNoTarget'));
+      return;
+    }
+    // 復元された保存先への初回上書きだけ確認を挟む（root ごと消して書き直すため）。
+    if (restoredUnconfirmed) {
+      setConfirmRestoredOpen(true);
+      return;
+    }
+    await runOverwrite(sourceFolder);
+  };
+
+  const confirmRestoredOverwrite = () => {
+    setConfirmRestoredOpen(false);
+    setRestoredUnconfirmed(false);
+    if (sourceFolder) void runOverwrite(sourceFolder);
   };
 
   // Reset は破壊的なので確認ダイアログを挟む（非ブロッキング。`window.confirm` は使わない）。
@@ -328,6 +418,17 @@ export function FileOperationsProvider({ children }: { children: ReactNode }) {
         busy={importState.kind === 'parsing'}
         onCancel={handleCancelImport}
         onConfirm={handleConfirmImport}
+      />
+      <ConfirmDialog
+        open={confirmRestoredOpen}
+        title={t('fileEditor.save.restoredConfirm.title')}
+        message={t('fileEditor.save.restoredConfirm.message', {
+          path: sourceFolder ?? '',
+        })}
+        confirmLabel={t('fileEditor.save.overwrite')}
+        cancelLabel={t('common.cancel')}
+        onConfirm={confirmRestoredOverwrite}
+        onCancel={() => setConfirmRestoredOpen(false)}
       />
       <ConfirmDialog
         open={confirmResetOpen}
