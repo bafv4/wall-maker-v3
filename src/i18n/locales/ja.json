@@ -16,22 +16,11 @@
     "hint": "エリアをクリックで選択。ドラッグで移動、角・辺のハンドルでリサイズできます。操作値はすべて整数で記録されます。"
   },
   "common": {
-    "add": "追加",
-    "remove": "削除",
-    "delete": "削除",
     "cancel": "キャンセル",
     "apply": "適用",
-    "ok": "OK",
     "close": "閉じる",
-    "open": "開く",
-    "clear": "クリア",
-    "change": "変更…",
-    "edit": "編集",
-    "save": "保存",
-    "processing": "処理中…",
-    "loading": "読込中…",
-    "yes": "はい",
-    "no": "いいえ"
+    "selectPlaceholder": "選択…",
+    "noOptions": "選択肢なし"
   },
   "header": {
     "import": "インポート（.zip）",
@@ -53,7 +42,6 @@
       "title": "保存（フォルダ形式）",
       "description": "リソースパックをフォルダ形式で書き出します。「名前を付けて保存」は毎回保存先を選択し、「上書き保存」はフォルダから開いた／一度保存した場所をそのまま上書きします。",
       "currentTargetLabel": "編集中のリソースパック",
-      "currentTargetEmpty": "未設定（フォルダから開く、または「名前を付けて保存」で設定されます）",
       "saveAs": "名前を付けて保存…",
       "overwrite": "上書き保存",
       "processing": "処理中…"
@@ -179,8 +167,7 @@
       "stopColorPrompt": "選択中のストップの色（#{{n}}）",
       "fileImage": "画像 ({{size}} KB)",
       "imageRef": "画像 (ref)"
-    },
-    "selectStopAlias": "選択中のストップ"
+    }
   },
   "cropModal": {
     "title": "画像をクロップ",
@@ -285,9 +272,7 @@
     "overwriteNoTarget": "上書き保存先がありません（先に「保存」してください）",
     "importSuccess": "{{filename}} をインポートしました",
     "importFailed": "インポートに失敗しました: {{error}}",
-    "readZipFailed": "zip の読み込みに失敗しました: {{error}}",
     "readFailed": "読み込みに失敗しました: {{error}}",
-    "writeCanceled": "書き出しをキャンセルしました",
     "persistFailed": "編集内容の自動保存に失敗しました（エクスポートは可能です）",
     "restoreFailed": "前回の編集内容を復元できなかったため、初期状態で起動しました"
   }
