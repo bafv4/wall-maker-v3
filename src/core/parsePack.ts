@@ -500,6 +500,21 @@ async function parseLockImages(
 }
 
 /**
+ * 全画素走査を許す最大辺長。これを超える画像は走査せず「透明ではない」と判定する。
+ *
+ * この検査が本来判別したいのは buildPack が書く透明プレースホルダ
+ * （PLACEHOLDER_LOCK_SIZE = 128x128）と、手書きパックの同等物だけ。
+ * 上限なしだと 4096x4096 の lock.png で 67MB の ImageData と 1670 万回のループが
+ * import 中のメインスレッドで走るため、辺長で打ち切る（1024x1024 で ImageData 4MB）。
+ *
+ * 縮小してから走査する案は採らない。ブラウザの縮小補間は大きな縮小率で画素を取りこぼし、
+ * 「透明でない画像を透明と誤判定 → images を捨てる」というデータ損失方向の誤りになり得るため。
+ * 打ち切り側の誤り（巨大な全透明画像を通常画像として扱う）は enabled=true で画像を保持するだけで、
+ * 再エクスポートのバイト列も生成される見た目も変わらない。
+ */
+const TRANSPARENCY_SCAN_MAX_SIZE = 1024;
+
+/**
  * 全ピクセルの alpha が 0 か検査する。
  * デコード・検査に失敗した場合は false（通常画像として扱う安全側フォールバック）。
  */
@@ -511,6 +526,12 @@ async function isFullyTransparentImage(bytes: Uint8Array): Promise<boolean> {
       type: 'image/png',
     });
     bitmap = await createImageBitmap(blob);
+    if (
+      bitmap.width > TRANSPARENCY_SCAN_MAX_SIZE ||
+      bitmap.height > TRANSPARENCY_SCAN_MAX_SIZE
+    ) {
+      return false;
+    }
     const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
     // OffscreenCanvas は getContext を経由せず使うと描画されない。必ず ctx 経由で描く。
     const ctx = canvas.getContext('2d');
