@@ -180,7 +180,11 @@
       "fileImage": "画像 ({{size}} KB)",
       "imageRef": "画像 (ref)"
     },
-    "selectStopAlias": "選択中のストップ"
+    "selectStopAlias": "選択中のストップ",
+    "toast": {
+      "notRaster": "{{filename}}: 使用できない画像形式です（SVG などのベクタ形式は非対応。PNG / JPEG / GIF / WebP などを選んでください）",
+      "imageFailed": "{{filename}} の読み込みに失敗しました: {{error}}"
+    }
   },
   "cropModal": {
     "title": "画像をクロップ",

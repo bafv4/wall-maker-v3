@@ -180,7 +180,11 @@
       "fileImage": "Image ({{size}} KB)",
       "imageRef": "Image (ref)"
     },
-    "selectStopAlias": "Selected stop"
+    "selectStopAlias": "Selected stop",
+    "toast": {
+      "notRaster": "{{filename}}: unsupported image format (vector formats such as SVG are not supported — use PNG / JPEG / GIF / WebP)",
+      "imageFailed": "Failed to read {{filename}}: {{error}}"
+    }
   },
   "cropModal": {
     "title": "Crop image",

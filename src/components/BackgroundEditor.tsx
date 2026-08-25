@@ -10,11 +10,20 @@
  *  - 選択中レイヤは store の `ui.selectedBackgroundLayerId` を共有
  *    （image+manual のときプレビュー操作モードも兼ねる）。
  *  - image レイヤのヘッダにはファイル名を表示。
+ *
+ * 画像の取り込み: **デコードできることを取り込み境界で検証する**（`assertDecodable`）。
+ *  - renderBackground / buildPack はどちらも `createImageBitmap` でレイヤを描画する。
+ *    そこで落ちるバイト列（SVG・破損 PNG 等）を state に入れると、プレビューは無言で
+ *    前フレームのまま・エクスポートだけが失敗する、という気づけない壊れ方をする。
+ *  - pack.png / lock.png と違い **PNG 再エンコードはしない**。背景レイヤの元バイトはパックに
+ *    入らず（canvas 合成した background.png だけが出力される）、PNG 化しても出力は 1 バイトも
+ *    変わらないのに state / IndexedDB だけが肥大するため（JPEG 写真で数倍〜10 倍）。
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { HexColorPicker } from 'react-colorful';
+import { errMsg } from '../core/errors';
 import type {
   BackgroundLayer,
   ColorLayer,
@@ -27,8 +36,41 @@ import {
   type BackgroundLayerPatch,
 } from '../store/useWallStore';
 import { CropModal } from './CropModal';
-import { Button, Select, Switch } from './ui';
+import { Button, Select, Switch, toast } from './ui';
 import { cn } from './ui/cn';
+
+// ---------------------------------------------------------------------------
+// 共通: 画像ファイルの取り込み
+// ---------------------------------------------------------------------------
+
+/**
+ * ベクタ画像（SVG / SVGZ）か。`accept="image/*"` は SVG を通すが、`createImageBitmap` は
+ * Chromium 系（Chrome / WebView2）で SVG を reject する。Firefox では通ってしまうため、
+ * 環境差で「Web では出るがデスクトップでは出ない背景」にならないよう一律で弾く。
+ *
+ * これ以外の形式はここで判定しない（`file.type` は空や `application/octet-stream` に
+ * なり得るので拡張子・MIME での allowlist は誤検知する）。実際に描けるかは
+ * `assertDecodable` のデコード結果に委ねる。
+ */
+function isVectorImageFile(file: File): boolean {
+  return file.type === 'image/svg+xml' || /\.svgz?$/i.test(file.name);
+}
+
+/**
+ * バイト列が `createImageBitmap` でデコードできることを検証する（失敗時は throw）。
+ * renderBackground の `getCachedBitmap` と**同じ Blob の組み立て方**で検証しないと、
+ * ここを通ったのに描画で落ちる、という取りこぼしが起きる。
+ */
+async function assertDecodable(
+  bytes: Uint8Array,
+  mimeType: string,
+): Promise<void> {
+  const bitmap = await createImageBitmap(
+    // Uint8Array<ArrayBufferLike> → BlobPart 非互換（TS 5.7+）。実 ArrayBuffer 由来なので絞り込む。
+    new Blob([bytes as Uint8Array<ArrayBuffer>], { type: mimeType }),
+  );
+  bitmap.close();
+}
 
 // ---------------------------------------------------------------------------
 // 共通: 不透明度スライダ
@@ -137,15 +179,41 @@ function ImageEditor({
   }, [previewUrl]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // 読み取り + デコード検証中。大きい画像だと秒単位かかるため、二重ピックで
+  // 後発の結果が先発に上書きされないようボタンを止める（LockImagesEditor と同じ方針）。
+  const [loading, setLoading] = useState(false);
 
   const handleReplace = async (file: File) => {
-    const buf = await file.arrayBuffer();
+    if (isVectorImageFile(file)) {
+      toast.error(t('background.toast.notRaster', { filename: file.name }));
+      return;
+    }
+    // ピック後・読み取り前にファイルが消える（USB 取り外し / ネットワーク切断 / 権限剥奪）と
+    // arrayBuffer() が reject する。未処理 rejection にせずトーストで通知する。
+    const mimeType = file.type || 'image/png';
+    let bytes: Uint8Array;
+    setLoading(true);
+    try {
+      bytes = new Uint8Array(await file.arrayBuffer());
+      await assertDecodable(bytes, mimeType);
+    } catch (e) {
+      console.error('background image read failed', e);
+      toast.error(
+        t('background.toast.imageFailed', {
+          filename: file.name,
+          error: errMsg(e),
+        }),
+      );
+      return;
+    } finally {
+      setLoading(false);
+    }
     onUpdate({
       type: 'image',
       source: {
         kind: 'inline',
-        bytes: new Uint8Array(buf),
-        mimeType: file.type || 'image/png',
+        bytes,
+        mimeType,
       },
       originalFileName: file.name,
       // crop は旧画像の px 座標なので新画像では画像外を指し得る。transform は wall 座標系なので維持。
@@ -216,6 +284,7 @@ function ImageEditor({
           <Button
             size="sm"
             variant="outline"
+            disabled={loading}
             onClick={() => fileInputRef.current?.click()}
           >
             {t('background.image.replace')}
@@ -615,6 +684,8 @@ export function BackgroundEditor() {
   const selectBackgroundLayer = useWallStore((s) => s.selectBackgroundLayer);
 
   const addImageInputRef = useRef<HTMLInputElement>(null);
+  // 読み取り + デコード検証中は追加ボタンを止める（二重ピックでの取りこぼし防止）。
+  const [addingImage, setAddingImage] = useState(false);
 
   const [cropTargetId, setCropTargetId] = useState<string | null>(null);
   const cropTarget = useMemo(() => {
@@ -641,15 +712,38 @@ export function BackgroundEditor() {
   };
 
   const handleAddImage = async (file: File) => {
-    const buf = await file.arrayBuffer();
+    if (isVectorImageFile(file)) {
+      toast.error(t('background.toast.notRaster', { filename: file.name }));
+      return;
+    }
+    // ピック後・読み取り前にファイルが消える（USB 取り外し / ネットワーク切断 / 権限剥奪）と
+    // arrayBuffer() が reject する。未処理 rejection にせずトーストで通知する。
+    const mimeType = file.type || 'image/png';
+    let bytes: Uint8Array;
+    setAddingImage(true);
+    try {
+      bytes = new Uint8Array(await file.arrayBuffer());
+      await assertDecodable(bytes, mimeType);
+    } catch (e) {
+      console.error('background image read failed', e);
+      toast.error(
+        t('background.toast.imageFailed', {
+          filename: file.name,
+          error: errMsg(e),
+        }),
+      );
+      return;
+    } finally {
+      setAddingImage(false);
+    }
     const id = crypto.randomUUID();
     addBackgroundLayer({
       id,
       type: 'image',
       source: {
         kind: 'inline',
-        bytes: new Uint8Array(buf),
-        mimeType: file.type || 'image/png',
+        bytes,
+        mimeType,
       },
       opacity: 1,
       visible: true,
@@ -725,7 +819,11 @@ export function BackgroundEditor() {
                   addImageInputRef.current.value = '';
               }}
             />
-            <Button size="sm" onClick={() => addImageInputRef.current?.click()}>
+            <Button
+              size="sm"
+              disabled={addingImage}
+              onClick={() => addImageInputRef.current?.click()}
+            >
               {t('background.addImage')}
             </Button>
             <Button size="sm" onClick={handleAddGradient}>
