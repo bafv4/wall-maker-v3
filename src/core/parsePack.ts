@@ -13,7 +13,8 @@
  *    `background.png` のサイズが妥当な推定値になるため、`detectBackgroundResolution`
  *    で取り出して UI 側のデフォルト値に使う運用を想定。
  *  - sounds: `sounds.json` 不在のイベントは `mode: 'default'`、`replace=true, sounds=[]` は `off`、
- *    `sounds=["<event>.ogg"]` は対応 ogg を読み込んで `custom` に。
+ *    `sounds=["seedqueue:<event>"]`（`<event>` / 旧出力の `<event>.ogg` も可）は
+ *    対応 ogg を読み込んで `custom` に。
  *  - lock 画像: 1 枚目=`lock.png`、以降 `lock-1.png` `lock-2.png` …。
  *  - 不正/欠損ファイルは安全側にフォールバックし、致命的でない限り例外を投げない。
  *    `custom_layout.json` が欠損または parse 不能なときだけ throw する（SeedQueue パックではない）。
@@ -501,6 +502,31 @@ async function isFullyTransparentImage(bytes: Uint8Array): Promise<boolean> {
 // sounds
 // ===========================================================================
 
+/**
+ * `sounds.json` のサウンド名を `assets/seedqueue/sounds/` 配下のファイル名に解決する。
+ *
+ * MC はサウンド名を `assets/<ns>/sounds/` 相対のパスと解釈し `.ogg` を自動付加するため、
+ * **出力してよい正しい形式は `seedqueue:<event>`（名前空間付き・拡張子なし）だけ**。
+ * 読込側は壊れたパックも拾えるよう、次の 3 形式を受け付ける（寛容側に倒す）:
+ *  - `seedqueue:<event>` … mod 本体と同じ正しい形式
+ *  - `<event>`           … 名前空間省略。MC は `minecraft:` 扱いにするので出力しては**いけない**が、
+ *                          このパック内の ogg を指す意図と解釈して読む
+ *  - `<event>.ogg`       … v3.1.0 以前の壊れた出力で作られた既存パックとの後方互換
+ *
+ * 解決できないときは null。
+ */
+function soundNameToOggFileName(soundName: string): string | null {
+  // 先頭の `<ns>:` を剥がす
+  const colon = soundName.indexOf(':');
+  let name = colon >= 0 ? soundName.slice(colon + 1) : soundName;
+  // 末尾の `.ogg` を剥がす（後方互換）
+  if (name.toLowerCase().endsWith('.ogg')) {
+    name = name.slice(0, -'.ogg'.length);
+  }
+  if (!name) return null;
+  return `${name}.ogg`;
+}
+
 function parseSounds(pack: VirtualPack): WallState['sounds'] {
   const defaults = createDefaultWallState().sounds;
   const text = readString(pack, PACK_PATHS.soundsJson);
@@ -527,8 +553,10 @@ function parseSounds(pack: VirtualPack): WallState['sounds'] {
     if (sounds.length === 0) {
       events[key] = { mode: 'off' };
     } else {
-      // 期待する形は ["<event>.ogg"] 1 要素。先頭の文字列を採用。
-      const filename = typeof sounds[0] === 'string' ? sounds[0] : null;
+      // 期待する形は ["seedqueue:<event>"] 1 要素。先頭の文字列を採用。
+      const soundName = typeof sounds[0] === 'string' ? sounds[0] : null;
+      if (!soundName) continue;
+      const filename = soundNameToOggFileName(soundName);
       if (!filename) continue;
       const oggBytes = readBytes(
         pack,

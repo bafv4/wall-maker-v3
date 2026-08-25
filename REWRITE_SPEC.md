@@ -365,12 +365,20 @@ SeedQueue のサウンドイベントは **13 種**（`SeedQueueSounds.java`）�
 | `open_wall` | Wall を開く | — |
 | `bypass_wall` | Wall をバイパス | — |
 
-`sounds.json` の各エントリは `{ "sounds": ["seedqueue:<name>" または "<file>"] }`。MC の規則上、上書き時に
+`sounds.json` の各エントリは `{ "sounds": ["seedqueue:<name>"] }`。MC の規則上、上書き時に
 既定音と二重再生させないため**上書きするイベントには `"replace": true` を付ける**。`sounds: []` で無音。
+
+**サウンド名は名前空間付き・拡張子なしで書く**（mod 本体の `assets/seedqueue/sounds.json` を直接確認して確定。
+確認日 2026-08-25。実体は `"lock_instance": { "sounds": ["seedqueue:lock_instance"] }`）。
+MC はサウンド名を `assets/<ns>/sounds/` 相対のパスとして解釈し `.ogg` を**自動で付加する**ため、
+名前に拡張子を書くと `assets/seedqueue/sounds/<event>.ogg.ogg` を探しに行き**黙って無音になる**。
 
 - **default（内蔵音を使う）**：そのイベントを `sounds.json` に書かない（MOD 既定にフォールバック）。
 - **off（無音）**：`{ "replace": true, "sounds": [] }`。
-- **custom（独自音）**：`assets/seedqueue/sounds/<event>.ogg` を配置し `{ "replace": true, "sounds": ["<event>.ogg"] }`。
+- **custom（独自音）**：`assets/seedqueue/sounds/<event>.ogg` を配置し `{ "replace": true, "sounds": ["seedqueue:<event>"] }`。
+
+> `parsePack` は既存パックの読込互換のため、`seedqueue:<event>` / `<event>` / `<event>.ogg` の 3 形式を
+> 受け付ける（`<event>.ogg` は v3.1.0 以前の誤った出力で作られたパック向けの後方互換）。
 
 > 旧アプリは 6 イベントしか扱わず、`reset_instance` を独立イベントとして扱わない・`play_instance`/`schedule_*`/
 > `open_wall`/`bypass_wall`/`scheduled_join_warning` を欠いていた。新実装は 13 イベントを正として UI を設計する
