@@ -9,9 +9,13 @@ const host = process.env.TAURI_DEV_HOST;
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-// バージョン番号の単一の正は package.json の `version`。ビルド時に `__APP_VERSION__`
-// として埋め込み、UI（ヘッダー / About）はここから表示する。tauri.conf.json も
-// `version` を package.json 参照にしてあり、ウィンドウタイトル等と同一ソースで揃う。
+// バージョン番号の単一の正は package.json の `version`（**素の semver**。npm/pnpm や
+// semver 比較が壊れるので `v` を付けない）。ビルド時に `__APP_VERSION__` として
+// そのまま埋め込み、`v` 接頭辞は表示側（AppHeader / AboutModal）で付ける。
+// `src-tauri/tauri.conf.json` の `version` も `"../package.json"` 参照にしてあるため、
+// バンドル版のバージョンも同一ソースで揃う。
+// 例外は `src-tauri/Cargo.toml` の `package.version`（crate 自体のバージョンで、
+// Cargo に外部ファイル参照の手段がない）。そちらは手動で合わせる。
 const pkgVersion = JSON.parse(
   readFileSync(resolve(__dirname, "package.json"), "utf8"),
 ).version as string;

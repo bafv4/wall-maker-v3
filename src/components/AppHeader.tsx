@@ -33,8 +33,9 @@ export function AppHeader() {
           title={t('header.aboutTooltip')}
         >
           {t('app.title')}
+          {/* `__APP_VERSION__` は素の semver（package.json 由来）。`v` は表示側で付ける。 */}
           <span className="ml-2 text-xs font-normal text-fg-subtle">
-            {__APP_VERSION__}
+            {`v${__APP_VERSION__}`}
           </span>
         </button>
 

@@ -18,22 +18,11 @@
     "snapHint": "Hold Shift to disable snapping"
   },
   "common": {
-    "add": "Add",
-    "remove": "Remove",
-    "delete": "Delete",
     "cancel": "Cancel",
     "apply": "Apply",
-    "ok": "OK",
     "close": "Close",
-    "open": "Open",
-    "clear": "Clear",
-    "change": "Change…",
-    "edit": "Edit",
-    "save": "Save",
-    "processing": "Working…",
-    "loading": "Loading…",
-    "yes": "Yes",
-    "no": "No"
+    "selectPlaceholder": "Select…",
+    "noOptions": "No options"
   },
   "header": {
     "import": "Import (.zip)",
@@ -55,7 +44,6 @@
       "title": "Save (folder)",
       "description": "Write the resource pack as a folder. \"Save As\" picks a destination each time; \"Overwrite\" replaces the folder you opened or last saved to.",
       "currentTargetLabel": "Editing resource pack",
-      "currentTargetEmpty": "Not set (will be assigned when you open a folder or use \"Save As\")",
       "saveAs": "Save As…",
       "overwrite": "Overwrite",
       "processing": "Working…",
@@ -188,7 +176,6 @@
       "fileImage": "Image ({{size}} KB)",
       "imageRef": "Image (ref)"
     },
-    "selectStopAlias": "Selected stop",
     "toast": {
       "notRaster": "{{filename}}: unsupported image format (vector formats such as SVG are not supported — use PNG / JPEG / GIF / WebP)",
       "imageFailed": "Failed to read {{filename}}: {{error}}"
@@ -305,9 +292,7 @@
     "overwriteNoTarget": "No save target yet — use \"Save As\" first",
     "importSuccess": "Imported {{filename}}",
     "importFailed": "Import failed: {{error}}",
-    "readZipFailed": "Failed to read .zip: {{error}}",
     "readFailed": "Read failed: {{error}}",
-    "writeCanceled": "Export canceled",
     "persistFailed": "Failed to auto-save your edits (export still works)",
     "restoreFailed": "Could not restore your previous session — started fresh",
     "saveTargetPersistFailed": "Could not remember the save target (saving still works this session)",
