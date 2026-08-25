@@ -10,9 +10,9 @@
  *   クラスのような抽象は持たない（実装が 2 つしかなく、構造が同じだったため）。
  */
 
-import type { PackReadSource, VirtualPack } from '../core/types';
+import type { PackReadResult, PackReadSource } from '../core/types';
 
-export type { PackReadSource } from '../core/types';
+export type { PackReadResult, PackReadSource } from '../core/types';
 
 /** Tauri webview 内で動作しているかの判定。SSR / Node では false。 */
 export const isTauri = (): boolean =>
@@ -41,11 +41,13 @@ export async function saveZipBytes(
  * `PackReadSource` を VirtualPack に展開する。Web は `webZip` のみ、Desktop は
  * `desktopZip` / `desktopFolder` を扱う。非対応 kind は実装側で明示エラーになる。
  */
-export async function readPack(source: PackReadSource): Promise<VirtualPack> {
+export async function readPack(
+  source: PackReadSource,
+): Promise<PackReadResult> {
   if (isTauri()) {
     const { readDesktopPack } = await import('./desktop');
     return readDesktopPack(source);
   }
   const { readWebPack } = await import('./web');
-  return readWebPack(source);
+  return { pack: await readWebPack(source), rootPath: null };
 }

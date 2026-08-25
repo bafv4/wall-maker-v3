@@ -12,6 +12,7 @@
  */
 
 import JSZip from 'jszip';
+import { normalizePackRoot } from '../core/packRoot';
 import type { PackReadSource, VirtualPack } from '../core/types';
 
 /**
@@ -94,6 +95,9 @@ export async function readWebPack(
  * 拡張子で text / binary を振り分け、ディレクトリエントリは無視する。
  * 失敗は呼び出し側でキャッチ可能なエラーとして throw（メッセージは JSZip 由来をそのまま）。
  *
+ * 配布パックは「パックフォルダごと圧縮」されていることが多く、エントリが
+ * `MyPack/pack.mcmeta` … になる。最後に {@link normalizePackRoot} を通してルートを引き上げる。
+ *
  * Desktop アダプタも Rust 側 `read_pack_zip` の結果（Uint8Array）を本関数に流す。
  */
 export async function zipFileToVirtualPack(
@@ -111,5 +115,5 @@ export async function zipFileToVirtualPack(
       pack.set(path, await entry.async('uint8array'));
     }
   }
-  return pack;
+  return normalizePackRoot(pack).pack;
 }

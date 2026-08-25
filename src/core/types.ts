@@ -34,6 +34,24 @@ export type PackReadSource =
   | { kind: 'desktopZip'; path: string }
   | { kind: 'desktopFolder'; path: string };
 
+/**
+ * パック読込の結果。読み込んだ VirtualPack と、それが実際に置かれていた場所。
+ *
+ * 配布パックは「パックフォルダごと圧縮」されていることが多く、Desktop でもユーザが
+ * パックフォルダの**親**を選びうる。その場合 `core/packRoot` がルートを引き上げるため、
+ * 「ユーザが選んだパス」と「実際のパックルート」がズレる。
+ */
+export interface PackReadResult {
+  /** ルート正規化済みの VirtualPack（キーはパック内パス）。 */
+  pack: VirtualPack;
+  /**
+   * `desktopFolder` 起点のときの実際のパックルート絶対パス。それ以外の起点では null。
+   * 「上書き保存」はこのパスを丸ごと削除して書き直すため、選択パスをそのまま使うと
+   * 親フォルダの中身ごと消える。必ずこちらを使うこと。
+   */
+  rootPath: string | null;
+}
+
 // ---------------------------------------------------------------------------
 // SeedQueue リソースパックのフォーマット定数（第6章）
 // 値を直接 import して使う。マジックナンバーを各所に書かないこと。

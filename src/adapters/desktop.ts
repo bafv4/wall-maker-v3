@@ -19,7 +19,12 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import { open, save } from '@tauri-apps/plugin-dialog';
-import type { PackReadSource, VirtualPack } from '../core/types';
+import { normalizePackRoot, type NormalizedPackRoot } from '../core/packRoot';
+import type {
+  PackReadResult,
+  PackReadSource,
+  VirtualPack,
+} from '../core/types';
 import { DEFAULT_PACK_NAME, TEXT_EXTS, zipFileToVirtualPack } from './web';
 
 // ---------------------------------------------------------------------------
@@ -135,16 +140,24 @@ export async function overwriteFolder(
 
 export async function readDesktopPack(
   source: PackReadSource,
-): Promise<VirtualPack> {
+): Promise<PackReadResult> {
   if (source.kind === 'desktopZip') {
     const raw = await invoke<unknown>('read_pack_zip', { path: source.path });
-    return zipFileToVirtualPack(toUint8Array(raw));
+    const pack = await zipFileToVirtualPack(toUint8Array(raw));
+    return { pack, rootPath: null };
   }
   if (source.kind === 'desktopFolder') {
     const raw = await invoke<Record<string, unknown>>('read_pack_folder', {
       path: source.path,
     });
-    return folderRecordToVirtualPack(raw);
+    const { pack, strippedPrefix } = folderRecordToVirtualPack(raw);
+    // ユーザがパックフォルダの親を選んだ場合、実際のパックルートは剥がした分だけ深い。
+    // ここを選択パスのままにすると「上書き保存」が親フォルダを丸ごと削除してしまう。
+    const rootPath = strippedPrefix
+      .split('/')
+      .filter((segment) => segment.length > 0)
+      .reduce(joinPathSegments, source.path);
+    return { pack, rootPath };
   }
   throw new Error(
     `readDesktopPack: 非対応の読込ソース kind=${source.kind}（Desktop は desktopZip / desktopFolder のみ対応）`,
@@ -154,10 +167,13 @@ export async function readDesktopPack(
 /**
  * フォルダ walk の結果（path → バイト列）から VirtualPack を組む。
  * テキスト拡張子（{@link TEXT_EXTS}）は UTF-8 デコード、それ以外は `Uint8Array` のまま。
+ *
+ * Rust 側は選択された root からの相対 POSIX パスを返すが、ユーザがパックフォルダの**親**を
+ * 選ぶと全キーが `MyPack/...` になる。最後に {@link normalizePackRoot} を通してルートを引き上げる。
  */
 function folderRecordToVirtualPack(
   record: Record<string, unknown>,
-): VirtualPack {
+): NormalizedPackRoot {
   const dec = new TextDecoder('utf-8');
   const pack: VirtualPack = new Map();
   for (const [path, raw] of Object.entries(record)) {
@@ -165,5 +181,5 @@ function folderRecordToVirtualPack(
     const ext = path.split('.').pop()?.toLowerCase() ?? '';
     pack.set(path, TEXT_EXTS.has(ext) ? dec.decode(bytes) : bytes);
   }
-  return pack;
+  return normalizePackRoot(pack);
 }
