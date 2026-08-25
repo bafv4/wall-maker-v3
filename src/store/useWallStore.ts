@@ -24,6 +24,10 @@ import {
   toSafeInt,
 } from '../core/coords';
 import {
+  DEFAULT_LOCK_WEIGHT,
+  MAX_LOCK_WEIGHT,
+} from '../core/lockWeights';
+import {
   createDefaultWallState,
   type Area,
   type BackgroundLayer,
@@ -117,6 +121,10 @@ export interface WallStoreState {
   addLockImage: (img: LockImage) => void;
   removeLockImage: (id: string) => void;
   reorderLockImages: (ids: string[]) => void;
+  /** lock 画像 1 枚の抽選重み。`undefined` で「既定重みに従う」に戻す。 */
+  setLockImageWeight: (id: string, weight: number | undefined) => void;
+  /** コレクション全体の既定重み（`lock.png.mcmeta` の `seedqueue.defaultWeight`）。 */
+  setLockDefaultWeight: (weight: number) => void;
 
   // --- sounds ---
   setSoundGlobalMode: (mode: SoundSettings['globalMode']) => void;
@@ -430,6 +438,44 @@ export const useWallStore = create<WallStoreState>()(
             },
           };
         }),
+
+      setLockImageWeight: (id, weight) =>
+        set((s) => ({
+          wall: {
+            ...s.wall,
+            lockImages: {
+              ...s.wall.lockImages,
+              images: s.wall.lockImages.images.map((img) => {
+                if (img.id !== id) return img;
+                if (weight === undefined) {
+                  // 「既定重みに従う」＝ .mcmeta に weight を書かない状態に戻す。
+                  const { weight: _drop, ...rest } = img;
+                  return rest;
+                }
+                return {
+                  ...img,
+                  weight: toSafeInt(weight, DEFAULT_LOCK_WEIGHT, 1, MAX_LOCK_WEIGHT),
+                };
+              }),
+            },
+          },
+        })),
+
+      setLockDefaultWeight: (weight) =>
+        set((s) => ({
+          wall: {
+            ...s.wall,
+            lockImages: {
+              ...s.wall.lockImages,
+              defaultWeight: toSafeInt(
+                weight,
+                DEFAULT_LOCK_WEIGHT,
+                1,
+                MAX_LOCK_WEIGHT,
+              ),
+            },
+          },
+        })),
 
       setSoundGlobalMode: (mode) =>
         set((s) => ({

@@ -211,16 +211,33 @@ export interface LockImage {
   source: BinaryRef;
   /** UI 表示用の元ファイル名（任意）。 */
   originalFileName?: string;
-  // 機能拡充候補（第6.5章）
-  /** `<lock>.png.mcmeta` の `seedqueue.weight`。 */
+  /**
+   * `<lock>.png.mcmeta` の `seedqueue.weight`（抽選の重み、第6.5章）。
+   * 未指定なら {@link LockImages.defaultWeight} が使われる。SeedQueue は
+   * `Math.max(1, weight)` を取るので実効値は必ず 1 以上になる。
+   */
   weight?: number;
-  /** `lock.png` 限定：`seedqueue.defaultWeight`。 */
-  defaultWeight?: number;
+  /**
+   * 取り込んだ `.mcmeta` のうち `seedqueue` **以外**のセクション（`animation` など）。
+   * 本アプリはアニメーションを編集できないが、書き出し時にそのまま戻すことで
+   * インポート → エクスポートで他パックのメタデータを落とさないようにする。
+   */
+  mcmetaExtra?: Record<string, unknown>;
 }
 
 export interface LockImages {
   enabled: boolean;
   images: LockImage[];
+  /**
+   * `lock.png.mcmeta` の `seedqueue.defaultWeight`。個別の `weight` を持たない画像に
+   * 適用される既定の重みで、SeedQueue は **`lock.png` のメタデータからのみ**読む
+   * （読めなければ 1）。
+   *
+   * 物理的には lock.png に載るが、意味はコレクション全体の既定値なのでここに置く。
+   * `LockImage` 側に持たせると並べ替えで 1 枚目が変わったときに値が別画像へ移り、
+   * パック全体の抽選確率が黙って変わってしまう。
+   */
+  defaultWeight?: number;
 }
 
 // ---------------------------------------------------------------------------

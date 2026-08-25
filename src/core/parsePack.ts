@@ -29,6 +29,7 @@
  */
 
 import { floorArea, floorCell, floorInt } from './coords';
+import { parseLockMcmeta } from './lockWeights';
 import { errMsg } from './errors';
 import { getDefaultPresetLayout } from './layoutPresets';
 import {
@@ -470,23 +471,39 @@ async function parseLockImages(
     return { enabled: true, images: [] };
   }
 
+  // `.mcmeta` の seedqueue セクション（重み）と、それ以外（animation など）を取り出す。
+  // defaultWeight は SeedQueue が lock.png からしか読まないので 1 枚目だけ見る。
+  const readMeta = (filename: string) =>
+    parseLockMcmeta(
+      readString(pack, `${PACK_PATHS.texturesGuiWall}/${filename}.mcmeta`) ??
+        undefined,
+    );
+
+  const firstMeta = readMeta('lock.png');
   images.push({
     id: crypto.randomUUID(),
     source: { kind: 'inline', bytes: first, mimeType: 'image/png' },
     originalFileName: 'lock.png',
+    ...(firstMeta.weight !== undefined ? { weight: firstMeta.weight } : {}),
+    ...(firstMeta.extra ? { mcmetaExtra: firstMeta.extra } : {}),
   });
 
   // lock-1.png, lock-2.png, ... を連番で探す
   for (let i = 1; i < 256; i++) {
-    const path = `${PACK_PATHS.texturesGuiWall}/lock-${i}.png`;
-    const bytes = readBytes(pack, path);
+    const filename = `lock-${i}.png`;
+    const bytes = readBytes(pack, `${PACK_PATHS.texturesGuiWall}/${filename}`);
     if (!bytes) break;
+    const meta = readMeta(filename);
     images.push({
       id: crypto.randomUUID(),
       source: { kind: 'inline', bytes, mimeType: 'image/png' },
-      originalFileName: `lock-${i}.png`,
+      originalFileName: filename,
+      ...(meta.weight !== undefined ? { weight: meta.weight } : {}),
+      ...(meta.extra ? { mcmetaExtra: meta.extra } : {}),
     });
   }
+
+  const defaultWeight = firstMeta.defaultWeight;
 
   // buildPack はロック無効時に「全ピクセル透明の lock.png 1 枚だけ」を出力する（第6.5章）。
   // その形（透明 lock.png 単独）のときに限り enabled=false として復元する。
@@ -497,7 +514,11 @@ async function parseLockImages(
     return { enabled: false, images: [] };
   }
 
-  return { enabled: true, images };
+  return {
+    enabled: true,
+    images,
+    ...(defaultWeight !== undefined ? { defaultWeight } : {}),
+  };
 }
 
 /**

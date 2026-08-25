@@ -194,7 +194,7 @@
     "title": "Use lock images",
     "description": "Turn off to disable the lock overlay.",
     "addImage": "+ Add image",
-    "specNote": "SeedQueue will not load any lock-N.png if lock.png is missing. The first image in this list is always written as lock.png. Images are stored at their original size (aspect ratio preserved).",
+    "specNote": "The first image is always written as lock.png (if a pack ships only lock-1.png, the mod's built-in lock.png ends up as the first entry). Images are stored as-is without resizing (aspect ratio preserved). Weight controls how often an image is picked: its effective weight divided by the total is the probability.",
     "specMemo": "Format notes (click to expand)",
     "required": "Required",
     "noName": "No name",
@@ -205,6 +205,15 @@
       "disabled": "Disabled: a transparent 128×128 will be written as lock.png on export (blocks the SeedQueue default).",
       "emptyEnabled": "Enabled with no images: falls back to the mod default lock.png (nothing is written).",
       "active": "Enabled with {{count}} image(s): the first is written as lock.png; the rest as lock-1.png onward."
+    },
+    "weight": {
+      "label": "Weight",
+      "hint": "Selection weight. Leave empty to follow the default weight. Higher values are picked more often.",
+      "inherited": "default {{value}}",
+      "effective": "effective {{value}}",
+      "share": "{{percent}}%",
+      "defaultLabel": "Default weight",
+      "defaultDescription": "Applied to images without an explicit weight. Written to lock.png's .mcmeta as defaultWeight; omitted when it is 1."
     },
     "toast": {
       "notImage": "{{filename}}: not an image file",

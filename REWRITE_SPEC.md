@@ -363,8 +363,15 @@ SeedQueue（`LockTexture.createLockTextures`）の読み込み順は厳密に次
 - サイズ自由（既定 lock.png は 16x26）。SeedQueue は読み込んだ寸法でアスペクト比を保持する。**正方形/固定サイズ要件はない**。
 - 無効化：透明 PNG を `lock.png` として上書きする（プレースホルダ。サイズはアプリ任意で 128x128 とする）。
   ファイルを置かないと MOD 既定の lock.png にフォールバックするため、無効化には透明上書きが必要。
-- 任意のメタ：`<lock>.png.mcmeta` に `{"seedqueue": {"weight": N}}` で重み付き抽選、`lock.png` には
-  `{"seedqueue": {"defaultWeight": N}}` で既定重み。lock もアニメ可。いずれも機能拡充の候補。
+- **重み付き抽選（実装済み）**：`<lock>.png.mcmeta` に `{"seedqueue": {"weight": N}}`、
+  `lock.png.mcmeta` に `{"seedqueue": {"defaultWeight": N}}`。`LockTexture.java` で確認した意味論:
+  - `defaultWeight` は **`lock.png` のメタデータからのみ**読む。読めなければ `1`。
+  - 各画像の `weight` が `0`（＝ GSON がフィールド未指定を 0 にする）なら `defaultWeight` で埋める。
+  - 実効値は `Math.max(1, weight)`。抽選は `random.nextInt(実効重みの総和)` を累積で引くので、
+    選ばれる確率は **実効重み ÷ 総和**。
+  - 本アプリは既定値どおり（`defaultWeight` が 1／個別重みが既定と同値）のときは `.mcmeta` を出さない。
+    取り込んだ `.mcmeta` の `seedqueue` 以外のセクション（`animation` 等）は保持して書き戻す。
+- lock はアニメ可（`animation` セクション）。アニメーションの編集自体は未対応（取り込み時に保持するのみ）。
 
 ### 6.6 sounds.json / sounds
 

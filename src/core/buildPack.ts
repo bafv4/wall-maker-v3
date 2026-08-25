@@ -14,6 +14,7 @@
  */
 
 import { floorArea } from './coords';
+import { buildLockMcmeta, effectiveDefaultWeight } from './lockWeights';
 import { renderBackgroundToCanvas } from './renderBackground';
 import {
   SOUND_EVENT_KEYS,
@@ -256,12 +257,18 @@ async function addLockImages(
   if (state.lockImages.images.length === 0) {
     return;
   }
+  const defaultWeight = effectiveDefaultWeight(state.lockImages);
   state.lockImages.images.forEach((img, i) => {
     const filename = i === 0 ? 'lock.png' : `lock-${i}.png`;
     pack.set(
       `${PACK_PATHS.texturesGuiWall}/${filename}`,
       resolveInline(img.source),
     );
+    // 抽選の重み（第6.5章）。既定値どおりなら .mcmeta 自体を出さない。
+    const mcmeta = buildLockMcmeta(img, { isFirst: i === 0, defaultWeight });
+    if (mcmeta) {
+      pack.set(`${PACK_PATHS.texturesGuiWall}/${filename}.mcmeta`, mcmeta);
+    }
   });
 }
 

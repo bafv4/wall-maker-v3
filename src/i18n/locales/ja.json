@@ -194,7 +194,7 @@
     "title": "Lock画像を使う",
     "description": "OFF にするとロック画像表示を無効化します。",
     "addImage": "+ 画像を追加",
-    "specNote": "SeedQueue は lock.png が存在しない場合、lock-1.png 以降を一切読み込みません。そのため複数画像でも 1 枚目は必ず lock.png として出力されます。画像はリサイズせずそのまま格納されます（アスペクト比保持）。",
+    "specNote": "1 枚目は必ず lock.png として出力されます（パックが lock-1.png だけを入れると、1 枚目に MOD 既定の lock.png が使われてしまうため）。画像はリサイズせずそのまま格納されます（アスペクト比保持）。重みは抽選の当たりやすさで、実効値 ÷ 全体の合計が出現確率になります。",
     "specMemo": "仕様メモ（クリックで展開）",
     "required": "必須",
     "noName": "名前なし",
@@ -205,6 +205,15 @@
       "disabled": "無効化中: 出力時に透明 128×128 を lock.png として書き出します（SeedQueue 既定をブロック）。",
       "emptyEnabled": "有効化中・画像 0 件: 出力されず、MOD 既定の lock.png にフォールバックします。",
       "active": "有効化中・{{count}} 件: 1 枚目が lock.png、以降 lock-1.png から番号が振られます。"
+    },
+    "weight": {
+      "label": "重み",
+      "hint": "抽選の重み。空欄なら既定の重みに従います。大きいほど選ばれやすくなります。",
+      "inherited": "既定 {{value}}",
+      "effective": "実効 {{value}}",
+      "share": "{{percent}}%",
+      "defaultLabel": "既定の重み",
+      "defaultDescription": "重みを指定していない画像に適用されます。lock.png の .mcmeta に defaultWeight として書き出され、1 のときは出力されません。"
     },
     "toast": {
       "notImage": "{{filename}}: 画像ファイルではありません",
