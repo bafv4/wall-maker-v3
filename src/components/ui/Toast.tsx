@@ -9,7 +9,8 @@
  *   toast.error('変換に失敗しました');
  *   toast.info('保存しました');
  *
- * App ルートに `<ToastRoot />` を 1 度だけマウントする。
+ * `<ToastRoot />` は React ルート（`main.tsx`）に 1 度だけマウントする。App の中に置くと
+ * ハイドレート待ちの early return より後ろになり、store 復元失敗の通知を出せなくなる。
  */
 
 import { useEffect, useState } from 'react';
@@ -27,14 +28,26 @@ interface ToastItem {
 type Pusher = (item: ToastItem) => void;
 let pusher: Pusher | null = null;
 
+/**
+ * ToastRoot がマウントされる前に積まれたトーストのバッファ。
+ * store の hydration（`persistAdapter` の getItem）は React の初回レンダーより前に走るため、
+ * そのまま捨てると「復元に失敗した」通知がユーザーに一度も届かない。ここに溜めておき、
+ * ToastRoot のマウント時に flush する。
+ * マウントされないまま溜まり続けないよう件数は上限で打ち切る。
+ */
+const PENDING_LIMIT = 10;
+const pending: ToastItem[] = [];
+
 let nextId = 1;
 const enqueue = (message: string, type: ToastType): void => {
+  const item: ToastItem = { id: nextId++, message, type };
   if (!pusher) {
     if (type === 'error') console.error(message);
     else console.info(message);
+    if (pending.length < PENDING_LIMIT) pending.push(item);
     return;
   }
-  pusher({ id: nextId++, message, type });
+  pusher(item);
 };
 
 export const toast = {
@@ -55,12 +68,16 @@ export function ToastRoot() {
 
   useEffect(() => {
     setMounted(true);
-    pusher = (item) => {
+    const push: Pusher = (item) => {
       setItems((prev) => [...prev, item]);
       window.setTimeout(() => {
         setItems((prev) => prev.filter((i) => i.id !== item.id));
       }, 4000);
     };
+    pusher = push;
+    // マウント前に積まれた分を取り出して表示する。splice で空にするので
+    // StrictMode の二重 effect でも重複しない。
+    for (const item of pending.splice(0, pending.length)) push(item);
     return () => {
       pusher = null;
     };
