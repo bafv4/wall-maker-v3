@@ -3,6 +3,10 @@
  *
  *  - 背景は別コンポーネント `BackgroundCanvas` に分離。
  *    `background` / `resolution` の参照変化時のみ Canvas を再描画する（Phase 4d 最適化）。
+ *    バッキングストアは**表示サイズ × devicePixelRatio**（実解像度で頭打ち）で確保し、
+ *    再描画は `requestAnimationFrame` で 1 フレームに合体させる。実解像度で持つと
+ *    カラーピッカーのドラッグ 1 イベントごとに MB 級の再確保とフル解像度の再合成が走る。
+ *    エクスポートは `buildPack` が独立にフル解像度で描くのでプレビュー品質とは無関係。
  *  - エリア（main / locked / preparing[i]）はドラッグ移動・8 ハンドルでリサイズ。
  *  - 選択中の画像レイヤ（`fit:'manual'`）も同様に move/resize。
  *  - スナップ: 他エリア辺・中央・キャンバス端と中央へ磁着（プレビュー基準 6px）。Shift で無効化。
@@ -83,35 +87,85 @@ const handleClass: Record<Handle, string> = {
 // 背景キャンバス（独立コンポーネント、background / resolution 変化時のみ再描画）
 // ---------------------------------------------------------------------------
 
+/**
+ * バッキングストア確保時の DPR 上限。HiDPI で無駄に巨大な canvas を作らないための頭打ち。
+ */
+const MAX_PREVIEW_DPR = 2;
+
+/**
+ * `devicePixelRatio` を購読する。DPI の違うモニタへウィンドウを移動したり
+ * OS の表示スケールを変えても CSS px サイズは変わらず ResizeObserver も鳴らないため、
+ * これが無いとバッキングストアが古い DPR のまま取り残されてプレビューがボヤける。
+ *
+ * 現在値ちょうどにマッチするメディアクエリを張り、外れた瞬間に読み直す定石。
+ */
+function useDevicePixelRatio(): number {
+  const [dpr, setDpr] = useState(() => window.devicePixelRatio || 1);
+  useEffect(() => {
+    const mql = window.matchMedia(`(resolution: ${dpr}dppx)`);
+    const onChange = () => setDpr(window.devicePixelRatio || 1);
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
+  }, [dpr]);
+  return dpr;
+}
+
 interface BackgroundCanvasProps {
   background: WallState['background'];
   resolution: Resolution;
+  /** CSS 表示サイズ（プレビュー px）。バッキングストアはこれ × DPR で確保する。 */
+  preview: Resolution;
 }
 
 const BackgroundCanvas = memo(function BackgroundCanvas({
   background,
   resolution,
+  preview,
 }: BackgroundCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const rawDpr = useDevicePixelRatio();
+  const dpr = Math.min(rawDpr, MAX_PREVIEW_DPR);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    canvas.width = resolution.width;
-    canvas.height = resolution.height;
+    if (preview.width <= 0 || preview.height <= 0) return;
+    if (resolution.width <= 0 || resolution.height <= 0) return;
+
     let cancelled = false;
-    void renderBackgroundToCanvas(
-      canvas,
-      background,
-      resolution,
-      () => cancelled,
-    ).catch((e) => {
-      if (!cancelled) console.error('background render failed', e);
+    // カラーピッカーのドラッグ・スライダー・数値入力の 1 ストロークごとに
+    // `background` の参照が変わりこの effect が再実行される。rAF で 1 フレームに
+    // 合体させ、追い越されたフレームは cleanup で捨てる。
+    const frame = requestAnimationFrame(() => {
+      if (cancelled) return;
+      // 実解像度を超えて確保しても情報量は増えないので上限にする。
+      const w = Math.max(
+        1,
+        Math.min(Math.round(preview.width * dpr), resolution.width),
+      );
+      const h = Math.max(
+        1,
+        Math.min(Math.round(preview.height * dpr), resolution.height),
+      );
+      // canvas.width/height への代入は、同じ値でもバッキングストアの再確保＋
+      // ゼロ埋めを伴う（HTML 仕様）。サイズが変わったときだけ代入する。
+      if (canvas.width !== w) canvas.width = w;
+      if (canvas.height !== h) canvas.height = h;
+      void renderBackgroundToCanvas(
+        canvas,
+        background,
+        resolution,
+        () => cancelled,
+      ).catch((e) => {
+        if (!cancelled) console.error('background render failed', e);
+      });
     });
     return () => {
       cancelled = true;
+      cancelAnimationFrame(frame);
     };
-  }, [background, resolution]);
+    // preview は毎回新しいオブジェクトになり得るので実数値で依存を取る。
+  }, [background, resolution, preview.width, preview.height, dpr]);
 
   return (
     <canvas
@@ -606,7 +660,11 @@ export function WallPreview() {
           if (e.target === e.currentTarget) setSelected({ kind: 'main' });
         }}
       >
-        <BackgroundCanvas background={background} resolution={resolution} />
+        <BackgroundCanvas
+          background={background}
+          resolution={resolution}
+          preview={preview}
+        />
 
         {/* 画像レイヤ操作枠（fit=manual） */}
         {selectedLayer && (
