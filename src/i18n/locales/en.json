@@ -188,7 +188,11 @@
       "fileImage": "Image ({{size}} KB)",
       "imageRef": "Image (ref)"
     },
-    "selectStopAlias": "Selected stop"
+    "selectStopAlias": "Selected stop",
+    "toast": {
+      "notRaster": "{{filename}}: unsupported image format (vector formats such as SVG are not supported — use PNG / JPEG / GIF / WebP)",
+      "imageFailed": "Failed to read {{filename}}: {{error}}"
+    }
   },
   "cropModal": {
     "title": "Crop image",
@@ -243,6 +247,7 @@
     "unsupported": "{{filename}}: unsupported audio format (supported: ogg / mp3 / wav / flac / aac / m4a / opus / webm)",
     "convertSuccess": "Converted {{filename}} to OGG",
     "convertFailed": "Failed to convert {{filename}}: {{error}}",
+    "readFailed": "Failed to read {{filename}}: {{error}}",
     "events": {
       "play_instance": "Play instance",
       "lock_instance": "Lock instance",

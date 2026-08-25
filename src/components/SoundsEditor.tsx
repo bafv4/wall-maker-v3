@@ -100,7 +100,18 @@ function EventRow({
       toast.error(t('sound.unsupported', { filename: file.name }));
       return;
     }
-    const inputBytes = new Uint8Array(await file.arrayBuffer());
+    // ピック後・読み取り前にファイルが消える（USB 取り外し / ネットワーク切断 / 権限剥奪）と
+    // arrayBuffer() が reject する。未処理 rejection にせずトーストで通知する。
+    let inputBytes: Uint8Array;
+    try {
+      inputBytes = new Uint8Array(await file.arrayBuffer());
+    } catch (e) {
+      console.error('audio read failed', e);
+      toast.error(
+        t('sound.readFailed', { filename: file.name, error: errMsg(e) }),
+      );
+      return;
+    }
     let oggBytes: Uint8Array;
     if (ext === 'ogg') {
       oggBytes = inputBytes;
