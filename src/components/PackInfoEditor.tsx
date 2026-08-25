@@ -33,6 +33,12 @@ function ResolutionSection() {
   useEffect(() => {
     setCustomW(String(resolution.width));
     setCustomH(String(resolution.height));
+    // プリセットに一致する解像度に変わったらカスタムモードも解除する。
+    // Select の value は customMode を優先して見るため、解除しないと
+    // reset/import 後に「カスタム」表示のまま実 state（プリセット）と食い違う。
+    setCustomMode(
+      presetValueOf(resolution.width, resolution.height) === 'custom',
+    );
   }, [resolution.width, resolution.height]);
 
   const handlePreset = (value: string) => {
@@ -60,9 +66,16 @@ function ResolutionSection() {
       <h3 className="text-sm font-semibold text-fg">
         {t('resolution.title')}
       </h3>
+      {/*
+        customMode 中は store の解像度がプリセットと一致していても `custom` を選択状態に
+        保つ。store だけから導出すると、例えば 1920x1080 のまま「カスタム」を選んだ瞬間に
+        表示が FHD へ戻り、入力パネルだけが開いた状態になる。
+      */}
       <Select
         label={t('resolution.preset')}
-        value={presetValueOf(resolution.width, resolution.height)}
+        value={
+          customMode ? 'custom' : presetValueOf(resolution.width, resolution.height)
+        }
         onValueChange={handlePreset}
         options={presets}
       />
