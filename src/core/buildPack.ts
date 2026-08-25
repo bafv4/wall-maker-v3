@@ -11,7 +11,7 @@
  *    adapter 側で resolve して inline に戻してから buildPack を呼ぶ責務。
  */
 
-import { floorArea, floorCell, floorInt } from './coords';
+import { floorArea, floorCell } from './coords';
 import { renderBackgroundToCanvas } from './renderBackground';
 import {
   SOUND_EVENT_KEYS,
@@ -175,15 +175,18 @@ function buildGroup(
   };
 
   // useGrid=false かつ positions があれば positions 方式、それ以外は rows/columns
+  // rows/columns/padding は生の area ではなく floorArea 済みの `f` から採る。
+  // `f` は 1 以上の整数（padding は 0 以上）を保証しており、SeedQueue 仕様上
+  // rows/columns に 0・負・小数を出すのは厳禁（第6.3.2章 / CLAUDE.md）。
   if (area.useGrid === false && area.positions && area.positions.length > 0) {
     g.positions = area.positions.map((p) => floorCell(p));
   } else {
-    g.rows = floorInt(area.rows);
-    g.columns = floorInt(area.columns);
+    g.rows = f.rows;
+    g.columns = f.columns;
   }
 
-  if (area.padding !== undefined && area.padding > 0) {
-    g.padding = floorInt(area.padding);
+  if (f.padding !== undefined && f.padding > 0) {
+    g.padding = f.padding;
   }
 
   // 機能拡充候補（値が指定されているときだけ出力）
