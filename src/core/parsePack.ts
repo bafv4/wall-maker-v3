@@ -30,6 +30,7 @@
 
 import { floorArea, floorCell, floorInt } from './coords';
 import { errMsg } from './errors';
+import { getDefaultPresetLayout } from './layoutPresets';
 import {
   SOUND_EVENT_KEYS,
   createDefaultWallState,
@@ -156,8 +157,16 @@ export async function parsePack(
     : [];
 
   // 6) layout（座標は parseLayoutJson で絶対 px 変換済み）
-  const main = parseMain(rawLayout.main, rawLayout.mainFillOrder);
-  const locked = parseLocked(rawLayout.locked);
+  //    パース不能／省略されたグループのフォールバック矩形は、`createDefaultWallState()` の
+  //    1920x1080 決め打ちではなく **正規化済み resolution** に合わせた既定プリセットから組む。
+  //    2560x1440 のパックを locked 省略で読んだときに縮尺の合わない箱が復元されるのを防ぐ。
+  const defaultLayout = getDefaultPresetLayout(resolution);
+  const main = parseMain(
+    rawLayout.main,
+    rawLayout.mainFillOrder,
+    defaultLayout.main,
+  );
+  const locked = parseLocked(rawLayout.locked, defaultLayout.locked);
   const preparing = parsePreparing(rawLayout.preparing);
   const replaceLockedInstances = rawLayout.replaceLockedInstances === true;
 
@@ -306,24 +315,32 @@ function parseLayoutJson(text: string, resolution: Resolution): RawLayout {
 function parseMain(
   rawMain: unknown,
   rawFillOrder: unknown,
+  defaults: MainArea,
 ): MainArea {
-  const defaults = createDefaultWallState().layout.main;
   if (!isRecord(rawMain)) return defaults;
-  const base = parseArea(rawMain) ?? defaults;
+  const base = parseArea(rawMain, { isMain: true }) ?? defaults;
   const order = parseFillOrder(rawFillOrder);
+  // rows/columns を省略した main（useGrid=false）は JSON 側に分割数が存在しないため、
+  // parseArea が入れる暫定値は 1x1 になる。そのままだとユーザがグリッドを ON に戻した瞬間に
+  // 1 インスタンスだけの壁になるので、「戻したときの初期値」として既定プリセットの分割数を入れる。
+  // useGrid=false のままなら buildPack は rows/columns を出力しないので、出力には影響しない。
+  const gridFallback =
+    base.useGrid === false && base.positions === undefined
+      ? { rows: defaults.rows, columns: defaults.columns }
+      : {};
   return {
     ...base,
+    ...gridFallback,
     mainFillOrder: order,
   };
 }
 
-function parseLocked(rawLocked: unknown): VisibleArea {
-  const defaults = createDefaultWallState().layout.locked;
+function parseLocked(rawLocked: unknown, defaults: VisibleArea): VisibleArea {
   if (!isRecord(rawLocked)) {
     // locked が無い ⇒ show=false で defaults を使う
     return { ...defaults, show: false };
   }
-  const base = parseArea(rawLocked) ?? defaults;
+  const base = parseArea(rawLocked, { isMain: false }) ?? defaults;
   return { ...base, show: true };
 }
 
@@ -334,13 +351,13 @@ function parsePreparing(rawPreparing: unknown): VisibleArea[] {
     const out: VisibleArea[] = [];
     for (const item of rawPreparing) {
       if (!isRecord(item)) continue;
-      const base = parseArea(item);
+      const base = parseArea(item, { isMain: false });
       if (base) out.push({ ...base, show: true });
     }
     return out;
   }
   if (isRecord(rawPreparing)) {
-    const base = parseArea(rawPreparing);
+    const base = parseArea(rawPreparing, { isMain: false });
     if (base) return [{ ...base, show: true }];
   }
   return [];
@@ -348,11 +365,17 @@ function parsePreparing(rawPreparing: unknown): VisibleArea[] {
 
 /**
  * 共通 Area パース。x/y/width/height は必須。
- * positions があれば useGrid=false、無ければ useGrid=true で rows/columns を読む。
+ * positions があれば useGrid=false、無ければ rows/columns を読んで useGrid=true。
+ * ただし **main で rows/columns が両方とも欠けている** ときは、buildPack の
+ * 「useGrid=false の main は rows/columns を出さない」出力と対称になるよう useGrid=false に倒す
+ * （そうしないと自作パックの再インポートで 1x1 グリッドに化ける）。
+ * locked/preparing は仕様上 rows/columns が必須なので、欠落していてもグリッド扱いのまま既定 1 で復元し、
+ * 再エクスポートで仕様準拠の JSON に戻す。
  * 失敗時は null。呼び出し側で default にフォールバックする。
  */
 function parseArea(
   raw: RawGroup,
+  opts: { isMain: boolean },
 ): (MainArea & VisibleArea) | null {
   const x = toFiniteNumber(raw.x);
   const y = toFiniteNumber(raw.y);
@@ -363,9 +386,11 @@ function parseArea(
   }
 
   const positions = parsePositions(raw.positions);
-  const useGrid = positions === null;
-  const rows = useGrid ? Math.max(1, toIntOr(raw.rows, 1)) : 1;
-  const columns = useGrid ? Math.max(1, toIntOr(raw.columns, 1)) : 1;
+  const hasGridCounts =
+    toFiniteNumber(raw.rows) !== null || toFiniteNumber(raw.columns) !== null;
+  const useGrid = positions === null && (hasGridCounts || !opts.isMain);
+  const rows = Math.max(1, toIntOr(raw.rows, 1));
+  const columns = Math.max(1, toIntOr(raw.columns, 1));
   const padding = Math.max(0, toIntOr(raw.padding, 0));
 
   const area = floorArea({
@@ -408,7 +433,13 @@ function parsePositions(raw: unknown): AreaCell[] | null {
     const w = toFiniteNumber(item.width);
     const h = toFiniteNumber(item.height);
     if (x === null || y === null || w === null || h === null) continue;
-    out.push(floorCell({ x, y, width: w, height: h }));
+    // parseArea の width/height と同じく最低 1px を保証する。
+    // 割合表記は parseLayoutJson の reviver で絶対 px 化済みだが、極端に小さい割合
+    // （低解像度での `width: 0.0005` など）や 0 が直接書かれたセルは floor で 0 に潰れ、
+    // そのまま再エクスポートされてしまうため。
+    out.push(
+      floorCell({ x, y, width: Math.max(1, w), height: Math.max(1, h) }),
+    );
   }
   return out.length > 0 ? out : null;
 }
@@ -470,6 +501,21 @@ async function parseLockImages(
 }
 
 /**
+ * 全画素走査を許す最大辺長。これを超える画像は走査せず「透明ではない」と判定する。
+ *
+ * この検査が本来判別したいのは buildPack が書く透明プレースホルダ
+ * （PLACEHOLDER_LOCK_SIZE = 128x128）と、手書きパックの同等物だけ。
+ * 上限なしだと 4096x4096 の lock.png で 67MB の ImageData と 1670 万回のループが
+ * import 中のメインスレッドで走るため、辺長で打ち切る（1024x1024 で ImageData 4MB）。
+ *
+ * 縮小してから走査する案は採らない。ブラウザの縮小補間は大きな縮小率で画素を取りこぼし、
+ * 「透明でない画像を透明と誤判定 → images を捨てる」というデータ損失方向の誤りになり得るため。
+ * 打ち切り側の誤り（巨大な全透明画像を通常画像として扱う）は enabled=true で画像を保持するだけで、
+ * 再エクスポートのバイト列も生成される見た目も変わらない。
+ */
+const TRANSPARENCY_SCAN_MAX_SIZE = 1024;
+
+/**
  * 全ピクセルの alpha が 0 か検査する。
  * デコード・検査に失敗した場合は false（通常画像として扱う安全側フォールバック）。
  */
@@ -481,6 +527,12 @@ async function isFullyTransparentImage(bytes: Uint8Array): Promise<boolean> {
       type: 'image/png',
     });
     bitmap = await createImageBitmap(blob);
+    if (
+      bitmap.width > TRANSPARENCY_SCAN_MAX_SIZE ||
+      bitmap.height > TRANSPARENCY_SCAN_MAX_SIZE
+    ) {
+      return false;
+    }
     const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
     // OffscreenCanvas は getContext を経由せず使うと描画されない。必ず ctx 経由で描く。
     const ctx = canvas.getContext('2d');
