@@ -235,6 +235,7 @@
     "unsupported": "{{filename}}: 未対応の音声形式です（対応: ogg / mp3 / wav / flac / aac / m4a / opus / webm）",
     "convertSuccess": "{{filename}} を OGG に変換しました",
     "convertFailed": "{{filename}} の変換に失敗しました: {{error}}",
+    "readFailed": "{{filename}} の読み込みに失敗しました: {{error}}",
     "events": {
       "play_instance": "インスタンスをプレイ",
       "lock_instance": "インスタンスをロック",

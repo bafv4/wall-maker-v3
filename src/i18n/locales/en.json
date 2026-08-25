@@ -235,6 +235,7 @@
     "unsupported": "{{filename}}: unsupported audio format (supported: ogg / mp3 / wav / flac / aac / m4a / opus / webm)",
     "convertSuccess": "Converted {{filename}} to OGG",
     "convertFailed": "Failed to convert {{filename}}: {{error}}",
+    "readFailed": "Failed to read {{filename}}: {{error}}",
     "events": {
       "play_instance": "Play instance",
       "lock_instance": "Lock instance",
