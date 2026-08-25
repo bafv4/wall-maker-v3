@@ -13,6 +13,7 @@
  *    ドラッグ入力側でも floor を適用し、state に小数を持ち込まない。
  */
 
+import { DEFAULT_RESOLUTION } from './state';
 import type {
   Area,
   AreaCell,
@@ -22,36 +23,102 @@ import type {
 } from './state';
 
 // ---------------------------------------------------------------------------
+// 数値ガード（非有限値・過大値を state に入れない）
+//
+// 旧実装は数値境界を一律 `Math.max(1, Math.floor(Number(x) || 0))` で書いていたが、
+// これは **Infinity をそのまま通し、`Math.max(1, NaN)` は 1 ではなく NaN を返す**。
+// `<input type="number">` は指数表記を正当な入力として返すため "1e999" → Infinity が実際に入る。
+// 非有限値が layout に入ると:
+//  - `JSON.stringify` が Infinity/NaN を **null** に潰すので、リロード後の state は
+//    `x: null` のまま残り、floor ガードでも復元できない（永続化 state の恒久破壊）。
+//  - `buildPack` が `custom_layout.json` に `"x": null` を出す（実機で黙って壊れる）。
+//  - `new OffscreenCanvas(Infinity, Infinity)` が throw して export 自体が失敗する。
+// 数値が state / 出力に入る境界は必ず `toSafeInt` を通すこと。
+// ---------------------------------------------------------------------------
+
+/** 幅・高さ・座標の上限 px。Canvas の実用上限に合わせる（有限でも 1e9 は OOM する）。 */
+export const MAX_DIMENSION = 16384;
+
+/** 座標の下限 px。x/y は画面外配置のため負を許容する（width/height は許容しない）。 */
+export const MIN_COORDINATE = -MAX_DIMENSION;
+
+/** rows/columns の上限。1 以上の整数という不変条件（CLAUDE.md）に実用上限を足したもの。 */
+export const MAX_GRID_COUNT = 1024;
+
+/**
+ * 任意の入力を「有限の整数」に落とし込む共通ガード。
+ *  - 非有限（NaN / ±Infinity）・null / undefined / 空文字 は `fallback` に倒す。
+ *  - `Math.floor` してから `[min, max]` にクランプする。
+ *  - `fallback` 自体が壊れていた場合は `min` を返す（返り値は必ず有限の整数）。
+ */
+export function toSafeInt(
+  value: unknown,
+  fallback: number,
+  min = 0,
+  max = MAX_DIMENSION,
+): number {
+  // null / undefined / 空文字は Number() が 0 や NaN に化けるので明示的に fallback へ倒す。
+  const raw =
+    value === null || value === undefined || value === '' ? NaN : Number(value);
+  const base = Number.isFinite(raw) ? raw : Number(fallback);
+  if (!Number.isFinite(base)) return min;
+  return Math.min(max, Math.max(min, Math.floor(base)));
+}
+
+/**
+ * 解像度を 1..MAX_DIMENSION の整数に正規化する。
+ * 0 以下・非有限は「不明」とみなして `fallback` を採用する（0 を 1 にクランプすると
+ * `to.width / from.width` が桁違いに跳ね上がり、layout が別の壊れ方をするため）。
+ */
+export function safeResolution(
+  resolution: Resolution | undefined,
+  fallback: Resolution = DEFAULT_RESOLUTION,
+): Resolution {
+  const w = toSafeInt(resolution?.width, 0, 0);
+  const h = toSafeInt(resolution?.height, 0, 0);
+  return {
+    width: w >= 1 ? w : toSafeInt(fallback.width, DEFAULT_RESOLUTION.width, 1),
+    height:
+      h >= 1 ? h : toSafeInt(fallback.height, DEFAULT_RESOLUTION.height, 1),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // 整数化（境界での floor）
+// floorCell / floorArea が幾何の不変条件（整数・非有限禁止・負サイズ禁止・rows/columns >= 1）を
+// **一箇所で** 担保する。layout に触る経路は必ずどちらかを通す。
 // ---------------------------------------------------------------------------
 
 export function floorInt(n: number): number {
-  return Math.floor(n);
+  return toSafeInt(n, 0, MIN_COORDINATE, MAX_DIMENSION);
 }
 
 export function floorCell<T extends AreaCell>(cell: T): T {
   return {
     ...cell,
-    x: Math.floor(cell.x),
-    y: Math.floor(cell.y),
-    width: Math.floor(cell.width),
-    height: Math.floor(cell.height),
+    x: toSafeInt(cell.x, 0, MIN_COORDINATE),
+    y: toSafeInt(cell.y, 0, MIN_COORDINATE),
+    // 0/負サイズ禁止（CLAUDE.md 不変条件）。スケール縮小で 0 に潰れるのもここで防ぐ。
+    width: toSafeInt(cell.width, 1, 1),
+    height: toSafeInt(cell.height, 1, 1),
   };
 }
 
 export function floorArea<T extends Area>(area: T): T {
   const floored: T = {
     ...area,
-    x: Math.floor(area.x),
-    y: Math.floor(area.y),
-    width: Math.floor(area.width),
-    height: Math.floor(area.height),
+    x: toSafeInt(area.x, 0, MIN_COORDINATE),
+    y: toSafeInt(area.y, 0, MIN_COORDINATE),
+    width: toSafeInt(area.width, 1, 1),
+    height: toSafeInt(area.height, 1, 1),
+    rows: toSafeInt(area.rows, 1, 1, MAX_GRID_COUNT),
+    columns: toSafeInt(area.columns, 1, 1, MAX_GRID_COUNT),
   };
   if (area.positions) {
     floored.positions = area.positions.map((p) => floorCell(p));
   }
   if (area.padding !== undefined) {
-    floored.padding = Math.floor(area.padding);
+    floored.padding = toSafeInt(area.padding, 0, 0);
   }
   return floored;
 }
@@ -125,8 +192,10 @@ export function scaleArea<T extends Area>(
   }
   if (area.padding !== undefined) {
     // X/Y 非等倍時は保守的に小さい方の倍率を採用（間隔が広がり過ぎてはみ出すのを防ぐ）
-    scaled.padding = Math.max(0, area.padding * Math.min(scaleX, scaleY));
+    scaled.padding = area.padding * Math.min(scaleX, scaleY);
   }
+  // floorArea が最小サイズ 1・非有限禁止を担保する。
+  // （縮小で width が 0 に潰れると state に 0 が焼き付き、拡大しても戻らなくなる）
   return floorArea(scaled);
 }
 
@@ -138,12 +207,13 @@ export function scaleBackgroundLayer(
   if (layer.type === 'image' && layer.transform) {
     return {
       ...layer,
-      transform: {
-        x: Math.floor(layer.transform.x * scaleX),
-        y: Math.floor(layer.transform.y * scaleY),
-        width: Math.floor(layer.transform.width * scaleX),
-        height: Math.floor(layer.transform.height * scaleY),
-      },
+      // floorCell 経由でエリアと同じ不変条件（整数・非有限禁止・最小サイズ 1）を適用する。
+      transform: floorCell({
+        x: layer.transform.x * scaleX,
+        y: layer.transform.y * scaleY,
+        width: layer.transform.width * scaleX,
+        height: layer.transform.height * scaleY,
+      }),
     };
   }
   return layer;
@@ -154,11 +224,15 @@ export function scaleStateForResolution(
   from: Resolution,
   to: Resolution,
 ): WallState {
-  const sx = to.width / from.width;
-  const sy = to.height / from.height;
+  // 解像度が 0 / NaN / Infinity だと sx・sy が非有限になり layout 全体を汚染するため、
+  // 倍率を出す前に必ず 1..MAX_DIMENSION の整数へ丸める。
+  const fromRes = safeResolution(from);
+  const toRes = safeResolution(to, fromRes);
+  const sx = toRes.width / fromRes.width;
+  const sy = toRes.height / fromRes.height;
   return {
     ...state,
-    resolution: to,
+    resolution: toRes,
     layout: {
       main: scaleArea(state.layout.main, sx, sy),
       locked: scaleArea(state.layout.locked, sx, sy),
@@ -167,6 +241,32 @@ export function scaleStateForResolution(
     background: {
       layers: state.background.layers.map((l) =>
         scaleBackgroundLayer(l, sx, sy),
+      ),
+    },
+  };
+}
+
+/**
+ * WallState の数値を不変条件へ引き戻す（幾何のみ・他のフィールドは触らない）。
+ *
+ * 旧バージョンで Infinity が混入した state は `JSON.stringify` により `x: null` として
+ * 永続化されており、通常操作では復旧できない。hydrate と state 丸ごと差し替えの境界で
+ * 本関数を通し、壊れた値をその場で修復する。
+ */
+export function normalizeWallStateNumbers(state: WallState): WallState {
+  return {
+    ...state,
+    resolution: safeResolution(state.resolution),
+    layout: {
+      main: floorArea(state.layout.main),
+      locked: floorArea(state.layout.locked),
+      preparing: state.layout.preparing.map((p) => floorArea(p)),
+    },
+    background: {
+      layers: state.background.layers.map((l) =>
+        l.type === 'image' && l.transform
+          ? { ...l, transform: floorCell(l.transform) }
+          : l,
       ),
     },
   };
