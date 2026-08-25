@@ -13,6 +13,9 @@
  *    `?url` での deep import はできない。コピー方式が必要。
  *  - 最初の `convertToOgg` で初期化（lazy）。1 度ロードした FFmpeg インスタンスを使い回し、
  *    並行呼び出しはロード Promise を共有する。
+ *  - ライフサイクル: `load()` が解決した時点で core/wasm の blob: URL を revoke し
+ *    （wasm だけで約 32MB）、最後の変換から一定時間アイドルなら `terminate()` して
+ *    Worker ごと解放する。次回の変換要求で自動的に再ロードされる。
  *
  * ライセンス: FFmpeg / @ffmpeg/core は GPL v2 以降、@ffmpeg/ffmpeg・@ffmpeg/util は MIT。
  * 詳細は AboutModal と README を参照。
@@ -54,34 +57,94 @@ export function isSupportedAudioExt(filenameOrExt: string): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// 内部: 共有 FFmpeg インスタンスの遅延ロード
+// 内部: 共有 FFmpeg インスタンスの遅延ロードとアイドル解放
 // ---------------------------------------------------------------------------
+
+/**
+ * 最後の変換が終わってからこの時間だけ新しい変換要求が来なければ `terminate()` する。
+ * ffmpeg.wasm の Worker はインスタンス化済みの wasm ヒープを抱えたままになり
+ * （実測 RSS 100MB 超）、常駐する Tauri デスクトップでは特に体感に響く。
+ *
+ * 長さはトレードオフ。再ロードは HTTP キャッシュに当たっても `toBlobURL` の再 fetch と
+ * 32MB wasm の再インスタンス化が走るので無料ではない。一方でサウンド設定は
+ * 1 イベントごとにファイル選択ダイアログを開く操作なので、間隔は分単位で空く。
+ * 「連続した設定作業のあいだは持ち越し、離席したら手放す」ラインとして 5 分に置く。
+ */
+const IDLE_TERMINATE_MS = 5 * 60_000;
 
 let _ffmpeg: FFmpeg | null = null;
 let _loadPromise: Promise<FFmpeg> | null = null;
+let _idleTimer: ReturnType<typeof setTimeout> | null = null;
+/** キュー投入済みかつ未完了の変換数。0 のときだけアイドル解放してよい。 */
+let _pending = 0;
 
 async function getFFmpeg(): Promise<FFmpeg> {
   if (_ffmpeg) return _ffmpeg;
   if (_loadPromise) return _loadPromise;
 
-  _loadPromise = (async () => {
+  const loadPromise = (async () => {
     const ffmpeg = new FFmpeg();
-    // dist にバンドルされた core 資材を blob: URL 経由でロードする。
-    // ffmpeg.wasm の内部 Worker が importScripts する際の cross-origin 回避。
-    await ffmpeg.load({
-      coreURL: await toBlobURL(CORE_JS_URL, 'text/javascript'),
-      wasmURL: await toBlobURL(CORE_WASM_URL, 'application/wasm'),
-    });
+    let coreURL: string | null = null;
+    let wasmURL: string | null = null;
+    try {
+      // dist にバンドルされた core 資材を blob: URL 経由でロードする。
+      // ffmpeg.wasm の内部 Worker が importScripts する際の cross-origin 回避。
+      coreURL = await toBlobURL(CORE_JS_URL, 'text/javascript');
+      wasmURL = await toBlobURL(CORE_WASM_URL, 'application/wasm');
+      await ffmpeg.load({ coreURL, wasmURL });
+    } catch (e) {
+      // `FFmpeg.load()` は失敗する前に Worker を生成している。捨てる前に必ず
+      // terminate しないと、壊れた Worker が残ったまま再試行のたびに増える。
+      ffmpeg.terminate();
+      throw e;
+    } finally {
+      // load() は Worker 側で wasm のインスタンス化まで終えてから解決するので、
+      // ここで blob を手放してよい。revoke しないと約 32MB の wasm Blob が
+      // セッション終了まで解放されない。
+      if (coreURL !== null) URL.revokeObjectURL(coreURL);
+      if (wasmURL !== null) URL.revokeObjectURL(wasmURL);
+    }
     _ffmpeg = ffmpeg;
     return ffmpeg;
   })();
+  _loadPromise = loadPromise;
 
   try {
-    return await _loadPromise;
+    return await loadPromise;
   } catch (e) {
-    _loadPromise = null; // 失敗時はリセットして次回再試行できるように
+    // 失敗時はリセットして次回再試行できるように。
+    // アイドル解放と競合した場合に後発のロードを潰さないよう、自分の promise だけ消す。
+    if (_loadPromise === loadPromise) _loadPromise = null;
     throw e;
   }
+}
+
+/** 進行中の変換があるあいだアイドル解放が走らないようにタイマを止める。 */
+function cancelIdleTerminate(): void {
+  if (_idleTimer !== null) {
+    clearTimeout(_idleTimer);
+    _idleTimer = null;
+  }
+}
+
+/**
+ * アイドル解放を予約する。`_pending === 0`（キューが空）のときだけ呼ぶこと。
+ * `FFmpeg.terminate()` は未完了の Promise を同期的に reject するため、発火時にも
+ * `_pending` を再確認して進行中の変換を巻き込まないようにする。
+ */
+function scheduleIdleTerminate(): void {
+  cancelIdleTerminate();
+  if (!_ffmpeg) return;
+
+  _idleTimer = setTimeout(() => {
+    _idleTimer = null;
+    if (_pending > 0) return; // 予約後に変換が入っていた場合の保険
+    const ffmpeg = _ffmpeg;
+    // 参照を先に落として、terminate 後のインスタンスを掴ませない。
+    _ffmpeg = null;
+    _loadPromise = null;
+    ffmpeg?.terminate();
+  }, IDLE_TERMINATE_MS);
 }
 
 // ---------------------------------------------------------------------------
@@ -113,10 +176,23 @@ export function convertToOgg(
     return Promise.reject(new Error(`未対応のファイル形式です: .${ext}`));
   }
 
+  // キュー投入と同時にアイドル解放を止める。キュー待ちのあいだに terminate されると
+  // 実行時に Worker が消えているため、カウントは「投入〜完了」の区間で持つ。
+  _pending += 1;
+  cancelIdleTerminate();
+
   // 前段の成否に関わらず自分の変換を実行する（reject の連鎖を断つ）。
   const run = (): Promise<Uint8Array> => convertToOggExclusive(input, ext);
   const p = _convertQueue.then(run, run);
   _convertQueue = p.catch(() => undefined);
+
+  // 最後の 1 件が片付いた時点でだけアイドル解放を予約し直す。
+  const settled = (): void => {
+    _pending -= 1;
+    if (_pending === 0) scheduleIdleTerminate();
+  };
+  p.then(settled, settled);
+
   return p;
 }
 
