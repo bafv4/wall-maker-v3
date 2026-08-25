@@ -80,6 +80,9 @@ let failureNotified = false;
  */
 const PERSIST_THROTTLE_MS = 400;
 
+/** removeItem（全消し）の世代。実行中の書き込みが消去後に復活するのを防ぐ番兵。 */
+let clearSeq = 0;
+
 /** クールダウンタイマ。非 null = 直近に書き込み済み（バースト継続中）。 */
 let cooldownTimer: ReturnType<typeof setTimeout> | null = null;
 /** クールダウン中に積まれた未書き込みの値の storage キー名（null = 保留無し）。 */
@@ -92,9 +95,15 @@ async function ensureFlushing(name: string): Promise<void> {
     while (queuedValue) {
       const value = queuedValue;
       queuedValue = null;
+      const gen = clearSeq;
       try {
         const storage = await getBinaryStorage();
         const wall = await extractBinariesToRefs(value.state.wall, storage);
+        if (gen !== clearSeq) {
+          // 変換中に removeItem（全消し）が割り込んだ。ここで書くと消したはずの
+          // JSON が復活し、実体を消したバイナリへの dangling ref が残る。値を捨てる。
+          continue;
+        }
         const toPersist: StorageValue<PersistedWallStore> = {
           state: { wall },
           version: value.version,
@@ -156,6 +165,15 @@ function dispatchFlush(): void {
     cooldownTimer = null;
   }
   void ensureFlushing(name);
+}
+
+/** 保留中の書き込みを破棄する（removeItem 用。キュー本体は呼び出し側で捨てる）。 */
+function cancelPendingFlush(): void {
+  if (cooldownTimer !== null) {
+    clearTimeout(cooldownTimer);
+    cooldownTimer = null;
+  }
+  pendingName = null;
 }
 
 // 強制フラッシュ。クールダウン中の「まだ書いていない最新値」を抱えたまま
@@ -326,7 +344,30 @@ export const wallStorePersistStorage: PersistStorage<PersistedWallStore> = {
     return Promise.resolve();
   },
 
-  removeItem(name) {
+  async removeItem(name) {
+    // 保留中の書き込みを破棄する。残すと削除直後に古い state が書き戻り、
+    // 実体を消したバイナリへの dangling ref が復活する。
+    // 世代を進めるのは、既に走っている書き込み（extractBinariesToRefs の途中）が
+    // この後 localStorage を書き戻すのを止めるため（ensureFlushing 内で検査）。
+    clearSeq++;
+    cancelPendingFlush();
+    queuedValue = null;
     localStorage.removeItem(name);
+    lastReferencedKeys = null;
+    // localStorage を消すだけではバイナリ（IndexedDB / appDataDir）が孤児として残る。
+    // removeItem は `persist.clearStorage()`＝「全部消す」意図なので実体も回収する。
+    // ここでは永続 JSON が既に無く readCurrentPersistedKeys が空集合を返すため、
+    // 参照集合 ∅ の sweep がそのまま全キー削除になる。
+    // （中断した書き込みが直後に put を完了させた分だけは keys() のスナップショットに
+    //   載らず残り得るが、参照する JSON はもう無いので次回以降の全走査で回収される。）
+    try {
+      const storage = await getBinaryStorage();
+      await sweepOrphanKeys(storage, new Set(), name);
+    } catch (e) {
+      console.warn(
+        'wallStorePersistStorage: failed to purge binaries on removeItem',
+        e,
+      );
+    }
   },
 };
