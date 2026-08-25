@@ -6,6 +6,8 @@
  *  - 音声変換は含めない。`WallState` に保持済みの変換済み ogg バイトをそのまま書く（第7.3章）。
  *  - 内部フラグ（`useGrid` / `show`）はエクスポート時に strip する（第6.3.2章）。
  *  - 座標・サイズは Math.floor で整数化済みの値だけを出力する（第6.3.1章）。
+ *  - `rows` / `columns` は 1 以上の整数に丸めてから出力する（第6.3章）。
+ *  - `useGrid=false` の main は `rows`/`columns` を省略し、SeedQueue 側の設定値に委ねる（第6.3.2章）。
  *  - Canvas/`toBlob` を背景 PNG 生成で使うため async。**ブラウザ/Tauri webview 専用**、Node では動かさない。
  *  - BinaryRef は `inline`（バイト直持ち）のみ受け付ける。`ref` は永続化済みの参照で、
  *    adapter 側で resolve して inline に戻してから buildPack を呼ぶ責務。
@@ -174,12 +176,24 @@ function buildGroup(
     height: f.height,
   };
 
-  // useGrid=false かつ positions があれば positions 方式、それ以外は rows/columns
-  if (area.useGrid === false && area.positions && area.positions.length > 0) {
-    g.positions = area.positions.map((p) => floorCell(p));
-  } else {
-    g.rows = floorInt(area.rows);
-    g.columns = floorInt(area.columns);
+  // グリッド指定 / positions 明示指定の切替（第6.3章）。
+  //  - useGrid=false かつ positions あり  → positions 方式。
+  //  - useGrid=false かつ positions なし  → **main に限り** rows/columns を省略する。
+  //    SeedQueue は main の rows/columns 省略時にユーザ自身の SeedQueue 設定値へ
+  //    フォールバックする（第6.3章の表）。locked/preparing では rows/columns は必須なので
+  //    useGrid=false でも必ず出力する。
+  //  - それ以外                            → rows/columns。
+  const positions =
+    area.useGrid === false && area.positions && area.positions.length > 0
+      ? area.positions
+      : null;
+  const omitGridCounts = area.useGrid === false && opts.isMain;
+
+  if (positions) {
+    g.positions = positions.map((p) => floorCell(p));
+  } else if (!omitGridCounts) {
+    g.rows = toGridCount(area.rows);
+    g.columns = toGridCount(area.columns);
   }
 
   if (area.padding !== undefined && area.padding > 0) {
@@ -198,6 +212,19 @@ function buildGroup(
   }
 
   return g;
+}
+
+/**
+ * rows/columns を SeedQueue 仕様の **1 以上の整数** に丸める（第6.3章 / CLAUDE.md「Do Not」）。
+ *
+ * 通常の変更経路（UI・store の setter）は既にクランプ済みだが、`replaceWallState` /
+ * `applyLayout` / 永続化からのハイドレート（型検証なしの JSON.parse キャスト）は素通りする。
+ * buildPack はディスクに出る直前の最後の砦なので、0・負・小数・非有限値をここでも弾く。
+ * （非有限値は JSON.stringify で `null` になり、SeedQueue 側で読めない JSON になる。）
+ */
+function toGridCount(n: number): number {
+  const v = floorInt(n);
+  return Number.isFinite(v) && v >= 1 ? v : 1;
 }
 
 // ===========================================================================
