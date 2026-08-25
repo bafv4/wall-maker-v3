@@ -18,6 +18,7 @@
     "snapHint": "Hold Shift to disable snapping"
   },
   "common": {
+    "loading": "Loading…",
     "cancel": "Cancel",
     "apply": "Apply",
     "close": "Close",

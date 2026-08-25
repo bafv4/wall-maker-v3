@@ -135,6 +135,23 @@ struct ReadPackMeta<'a> {
 /// （フロント）の責務で、Rust 側は受け取った root をそのまま使う。
 ///
 /// 返り値: 書き出した root の絶対パス（toast 表示用）。
+/// `write_pack_folder` が既存フォルダを再帰削除してよいかを判定する。
+///
+/// 削除は破壊的で取り消せないため、次のどちらかを満たすときだけ許可する:
+///   * フォルダが空である（新規保存で作られた直後など）
+///   * 直下に `pack.mcmeta` か `assets` がある（＝リソースパックとして書かれたフォルダ）
+///
+/// これに当たらないフォルダ（`resourcepacks` の親、`Downloads`、ホーム等）は、
+/// フロント側がパスを取り違えていても中身を失わずに済む。
+fn is_safe_to_replace(root: &Path) -> Result<bool, String> {
+    if root.join("pack.mcmeta").exists() || root.join("assets").is_dir() {
+        return Ok(true);
+    }
+    let mut entries = fs::read_dir(root)
+        .map_err(|e| format!("フォルダ読み取りに失敗 {}: {e}", root.display()))?;
+    Ok(entries.next().is_none())
+}
+
 #[tauri::command]
 fn write_pack_folder(request: Request<'_>) -> Result<String, String> {
     let raw = raw_invoke_body(&request)?;
@@ -185,6 +202,15 @@ fn write_pack_folder(request: Request<'_>) -> Result<String, String> {
         if root_path.is_file() {
             return Err(format!(
                 "出力先 {} は既にファイルとして存在します",
+                root_path.display()
+            ));
+        }
+        // ここは root ごと再帰削除する。フロント側が保存先パスを1つ間違えるだけで
+        // `.minecraft/resourcepacks/` やホームディレクトリが丸ごと消えるため、
+        // 「空」か「リソースパックに見える」フォルダ以外は削除せず拒否する。
+        if !is_safe_to_replace(&root_path)? {
+            return Err(format!(
+                "出力先 {} はリソースパックではないフォルダです（空でも pack.mcmeta / assets を含むものでもないため、上書きを中止しました）",
                 root_path.display()
             ));
         }

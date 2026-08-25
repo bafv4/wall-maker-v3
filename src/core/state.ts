@@ -173,7 +173,8 @@ export type SoundEventKey = (typeof SOUND_EVENT_KEYS)[number];
  * 各イベントの設定。
  * - default: 何も出力しない（MOD 既定にフォールバック）
  * - off:     `{ replace: true, sounds: [] }` を出力（無音）
- * - custom:  ogg バイト＋`{ replace: true, sounds: ["<event>.ogg"] }`
+ * - custom:  ogg バイト＋`{ replace: true, sounds: ["seedqueue:<event>"] }`
+ *            （MC がサウンド名に .ogg を自動付加するため拡張子は書かない。第6.6章）
  */
 export type SoundEntry =
   | { mode: 'default' }

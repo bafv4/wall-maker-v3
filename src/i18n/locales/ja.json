@@ -18,6 +18,7 @@
     "snapHint": "Shift でスナップ無効"
   },
   "common": {
+    "loading": "読込中…",
     "cancel": "キャンセル",
     "apply": "適用",
     "close": "閉じる",
