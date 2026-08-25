@@ -13,7 +13,7 @@
  *    adapter 側で resolve して inline に戻してから buildPack を呼ぶ責務。
  */
 
-import { floorArea, floorCell, floorInt } from './coords';
+import { floorArea } from './coords';
 import { renderBackgroundToCanvas } from './renderBackground';
 import {
   SOUND_EVENT_KEYS,
@@ -181,24 +181,28 @@ function buildGroup(
   //  - useGrid=false かつ positions あり  → positions 方式。
   //  - useGrid=false かつ positions なし  → **main に限り** rows/columns を省略する。
   //    SeedQueue は main の rows/columns 省略時にユーザ自身の SeedQueue 設定値へ
-  //    フォールバックする（第6.3章の表）。locked/preparing では rows/columns は必須なので
-  //    useGrid=false でも必ず出力する。
+  //    フォールバックする（Layout.java の Group.fromJson に defaultRows/defaultColumns を渡す形）。
+  //    locked/preparing は defaultRows==null で呼ばれ、rows 欠落時に NPE になって
+  //    カスタムレイアウト全体が破棄されるため、useGrid=false でも必ず出力する。
   //  - それ以外                            → rows/columns。
+  //
+  // 出力値は生の area ではなく floorArea 済みの `f` から採る。`f` は rows/columns が
+  // 1 以上の整数（padding は 0 以上）であることを保証している。
   const positions =
-    area.useGrid === false && area.positions && area.positions.length > 0
-      ? area.positions
+    area.useGrid === false && f.positions && f.positions.length > 0
+      ? f.positions
       : null;
   const omitGridCounts = area.useGrid === false && opts.isMain;
 
   if (positions) {
-    g.positions = positions.map((p) => floorCell(p));
+    g.positions = positions;
   } else if (!omitGridCounts) {
-    g.rows = toGridCount(area.rows);
-    g.columns = toGridCount(area.columns);
+    g.rows = f.rows;
+    g.columns = f.columns;
   }
 
-  if (area.padding !== undefined && area.padding > 0) {
-    g.padding = floorInt(area.padding);
+  if (f.padding !== undefined && f.padding > 0) {
+    g.padding = f.padding;
   }
 
   // 機能拡充候補（値が指定されているときだけ出力）
@@ -213,19 +217,6 @@ function buildGroup(
   }
 
   return g;
-}
-
-/**
- * rows/columns を SeedQueue 仕様の **1 以上の整数** に丸める（第6.3章 / CLAUDE.md「Do Not」）。
- *
- * 通常の変更経路（UI・store の setter）は既にクランプ済みだが、`replaceWallState` /
- * `applyLayout` / 永続化からのハイドレート（型検証なしの JSON.parse キャスト）は素通りする。
- * buildPack はディスクに出る直前の最後の砦なので、0・負・小数・非有限値をここでも弾く。
- * （非有限値は JSON.stringify で `null` になり、SeedQueue 側で読めない JSON になる。）
- */
-function toGridCount(n: number): number {
-  const v = floorInt(n);
-  return Number.isFinite(v) && v >= 1 ? v : 1;
 }
 
 // ===========================================================================

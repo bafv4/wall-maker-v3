@@ -6,10 +6,12 @@
  *  - 座標は store 側の `mergeAreaPatch`（coords.ts）で必ず Math.floor。ここでは入力検証のみ。
  *  - rows/columns は 1 以上の整数。空欄や 0/負は blur で 1 に丸める。
  *  - width/height は 1 以上。空欄や 0/負は blur で 1 に丸める（x/y は負も許容、空欄は 0）。
+ *  - 非有限値（"1e999" → Infinity、"abc" → NaN）は `toSafeInt`（coords.ts）で弾く。
  */
 
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { MAX_GRID_COUNT, MIN_COORDINATE, toSafeInt } from '../core/coords';
 import type { MainArea, Resolution, VisibleArea } from '../core/state';
 import { Button, Input, Switch } from './ui';
 
@@ -65,50 +67,47 @@ export function AreaEditor({
     setLocalPadding(String(area.padding ?? 0));
   }, [area.rows, area.columns, area.padding]);
 
+  // `<input type="number">` は "1e999" を正当な入力として返すため、素の
+  // `Math.max(1, Math.floor(Number(v) || 0))` は Infinity を通してしまう
+  // （`Math.max(1, NaN)` も 1 ではなく NaN）。commit は必ず toSafeInt を通す。
   const commitX = useCallback(() => {
-    const v = localX === '' ? 0 : Math.floor(Number(localX));
+    const v = toSafeInt(localX, 0, MIN_COORDINATE);
     onChange({ x: v });
     setLocalX(String(v));
   }, [localX, onChange]);
 
   const commitY = useCallback(() => {
-    const v = localY === '' ? 0 : Math.floor(Number(localY));
+    const v = toSafeInt(localY, 0, MIN_COORDINATE);
     onChange({ y: v });
     setLocalY(String(v));
   }, [localY, onChange]);
 
   const commitWidth = useCallback(() => {
-    const v =
-      localWidth === '' ? 1 : Math.max(1, Math.floor(Number(localWidth)));
+    const v = toSafeInt(localWidth, 1, 1);
     onChange({ width: v });
     setLocalWidth(String(v));
   }, [localWidth, onChange]);
 
   const commitHeight = useCallback(() => {
-    const v =
-      localHeight === '' ? 1 : Math.max(1, Math.floor(Number(localHeight)));
+    const v = toSafeInt(localHeight, 1, 1);
     onChange({ height: v });
     setLocalHeight(String(v));
   }, [localHeight, onChange]);
 
   const commitRows = useCallback(() => {
-    const v = localRows === '' ? 1 : Math.max(1, Math.floor(Number(localRows)));
+    const v = toSafeInt(localRows, 1, 1, MAX_GRID_COUNT);
     onChange({ rows: v });
     setLocalRows(String(v));
   }, [localRows, onChange]);
 
   const commitColumns = useCallback(() => {
-    const v =
-      localColumns === '' ? 1 : Math.max(1, Math.floor(Number(localColumns)));
+    const v = toSafeInt(localColumns, 1, 1, MAX_GRID_COUNT);
     onChange({ columns: v });
     setLocalColumns(String(v));
   }, [localColumns, onChange]);
 
   const commitPadding = useCallback(() => {
-    const v =
-      localPadding === ''
-        ? 0
-        : Math.max(0, Math.min(64, Math.floor(Number(localPadding))));
+    const v = toSafeInt(localPadding, 0, 0, 64);
     onChange({ padding: v });
     setLocalPadding(String(v));
   }, [localPadding, onChange]);

@@ -26,6 +26,9 @@ export interface Resolution {
   height: number;
 }
 
+/** 既定の framebuffer 解像度。初期 state と数値ガードのフォールバックで共有する。 */
+export const DEFAULT_RESOLUTION: Resolution = { width: 1920, height: 1080 };
+
 // ---------------------------------------------------------------------------
 // エリア / グループ（main / locked / preparing が共通で使う形）
 //
@@ -263,9 +266,12 @@ export interface WallState {
 }
 
 // ---------------------------------------------------------------------------
-// バリデーション（シグネチャのみ・実装は後続 Phase）
+// バリデーション（不変条件の検証。正規化は core/coords.ts の toSafeInt 系が担当）
 // 不変条件: rows/columns は 1 以上の整数 / 座標は整数 / 負サイズ禁止。
 // エリアの重なりは許容（検証しない・第7.3章）。
+//
+// ここは「壊れているかを判定する述語」であって値を直さない。値を直す側（floorArea 等）は
+// coords.ts に集約してあるが、state.ts → coords.ts の import は循環になるため参照しない。
 // ---------------------------------------------------------------------------
 
 export interface ValidationIssue {
@@ -273,14 +279,93 @@ export interface ValidationIssue {
   message: string;
 }
 
-/** WallState 全体の不変条件を検証する。問題がなければ空配列。 */
-export declare function validateWallState(state: WallState): ValidationIssue[];
-
 /** rows/columns が 1 以上の整数か。 */
-export declare function isValidGridCount(n: number): boolean;
+export function isValidGridCount(n: number): boolean {
+  return Number.isInteger(n) && n >= 1;
+}
 
-/** 座標・サイズが整数で負でないか。 */
-export declare function isValidAreaGeometry(area: AreaCell): boolean;
+/** 座標・サイズが有限の整数で、サイズが 1 以上か（x/y は負を許容）。 */
+export function isValidAreaGeometry(area: AreaCell): boolean {
+  return (
+    Number.isInteger(area.x) &&
+    Number.isInteger(area.y) &&
+    Number.isInteger(area.width) &&
+    Number.isInteger(area.height) &&
+    area.width >= 1 &&
+    area.height >= 1
+  );
+}
+
+function validateArea(area: Area, path: string, out: ValidationIssue[]): void {
+  if (!isValidAreaGeometry(area)) {
+    out.push({
+      path,
+      message: 'x/y/width/height must be integers and width/height >= 1',
+    });
+  }
+  if (!isValidGridCount(area.rows)) {
+    out.push({ path: `${path}.rows`, message: 'rows must be an integer >= 1' });
+  }
+  if (!isValidGridCount(area.columns)) {
+    out.push({
+      path: `${path}.columns`,
+      message: 'columns must be an integer >= 1',
+    });
+  }
+  if (
+    area.padding !== undefined &&
+    (!Number.isInteger(area.padding) || area.padding < 0)
+  ) {
+    out.push({
+      path: `${path}.padding`,
+      message: 'padding must be an integer >= 0',
+    });
+  }
+  area.positions?.forEach((cell, i) => {
+    if (!isValidAreaGeometry(cell)) {
+      out.push({
+        path: `${path}.positions[${i}]`,
+        message: 'x/y/width/height must be integers and width/height >= 1',
+      });
+    }
+  });
+}
+
+/** WallState 全体の不変条件を検証する。問題がなければ空配列。 */
+export function validateWallState(state: WallState): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+
+  if (
+    !Number.isInteger(state.resolution.width) ||
+    state.resolution.width < 1 ||
+    !Number.isInteger(state.resolution.height) ||
+    state.resolution.height < 1
+  ) {
+    issues.push({
+      path: 'resolution',
+      message: 'width/height must be integers >= 1',
+    });
+  }
+
+  validateArea(state.layout.main, 'layout.main', issues);
+  validateArea(state.layout.locked, 'layout.locked', issues);
+  state.layout.preparing.forEach((p, i) =>
+    validateArea(p, `layout.preparing[${i}]`, issues),
+  );
+
+  state.background.layers.forEach((layer, i) => {
+    if (layer.type === 'image' && layer.transform) {
+      if (!isValidAreaGeometry(layer.transform)) {
+        issues.push({
+          path: `background.layers[${i}].transform`,
+          message: 'x/y/width/height must be integers and width/height >= 1',
+        });
+      }
+    }
+  });
+
+  return issues;
+}
 
 // ---------------------------------------------------------------------------
 // デフォルト state ファクトリ
@@ -301,7 +386,7 @@ export function createDefaultSoundSettings(): SoundSettings {
 }
 
 export function createDefaultWallState(): WallState {
-  const resolution: Resolution = { width: 1920, height: 1080 };
+  const resolution: Resolution = { ...DEFAULT_RESOLUTION };
   return {
     resolution,
     // 初期レイアウトは「Default」プリセット（定義は layoutPresets.ts に集約）。
