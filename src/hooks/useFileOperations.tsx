@@ -18,28 +18,44 @@
  *  - `doSaveOverwrite`   : Desktop のみ — 既知 `sourceFolder` を上書き保存
  *  - `canOverwrite`      : 上書き保存ボタンの活性条件（`sourceFolder != null`）
  *  - `sourceFolder`      : 「フォルダから開いた／フォルダで保存した」 root（メモリ内のみ）
+ *
+ * バイナリ復元の通知（`core/binaryFields.ts` の契約）:
+ *  - hydrate 完了後（＝この Provider がマウントされる時点）に `takeBinaryRestoreReport()` を
+ *    1 回だけ回収し、復元できなかったデータをトーストで知らせる。
+ *  - 書き出し系は事前に `collectUnresolvedBinaryFields` を通し、未ロードのフィールドがあれば
+ *    「どれが未ロードか」を示して中止する（欠けたパックを黙って書き出さない）。
  */
 
 import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useRef,
   useState,
   type ReactNode,
 } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { isTauri, readPack, saveZipBytes } from '../adapters';
 import { ImportResolutionDialog } from '../components/ImportResolutionDialog';
 import { ConfirmDialog, toast } from '../components/ui';
+import {
+  BINARY_FIELD_KINDS,
+  collectUnresolvedBinaryFields,
+} from '../core/binaryFields';
 import { errMsg } from '../core/errors';
 import {
   buildAndZipInWorker,
   buildPackInWorker,
 } from '../core/exportWorkerClient';
 import { detectBackgroundResolution, parsePack } from '../core/parsePack';
-import type { Resolution } from '../core/state';
+import type { Resolution, WallState } from '../core/state';
 import type { PackReadSource, VirtualPack } from '../core/types';
+import {
+  takeBinaryRestoreReport,
+  type BinaryFieldCounts,
+} from '../store/serialize';
 import { useWallStore } from '../store/useWallStore';
 
 interface ImportPayload {
@@ -101,6 +117,25 @@ function basename(p: string): string {
   return idx >= 0 ? trimmed.slice(idx + 1) : trimmed;
 }
 
+/**
+ * 種別ごとの件数を「合計件数 + 翻訳済みの種別名リスト」に畳む。
+ * 何も無ければ null（トーストを出さない）。
+ */
+function summarizeFields(
+  counts: BinaryFieldCounts,
+  t: TFunction,
+): { count: number; fields: string } | null {
+  let count = 0;
+  const labels: string[] = [];
+  for (const kind of BINARY_FIELD_KINDS) {
+    const n = counts[kind];
+    if (!n) continue;
+    count += n;
+    labels.push(t(`binaryField.${kind}`));
+  }
+  return count > 0 ? { count, fields: labels.join(' / ') } : null;
+}
+
 export function FileOperationsProvider({ children }: { children: ReactNode }) {
   const { t } = useTranslation();
   const desktop = isTauri();
@@ -116,6 +151,42 @@ export function FileOperationsProvider({ children }: { children: ReactNode }) {
   const [sourceFolder, setSourceFolder] = useState<string | null>(null);
   const [confirmResetOpen, setConfirmResetOpen] = useState(false);
   const importInputRef = useRef<HTMLInputElement>(null);
+
+  // ---- 復元できなかったバイナリの通知（hydrate 後に 1 回だけ） ----
+  // この Provider は hydrate 完了後にマウントされる。トーストは effect 内で直接出さず
+  // タイマー 0ms に逃がす: `<ToastRoot />` の登録 effect がツリー上どこにあっても
+  // （＝コミット中の effect 実行順に依存せず）確実に登録後になるため。
+  // 集計の回収はタイマー側で行い、cleanup でタイマーを落とす。こうすると
+  // StrictMode の mount→unmount→mount でも回収は 1 回だけになる。
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const report = takeBinaryRestoreReport();
+      if (!report) return;
+      const missing = summarizeFields(report.missing, t);
+      if (missing) {
+        toast.error(t('toast.restoreMissing', missing));
+      }
+      const unresolved = summarizeFields(report.unresolved, t);
+      if (unresolved) {
+        toast.error(t('toast.restoreUnresolved', unresolved));
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [t]);
+
+  // ---- 書き出し前ガード: 未ロードのバイナリがあるまま書き出さない ----
+  // 欠けたパックは Minecraft 上で黙って効かなくなり目視で気づけないため、
+  // 「どのフィールドが未ロードか」を示して中止する（core/binaryFields.ts の契約）。
+  const ensureBinariesLoaded = (wall: WallState): boolean => {
+    const kinds = collectUnresolvedBinaryFields(wall);
+    if (kinds.length === 0) return true;
+    toast.error(
+      t('toast.unresolvedBinaries', {
+        fields: kinds.map((k) => t(`binaryField.${k}`)).join(' / '),
+      }),
+    );
+    return false;
+  };
 
   // ---- Import 共通: source を受け取って読込→解像度推定→ダイアログ表示 ----
   const startImport = useCallback(
@@ -223,6 +294,7 @@ export function FileOperationsProvider({ children }: { children: ReactNode }) {
     setBusy(true);
     try {
       const wall = useWallStore.getState().wall;
+      if (!ensureBinariesLoaded(wall)) return; // finally で busy は戻る
       const zipBytes = await buildAndZipInWorker(wall);
       const dest = await saveZipBytes(zipBytes, packName);
       if (dest == null) return; // ユーザキャンセル
@@ -240,6 +312,7 @@ export function FileOperationsProvider({ children }: { children: ReactNode }) {
     setBusy(true);
     try {
       const wall = useWallStore.getState().wall;
+      if (!ensureBinariesLoaded(wall)) return; // finally で busy は戻る
       // フォルダ保存は zip 不要なので buildPack のみワーカで走らせる
       const pack = await buildPackInWorker(wall);
       const { saveAsFolder } = await import('../adapters/desktop');
@@ -264,6 +337,7 @@ export function FileOperationsProvider({ children }: { children: ReactNode }) {
     setBusy(true);
     try {
       const wall = useWallStore.getState().wall;
+      if (!ensureBinariesLoaded(wall)) return; // finally で busy は戻る
       const pack = await buildPackInWorker(wall);
       const { overwriteFolder } = await import('../adapters/desktop');
       const dest = await overwriteFolder(pack, sourceFolder);

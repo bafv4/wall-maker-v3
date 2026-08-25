@@ -275,6 +275,13 @@
     "languageJa": "日本語",
     "languageEn": "English"
   },
+  "binaryField": {
+    "packIcon": "pack icon",
+    "backgroundImage": "background image",
+    "extraTexture": "extra texture",
+    "lockImage": "lock image",
+    "sound": "sound"
+  },
   "toast": {
     "exportSuccess": "Exported to {{dest}}",
     "exportFailed": "Export failed: {{error}}",
@@ -289,6 +296,9 @@
     "readFailed": "Read failed: {{error}}",
     "writeCanceled": "Export canceled",
     "persistFailed": "Failed to auto-save your edits (export still works)",
-    "restoreFailed": "Could not restore your previous session — started fresh"
+    "restoreFailed": "Could not restore your previous session — started fresh",
+    "restoreMissing": "{{count}} item(s) could not be restored ({{fields}}). Please add them again.",
+    "restoreUnresolved": "{{count}} item(s) could not be loaded ({{fields}}). Reloading the app may restore them.",
+    "unresolvedBinaries": "Cannot export: some data is not loaded ({{fields}}). Reload the app, or set those items again."
   }
 }

@@ -275,6 +275,13 @@
     "languageJa": "日本語",
     "languageEn": "English"
   },
+  "binaryField": {
+    "packIcon": "パックアイコン",
+    "backgroundImage": "背景画像",
+    "extraTexture": "追加テクスチャ",
+    "lockImage": "Lock 画像",
+    "sound": "サウンド"
+  },
   "toast": {
     "exportSuccess": "{{dest}} に書き出しました",
     "exportFailed": "エクスポートに失敗しました: {{error}}",
@@ -289,6 +296,9 @@
     "readFailed": "読み込みに失敗しました: {{error}}",
     "writeCanceled": "書き出しをキャンセルしました",
     "persistFailed": "編集内容の自動保存に失敗しました（エクスポートは可能です）",
-    "restoreFailed": "前回の編集内容を復元できなかったため、初期状態で起動しました"
+    "restoreFailed": "前回の編集内容を復元できなかったため、初期状態で起動しました",
+    "restoreMissing": "復元できなかったデータが {{count}} 件あります（{{fields}}）。もう一度追加してください",
+    "restoreUnresolved": "読み込めなかったデータが {{count}} 件あります（{{fields}}）。アプリを再読み込みすると復元される場合があります",
+    "unresolvedBinaries": "未ロードのデータがあるため書き出せません（{{fields}}）。アプリを再読み込みするか、該当データを設定し直してください"
   }
 }
