@@ -31,7 +31,9 @@
     "reset": "Reset",
     "export": "Export (.zip)",
     "exporting": "Working…",
-    "aboutTooltip": "About / Licenses"
+    "aboutTooltip": "About / Licenses",
+    "releases": "Latest release",
+    "releasesTooltip": "Open the latest release page on GitHub"
   },
   "fileEditor": {
     "import": {

@@ -31,7 +31,9 @@
     "reset": "リセット",
     "export": "エクスポート（.zip）",
     "exporting": "処理中…",
-    "aboutTooltip": "About / ライセンス情報"
+    "aboutTooltip": "About / ライセンス情報",
+    "releases": "最新リリース",
+    "releasesTooltip": "GitHub の最新リリースページを開く"
   },
   "fileEditor": {
     "import": {
