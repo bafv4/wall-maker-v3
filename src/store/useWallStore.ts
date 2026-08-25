@@ -340,13 +340,19 @@ export const useWallStore = create<WallStoreState>()(
         set((s) => {
           const map = new Map(s.wall.background.layers.map((l) => [l.id, l]));
           const ordered: BackgroundLayer[] = [];
+          // 採用済み id の Set。`ids.includes` をループ内で回すと O(n^2) になるうえ、
+          // ids に重複があるとレイヤが二重に並ぶ。
+          const taken = new Set<string>();
           for (const id of ids) {
             const l = map.get(id);
-            if (l) ordered.push(l);
+            if (l && !taken.has(id)) {
+              taken.add(id);
+              ordered.push(l);
+            }
           }
           // 並び替え対象に含まれていなかったレイヤは末尾に残す（破壊回避）
           for (const l of s.wall.background.layers) {
-            if (!ids.includes(l.id)) ordered.push(l);
+            if (!taken.has(l.id)) ordered.push(l);
           }
           return { wall: { ...s.wall, background: { layers: ordered } } };
         }),
@@ -396,12 +402,17 @@ export const useWallStore = create<WallStoreState>()(
         set((s) => {
           const map = new Map(s.wall.lockImages.images.map((i) => [i.id, i]));
           const ordered: LockImage[] = [];
+          // lock 画像は最大 255 枚（parsePack）。`ids.includes` の O(n^2) を避ける。
+          const taken = new Set<string>();
           for (const id of ids) {
             const i = map.get(id);
-            if (i) ordered.push(i);
+            if (i && !taken.has(id)) {
+              taken.add(id);
+              ordered.push(i);
+            }
           }
           for (const i of s.wall.lockImages.images) {
-            if (!ids.includes(i.id)) ordered.push(i);
+            if (!taken.has(i.id)) ordered.push(i);
           }
           return {
             wall: {
