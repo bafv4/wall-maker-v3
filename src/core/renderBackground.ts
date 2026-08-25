@@ -164,7 +164,15 @@ export function drawGradientLayer(
 // ---------------------------------------------------------------------------
 
 /**
- * background.layers を canvas に描画する。canvas のサイズは resolution と一致している前提。
+ * background.layers を canvas に描画する。
+ *
+ * レイヤ座標は常に **resolution 座標系**（実解像度 px）で解釈する。
+ * canvas のバッキングストアが resolution と異なるサイズでも良く、その場合は
+ * `canvas.width / resolution.width`（Y も同様）の scale を掛けて写す。
+ *   - `buildPack`: canvas を resolution そのままで確保するため scale = 1（無変換）。
+ *   - `WallPreview`: 表示サイズ × devicePixelRatio で確保するため scale < 1。
+ *     実解像度でバッキングストアを持つと入力イベントごとに 8MB 級の再確保と
+ *     フル解像度の再合成が走るため、表示に必要な画素数だけを持たせる。
  *
  * 重要な順序:
  *   1) 必要な ImageBitmap を**並列で先行 decode**（cache hit なら即座に resolve）。
@@ -197,9 +205,19 @@ export async function renderBackgroundToCanvas(
   if (isCancelled?.()) return;
 
   // 2) ここから同期処理。clear → draw を 1 tick 内で完結させる。
+  const scaleX = resolution.width > 0 ? canvas.width / resolution.width : 1;
+  const scaleY = resolution.height > 0 ? canvas.height / resolution.height : 1;
+
   ctx.save();
+  // clear は無変換（＝バッキングストア px）で行う。scale 適用後に
+  // clearRect(0,0,canvas.width,canvas.height) すると縮小時に消し残る。
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.restore();
+  if (scaleX < 1 || scaleY < 1) {
+    // 縮小プレビューでの drawImage のジャギーを抑える（等倍・拡大時は既定のまま）
+    ctx.imageSmoothingQuality = 'high';
+  }
+  ctx.setTransform(scaleX, 0, 0, scaleY, 0, 0);
 
   for (let i = 0; i < background.layers.length; i++) {
     const layer = background.layers[i];
@@ -221,6 +239,9 @@ export async function renderBackgroundToCanvas(
     }
     ctx.restore();
   }
+
+  // scale / imageSmoothingQuality を戻す（上の save と対）
+  ctx.restore();
 }
 
 function clamp01(n: number): number {
