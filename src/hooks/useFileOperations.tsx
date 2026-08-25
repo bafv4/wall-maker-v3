@@ -120,20 +120,21 @@ export function FileOperationsProvider({ children }: { children: ReactNode }) {
   // ---- Import 共通: source を受け取って読込→解像度推定→ダイアログ表示 ----
   const startImport = useCallback(
     async (source: PackReadSource, displayName: string) => {
-      const sourceFolderPath =
-        source.kind === 'desktopFolder' ? source.path : null;
       setImportState({ kind: 'loading-zip', displayName });
       setBusy(true);
       try {
-        const pack = await readPack(source);
+        // パックフォルダの親を選ばれた場合、読込側がルートを引き上げて実際のパックルートを
+        // `rootPath` で返す。上書き保存は必ずこちらを対象にする（選択パスだと親ごと消える）。
+        const { pack, rootPath } = await readPack(source);
         const suggested = await detectBackgroundResolution(pack);
         setImportState({
           kind: 'pick-resolution',
           payload: {
-            displayName,
+            // ルートが引き上げられたときはパック名も実フォルダ名に合わせる
+            displayName: rootPath ? basename(rootPath) : displayName,
             pack,
             suggested,
-            sourceFolder: sourceFolderPath,
+            sourceFolder: rootPath,
           },
         });
       } catch (e) {
