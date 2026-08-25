@@ -39,7 +39,17 @@ export function AppHeader() {
         </button>
 
         <div className="flex items-center gap-3">
-          <Button variant="danger-outline" size="sm" onClick={doReset}>
+          {/*
+            Import/Export と同じく busy 中は押せなくする。エクスポート中にリセット
+            されると worker が古い state のままパックを作り切り、空のエディタに対して
+            成功トーストが出てしまう（Desktop 側の FileEditor と挙動を揃える）。
+          */}
+          <Button
+            variant="danger-outline"
+            size="sm"
+            disabled={busy}
+            onClick={doReset}
+          >
             {t('header.reset')}
           </Button>
           <span className="h-6 w-px bg-border" aria-hidden="true" />

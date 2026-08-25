@@ -26,7 +26,6 @@ import {
   TabsContent,
   TabsList,
   TabsTrigger,
-  ToastRoot,
   cn,
 } from './components/ui';
 import { FileOperationsProvider } from './hooks/useFileOperations';
@@ -188,7 +187,6 @@ function App() {
             </div>
           </div>
         </main>
-        <ToastRoot />
       </div>
     </FileOperationsProvider>
   );
