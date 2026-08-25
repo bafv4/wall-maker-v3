@@ -6,9 +6,21 @@
  *  - 座標は store 側の `mergeAreaPatch`（coords.ts）で必ず Math.floor。ここでは入力検証のみ。
  *  - rows/columns は 1 以上の整数。空欄や 0/負は blur で 1 に丸める。
  *  - width/height は 1 以上。空欄や 0/負は blur で 1 に丸める（x/y は負も許容、空欄は 0）。
+ *
+ * 再描画:
+ *  - `memo` 済み。親は `area` / `onChange` / `onRemove` を安定参照で渡すこと
+ *    （LayoutEditor 側で store の細粒度購読と useCallback/useMemo により担保）。
+ *  - props → ローカル state のミラーはフィールド単位で、値が変わったときだけ行う（`syncLocalNumber`）。
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 import type { MainArea, Resolution, VisibleArea } from '../core/state';
 import { Button, Input, Switch } from './ui';
@@ -32,7 +44,19 @@ function hasShow(a: AreaEditorTarget): a is VisibleArea {
   return 'show' in a;
 }
 
-export function AreaEditor({
+/**
+ * props の数値をローカル入力文字列へミラーする。
+ * 入力途中の表記（`"1."` `"01"` `""` など）でもパース結果が一致していれば文字列を維持し、
+ * ユーザの打鍵を巻き戻さない。一致する場合は同じ値を返すので React が再描画をスキップする。
+ */
+function syncLocalNumber(
+  setLocal: Dispatch<SetStateAction<string>>,
+  next: number,
+): void {
+  setLocal((prev) => (Number(prev) === next ? prev : String(next)));
+}
+
+function AreaEditorImpl({
   area,
   title,
   color,
@@ -52,18 +76,35 @@ export function AreaEditor({
   const [localColumns, setLocalColumns] = useState(String(area.columns));
   const [localPadding, setLocalPadding] = useState(String(area.padding ?? 0));
 
+  // フィールドごとに独立した effect にして、変わっていない入力欄には set を飛ばさない
+  // （プレビューのドラッグで x/y だけが動くとき width/height の入力欄は据え置き）。
   useEffect(() => {
-    setLocalX(String(area.x));
-    setLocalY(String(area.y));
-    setLocalWidth(String(area.width));
-    setLocalHeight(String(area.height));
-  }, [area.x, area.y, area.width, area.height]);
+    syncLocalNumber(setLocalX, area.x);
+  }, [area.x]);
 
   useEffect(() => {
-    setLocalRows(String(area.rows));
-    setLocalColumns(String(area.columns));
-    setLocalPadding(String(area.padding ?? 0));
-  }, [area.rows, area.columns, area.padding]);
+    syncLocalNumber(setLocalY, area.y);
+  }, [area.y]);
+
+  useEffect(() => {
+    syncLocalNumber(setLocalWidth, area.width);
+  }, [area.width]);
+
+  useEffect(() => {
+    syncLocalNumber(setLocalHeight, area.height);
+  }, [area.height]);
+
+  useEffect(() => {
+    syncLocalNumber(setLocalRows, area.rows);
+  }, [area.rows]);
+
+  useEffect(() => {
+    syncLocalNumber(setLocalColumns, area.columns);
+  }, [area.columns]);
+
+  useEffect(() => {
+    syncLocalNumber(setLocalPadding, area.padding ?? 0);
+  }, [area.padding]);
 
   const commitX = useCallback(() => {
     const v = localX === '' ? 0 : Math.floor(Number(localX));
@@ -288,3 +329,9 @@ export function AreaEditor({
     </section>
   );
 }
+
+/**
+ * ドラッグ中は main/locked/preparing[] のうち動いている 1 つしか `area` が変わらないため、
+ * memo 化して残りの AreaEditor（入力欄数十個＋レンジスライダー）の再描画を止める。
+ */
+export const AreaEditor = memo(AreaEditorImpl);
