@@ -9,6 +9,7 @@
 //  * `write_file`        — 任意パスに 1 ファイルを書き出す（.zip エクスポート用）
 //  * `read_pack_zip`     — 任意の .zip パスを丸ごとバイト列で返す
 //  * `read_pack_folder`  — 任意のフォルダを再帰 walk し、相対パス → バイト列の map を返す
+//  * `path_is_dir`       — 指定パスが実在するフォルダかを返す（記憶した保存先の存在検証用）
 //  * `binary_put` / `binary_get` / `binary_delete` / `binary_keys`
 //    — 永続化バイナリ（画像/音声）の実体ストア。appDataDir/binaries/<key> に置く
 //      （フロントの `store/storage/desktop.ts` が使う。CLAUDE.md 第7.2章）
@@ -136,6 +137,16 @@ fn read_pack_folder(path: String) -> Result<HashMap<String, Vec<u8>>, String> {
     let mut out: HashMap<String, Vec<u8>> = HashMap::new();
     walk_dir(&root, &root, &mut out)?;
     Ok(out)
+}
+
+/// 指定パスが「実在するフォルダ」かを返す。
+///
+/// `tauri-plugin-store` に記憶した保存先（上書き保存の対象）が、前回終了後も
+/// まだ存在するかを起動時に検証するために使う（`adapters/desktopSaveTarget.ts`）。
+/// 読み取りのみで副作用は無く、存在しない／アクセスできない場合は素直に false。
+#[tauri::command]
+fn path_is_dir(path: String) -> bool {
+    !path.is_empty() && PathBuf::from(&path).is_dir()
 }
 
 fn walk_dir(
@@ -274,6 +285,7 @@ pub fn run() {
             write_file,
             read_pack_zip,
             read_pack_folder,
+            path_is_dir,
             binary_put,
             binary_get,
             binary_delete,
