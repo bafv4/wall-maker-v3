@@ -71,7 +71,11 @@ export function saveZipBytesAsDownload(
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  // click() と同じ tick で revoke してはいけない。Firefox と一部の Safari では
+  // ダウンロード開始が非同期で、blob URL がその後も生存している必要があるため、
+  // 即時 revoke するとダウンロードがエラーも出さずに中断されることがある。
+  // 本アプリの Web 版は export 経路がここしかないので、余裕を持って 1 秒後に解放する。
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
   return filename;
 }
 
