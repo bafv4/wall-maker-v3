@@ -89,8 +89,9 @@ export function AboutModal({ open, onClose }: AboutModalProps) {
         <section className="space-y-1">
           <h3 className="text-base font-semibold text-fg">
             {t('about.appHeading')}{' '}
+            {/* `__APP_VERSION__` は素の semver（package.json 由来）。`v` は表示側で付ける。 */}
             <span className="text-xs font-normal text-fg-subtle">
-              {__APP_VERSION__}
+              {`v${__APP_VERSION__}`}
             </span>
           </h3>
           <p className="text-xs text-fg-muted">
