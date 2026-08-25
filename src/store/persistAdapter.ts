@@ -68,6 +68,10 @@ let queuedValue: StorageValue<PersistedWallStore> | null = null;
 let flushing = false;
 /** 失敗トーストの連発防止。成功で解除し、次の失敗でまた 1 回だけ出す。 */
 let failureNotified = false;
+/** setItem を受けた回数。hydrate 直後の全走査 GC の陳腐化判定に使う。 */
+let setItemSeq = 0;
+/** removeItem（全消し）の世代。実行中の書き込みが消去後に復活するのを防ぐ番兵。 */
+let clearSeq = 0;
 
 /**
  * 書き込みの最小間隔（ms）。バーストは「先頭で 1 回 → 以降この間隔ごとに 1 回」に畳む。
@@ -79,9 +83,6 @@ let failureNotified = false;
  * 非同期チェーンが完走せず丸ごと失う、という経路を作らない）。
  */
 const PERSIST_THROTTLE_MS = 400;
-
-/** removeItem（全消し）の世代。実行中の書き込みが消去後に復活するのを防ぐ番兵。 */
-let clearSeq = 0;
 
 /** クールダウンタイマ。非 null = 直近に書き込み済み（バースト継続中）。 */
 let cooldownTimer: ReturnType<typeof setTimeout> | null = null;
@@ -251,14 +252,23 @@ async function deleteKeysSafely(
  * hydrate 直後の孤児掃除（全走査）。過去セッションのクラッシュ等で残ったキーを回収する。
  * このタイミングなら localStorage の JSON が「唯一の真実」で、別タブの新規書き込みと
  * 競合する余地が最も小さい。fire-and-forget（失敗しても起動は続行）。
+ *
+ * `isStale` は同一タブの競合を避けるための中断判定。`storage.keys()` の
+ * スナップショットを取っている間にユーザが画像をドロップすると、`storage.put` が
+ * スナップショットに載り、かつ localStorage への反映が {@link deleteKeysSafely} の
+ * 読み直しより後になり得る（＝新しいキーを孤児と誤判定する）。この窓に入ったら
+ * 掃除ごと諦める（孤児は次回セッションで回収すればよい／消えたら戻らない）。
  */
 async function sweepOrphanKeys(
   storage: BinaryStorage,
   referenced: Set<string>,
   name: string,
+  isStale?: () => boolean,
 ): Promise<void> {
   try {
+    if (isStale?.()) return;
     const all = await storage.keys();
+    if (isStale?.()) return; // keys() を待つ間に書き込みが来た
     const orphans = all.filter((k) => !referenced.has(k));
     if (orphans.length > 0) {
       await deleteKeysSafely(storage, orphans, name);
@@ -319,9 +329,17 @@ export const wallStorePersistStorage: PersistStorage<PersistedWallStore> = {
         storage,
       );
       // 孤児掃除は「復元に使った参照集合」を基準に非同期で 1 回だけ。
+      // この集合が正しいのは「hydrate 後まだ 1 度も書き込みが来ていない」間だけなので、
+      // setItem が 1 回でも来たら掃除を中断する（同一タブでの誤削除防止）。
       const referenced = collectReferencedKeys(persistedWall as WallState);
       lastReferencedKeys = referenced;
-      void sweepOrphanKeys(storage, referenced, name);
+      const seqAtHydrate = setItemSeq;
+      void sweepOrphanKeys(
+        storage,
+        referenced,
+        name,
+        () => setItemSeq !== seqAtHydrate,
+      );
       return { state: { wall }, version: parsed.version };
     } catch (e) {
       // reject すると App が永久ローディングになる（冒頭の不変条件参照）。
@@ -339,6 +357,7 @@ export const wallStorePersistStorage: PersistStorage<PersistedWallStore> = {
   setItem(name, value) {
     // 最新値だけ残す。書き込み中に来た中間状態は上書きされて消える。
     queuedValue = value;
+    setItemSeq++;
     // 実際の書き込みは間引きに載せる（先頭は即時、以降はクールダウン明け）。
     scheduleFlush(name);
     return Promise.resolve();
