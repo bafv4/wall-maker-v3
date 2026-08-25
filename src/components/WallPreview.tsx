@@ -66,6 +66,16 @@ interface DragState {
   startCellRefreshed: boolean;
   pxToRealX: number;
   pxToRealY: number;
+  /**
+   * 直前に dispatch した整数セルとスナップヒット。
+   * store の `mergeAreaPatch` は常に新しい area/layout オブジェクトを作るため、
+   * 整数化した結果が前回と同じでも再レンダリング＋永続化まで走ってしまう。
+   * 主に効くのは、スナップ線に磁着している間（閾値内のポインタ移動はすべて
+   * 同じセルに丸められる）と、1 CSS px 未満しか動かない高レートのポインタ入力。
+   */
+  lastCell: AreaCell | null;
+  lastHitX: number | null;
+  lastHitY: number | null;
 }
 
 const HANDLE_LIST: Handle[] = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
@@ -210,6 +220,17 @@ function applyResize(
     height = MIN_SIZE;
   }
   return { x, y, width, height };
+}
+
+/** 整数化済みセル同士の同値判定（ドラッグ中の無駄な store 更新を抑えるため）。 */
+function sameCell(a: AreaCell | null, b: AreaCell): boolean {
+  return (
+    a !== null &&
+    a.x === b.x &&
+    a.y === b.y &&
+    a.width === b.width &&
+    a.height === b.height
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -552,6 +573,9 @@ export function WallPreview() {
         startCellRefreshed: false,
         pxToRealX: resolution.width / preview.width,
         pxToRealY: resolution.height / preview.height,
+        lastCell: null,
+        lastHitX: null,
+        lastHitY: null,
       };
       setDragOverlay({ cell: startCell, hitX: null, hitY: null });
       e.currentTarget.setPointerCapture(e.pointerId);
@@ -608,8 +632,22 @@ export function WallPreview() {
         hitY = result.hitY;
       }
 
-      dispatchCell(drag.ref, nextCell);
-      setDragOverlay({ cell: nextCell, hitX, hitY });
+      // 整数化してから前回と突き合わせる。同値なら store 更新もオーバーレイ更新も不要
+      // （store 側は floorArea するので、floor 後が同じなら state は 1bit も変わらない）。
+      const nextFloored = floorCell(nextCell);
+      if (
+        sameCell(drag.lastCell, nextFloored) &&
+        drag.lastHitX === hitX &&
+        drag.lastHitY === hitY
+      ) {
+        return;
+      }
+      drag.lastCell = nextFloored;
+      drag.lastHitX = hitX;
+      drag.lastHitY = hitY;
+
+      dispatchCell(drag.ref, nextFloored);
+      setDragOverlay({ cell: nextFloored, hitX, hitY });
     },
     [buildSnapCandidates, dispatchCell, getStartCell],
   );
