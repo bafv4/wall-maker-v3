@@ -25,6 +25,7 @@ import {
   useState,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
+import { useTranslation } from 'react-i18next';
 import { floorCell, realToPreview } from '../core/coords';
 import { renderBackgroundToCanvas } from '../core/renderBackground';
 import type {
@@ -435,6 +436,8 @@ function LayerBox({
 // ---------------------------------------------------------------------------
 
 export function WallPreview() {
+  const { t } = useTranslation();
+
   // 限定したスライスのみを購読する（不要な再描画を避ける）
   const background = useWallStore((s) => s.wall.background);
   const resolution = useWallStore((s) => s.wall.resolution);
@@ -785,9 +788,16 @@ export function WallPreview() {
         )}
       </div>
       <p className="mt-2 text-[11px] text-fg-subtle">
-        実解像度 {resolution.width}×{resolution.height} / プレビュー{' '}
-        {Math.round(preview.width)}×{Math.round(preview.height)} ·{' '}
-        <span className="text-fg-subtle opacity-80">Shift でスナップ無効</span>
+        {t('preview.scale', {
+          realWidth: resolution.width,
+          realHeight: resolution.height,
+          previewWidth: Math.round(preview.width),
+          previewHeight: Math.round(preview.height),
+        })}{' '}
+        ·{' '}
+        <span className="text-fg-subtle opacity-80">
+          {t('preview.snapHint')}
+        </span>
       </p>
     </div>
   );
