@@ -16,11 +16,14 @@
  *  - 実書き込みは Rust 側 `write_pack_folder` / `write_file` command に寄せる（fs スコープ不使用）。
  *  - Zip の生成・展開は JS 側 (JSZip) で完結させる（Rust に zip クレートを足さない）。
  *  - **バイナリは生バイトで IPC する**（下記 {@link encodeIpcContainer} 参照）。
+ *  - ネイティブダイアログのタイトルは i18n シングルトンから引く。adapter は React に
+ *    依存できないため `useTranslation` ではなく `i18n.t` を直接使う（`store/persistAdapter.ts` と同じ）。
  */
 
 import { invoke } from '@tauri-apps/api/core';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import type { PackReadSource, VirtualPack } from '../core/types';
+import i18n from '../i18n';
 import { DEFAULT_PACK_NAME, TEXT_EXTS, zipFileToVirtualPack } from './web';
 
 // ---------------------------------------------------------------------------
@@ -164,7 +167,7 @@ export async function saveZipBytesViaDialog(
 ): Promise<string | null> {
   const defaultName = `${sanitizePackName(packName)}.zip`;
   const path = await save({
-    title: '.zip としてエクスポート',
+    title: i18n.t('fileEditor.export.dialogTitle'),
     defaultPath: defaultName,
     filters: [{ name: 'ZIP archive', extensions: ['zip'] }],
   });
@@ -184,7 +187,7 @@ export async function saveAsFolder(
   const parent = await open({
     directory: true,
     multiple: false,
-    title: '保存先（親フォルダ）を選択 — 配下にリソースパック名のフォルダを作成します',
+    title: i18n.t('fileEditor.save.dialogTitle'),
   });
   if (typeof parent !== 'string') return null;
 

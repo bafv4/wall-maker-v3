@@ -56,13 +56,15 @@
       "currentTargetEmpty": "Not set (will be assigned when you open a folder or use \"Save As\")",
       "saveAs": "Save As…",
       "overwrite": "Overwrite",
-      "processing": "Working…"
+      "processing": "Working…",
+      "dialogTitle": "Choose a destination (parent folder) — a folder named after the resource pack will be created inside"
     },
     "export": {
       "title": "Export (.zip)",
       "description": "Save a single .zip file. Useful for sharing / distribution.",
       "button": "Export as .zip…",
-      "processing": "Working…"
+      "processing": "Working…",
+      "dialogTitle": "Export as .zip"
     },
     "reset": {
       "title": "Reset",

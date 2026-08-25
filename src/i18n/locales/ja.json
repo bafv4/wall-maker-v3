@@ -56,13 +56,15 @@
       "currentTargetEmpty": "未設定（フォルダから開く、または「名前を付けて保存」で設定されます）",
       "saveAs": "名前を付けて保存…",
       "overwrite": "上書き保存",
-      "processing": "処理中…"
+      "processing": "処理中…",
+      "dialogTitle": "保存先（親フォルダ）を選択 — 配下にリソースパック名のフォルダを作成します"
     },
     "export": {
       "title": "エクスポート（.zip）",
       "description": "1 ファイルの .zip として保存します。共有・配布用。",
       "button": ".zip エクスポート…",
-      "processing": "処理中…"
+      "processing": "処理中…",
+      "dialogTitle": ".zip としてエクスポート"
     },
     "reset": {
       "title": "リセット",
