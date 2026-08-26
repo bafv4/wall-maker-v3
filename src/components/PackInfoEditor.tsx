@@ -8,6 +8,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { MAX_DIMENSION, toSafeInt } from '../core/coords';
 import { normalizeToPngBytes } from '../core/pngNormalize';
 import { useWallStore } from '../store/useWallStore';
 import { presetValueOf, useResolutionPresets } from './resolutionPresets';
@@ -33,6 +34,12 @@ function ResolutionSection() {
   useEffect(() => {
     setCustomW(String(resolution.width));
     setCustomH(String(resolution.height));
+    // プリセットに一致する解像度に変わったらカスタムモードも解除する。
+    // Select の value は customMode を優先して見るため、解除しないと
+    // reset/import 後に「カスタム」表示のまま実 state（プリセット）と食い違う。
+    setCustomMode(
+      presetValueOf(resolution.width, resolution.height) === 'custom',
+    );
   }, [resolution.width, resolution.height]);
 
   const handlePreset = (value: string) => {
@@ -49,9 +56,15 @@ function ResolutionSection() {
     }
   };
 
+  // `<input type="number">` は "1e999" を正当な入力として返すため、素の
+  // `Math.max(1, Math.floor(Number(v) || 0))` では Infinity が state に入り、
+  // scaleStateForResolution 経由で layout 全体が壊れる（永続化で `x: null` として焼き付く）。
   const applyCustom = () => {
-    const w = Math.max(1, Math.floor(Number(customW) || 0));
-    const h = Math.max(1, Math.floor(Number(customH) || 0));
+    const w = toSafeInt(customW, resolution.width, 1);
+    const h = toSafeInt(customH, resolution.height, 1);
+    // クランプされた場合に入力欄が古い値のまま残らないよう明示的に同期する。
+    setCustomW(String(w));
+    setCustomH(String(h));
     setResolution({ width: w, height: h });
   };
 
@@ -60,9 +73,16 @@ function ResolutionSection() {
       <h3 className="text-sm font-semibold text-fg">
         {t('resolution.title')}
       </h3>
+      {/*
+        customMode 中は store の解像度がプリセットと一致していても `custom` を選択状態に
+        保つ。store だけから導出すると、例えば 1920x1080 のまま「カスタム」を選んだ瞬間に
+        表示が FHD へ戻り、入力パネルだけが開いた状態になる。
+      */}
       <Select
         label={t('resolution.preset')}
-        value={presetValueOf(resolution.width, resolution.height)}
+        value={
+          customMode ? 'custom' : presetValueOf(resolution.width, resolution.height)
+        }
         onValueChange={handlePreset}
         options={presets}
       />
@@ -73,6 +93,7 @@ function ResolutionSection() {
               label={t('resolution.width')}
               type="number"
               min={1}
+              max={MAX_DIMENSION}
               value={customW}
               onChange={(e) => setCustomW(e.target.value)}
             />
@@ -80,6 +101,7 @@ function ResolutionSection() {
               label={t('resolution.height')}
               type="number"
               min={1}
+              max={MAX_DIMENSION}
               value={customH}
               onChange={(e) => setCustomH(e.target.value)}
             />

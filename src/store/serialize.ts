@@ -13,8 +13,14 @@
  *
  * どちらの方向も storage の失敗は**フィールド単位**で落とす（walk 全体を reject しない）。
  * ストレージが部分的に壊れていても、バイナリ以外の設定の保存・復元は継続させるため。
+ *
+ * ただし**フィールド単位で落としたことは黙らせない**。復元方向の欠落は
+ * `BinaryRestoreReport` に集計し、hydrate 完了後に UI が `takeBinaryRestoreReport()` で
+ * 1 回だけ回収してトーストで通知する（console 警告は誰も見ない）。
+ * 「未ロードの ref を残す」側の契約は `core/binaryFields.ts` の JSDoc を参照。
  */
 
+import type { BinaryFieldKind } from '../core/binaryFields';
 import {
   SOUND_EVENT_KEYS,
   type BackgroundLayer,
@@ -53,6 +59,48 @@ export function noteBinaryKeyDeleted(key: string): void {
   deletedKeys.add(key);
 }
 
+// ---------------------------------------------------------------------------
+// 復元時の欠落レポート
+// 「アプリを開き直したら背景画像とカスタム音が消えていた」を無通知にしないための集計。
+// ---------------------------------------------------------------------------
+
+/** 種別ごとの件数。0 件の種別はキーごと持たない。 */
+export type BinaryFieldCounts = Partial<Record<BinaryFieldKind, number>>;
+
+export interface BinaryRestoreReport {
+  /** 実体が本当に無く、フィールドごと state から落としたもの（＝復元不能）。 */
+  missing: BinaryFieldCounts;
+  /** 読み出しに失敗し、未ロードの ref として残したもの（＝次回起動で復元され得る）。 */
+  unresolved: BinaryFieldCounts;
+}
+
+function emptyReport(): BinaryRestoreReport {
+  return { missing: {}, unresolved: {} };
+}
+
+let restoreReport: BinaryRestoreReport = emptyReport();
+
+function countField(bucket: BinaryFieldCounts, field: BinaryFieldKind): void {
+  bucket[field] = (bucket[field] ?? 0) + 1;
+}
+
+function reportTotal(report: BinaryRestoreReport): number {
+  const sum = (b: BinaryFieldCounts): number =>
+    Object.values(b).reduce<number>((a, n) => a + n, 0);
+  return sum(report.missing) + sum(report.unresolved);
+}
+
+/**
+ * hydrate 完了後に UI が 1 回だけ呼ぶ。欠落が無ければ `null`。
+ * 読み出すと集計はクリアされる（StrictMode の二重 effect でも通知は 1 回）。
+ */
+export function takeBinaryRestoreReport(): BinaryRestoreReport | null {
+  if (reportTotal(restoreReport) === 0) return null;
+  const taken = restoreReport;
+  restoreReport = emptyReport();
+  return taken;
+}
+
 async function inlineToRef(
   ref: BinaryRef,
   storage: BinaryStorage,
@@ -82,6 +130,7 @@ async function inlineToRef(
 async function refToInline(
   ref: BinaryRef,
   storage: BinaryStorage,
+  field: BinaryFieldKind,
 ): Promise<BinaryRef | null> {
   if (ref.kind === 'inline') return ref;
   let bytes: Uint8Array | null;
@@ -91,11 +140,13 @@ async function refToInline(
     // 読み出しの**失敗**（一時的な I/O エラー等）は「実体は無傷かもしれない」ので
     // フィールドを落とさず ref のまま残す。ref は次回以降の永続化でもそのまま
     // 引き継がれ（inlineToRef の先頭分岐）、GC からも参照済みとして保護される。
-    // 次回の正常な起動で実体から復元される。UI はこのフィールドを未ロードとして扱う。
+    // 次回の正常な起動で実体から復元される。UI はこのフィールドを未ロードとして扱う
+    // （表示はスキップ／書き出しは中止。契約は core/binaryFields.ts）。
     console.warn(
       `serialize: BinaryStorage.get failed for key "${ref.storageKey}" — keeping unresolved ref`,
       e,
     );
+    countField(restoreReport.unresolved, field);
     return ref;
   }
   if (!bytes) {
@@ -103,6 +154,7 @@ async function refToInline(
     console.warn(
       `serialize: missing BinaryStorage entry for key "${ref.storageKey}" — dropping field`,
     );
+    countField(restoreReport.missing, field);
     return null;
   }
   // 復元したバイト列は既に storageKey を持つ。次回の永続化で再アップロードしない。
@@ -114,7 +166,14 @@ async function refToInline(
 // 共通 walker（方向で挙動が分岐するため transform 関数を受け取る形）
 // ---------------------------------------------------------------------------
 
-type Transform = (ref: BinaryRef) => Promise<BinaryRef | null>;
+/**
+ * `field` は欠落レポートの集計単位（種別）。walk 側が「今どのフィールドを変換しているか」を
+ * 知っている唯一の場所なので、ここで渡す。
+ */
+type Transform = (
+  ref: BinaryRef,
+  field: BinaryFieldKind,
+) => Promise<BinaryRef | null>;
 
 async function walkState(
   state: WallState,
@@ -123,14 +182,14 @@ async function walkState(
   // packInfo.icon
   let icon = state.packInfo.icon;
   if (icon) {
-    icon = await transform(icon);
+    icon = await transform(icon, 'packIcon');
   }
 
   // background.layers（image レイヤのみ source を持つ）
   const layersRaw = await Promise.all(
     state.background.layers.map(async (l): Promise<BackgroundLayer | null> => {
       if (l.type !== 'image') return l;
-      const source = await transform(l.source);
+      const source = await transform(l.source, 'backgroundImage');
       if (!source) return null;
       return { ...l, source };
     }),
@@ -140,22 +199,28 @@ async function walkState(
   // extraTextures
   const extras: WallState['extraTextures'] = {};
   if (state.extraTextures.overlay) {
-    const r = await transform(state.extraTextures.overlay);
+    const r = await transform(state.extraTextures.overlay, 'extraTexture');
     if (r) extras.overlay = r;
   }
   if (state.extraTextures.instance_background) {
-    const r = await transform(state.extraTextures.instance_background);
+    const r = await transform(
+      state.extraTextures.instance_background,
+      'extraTexture',
+    );
     if (r) extras.instance_background = r;
   }
   if (state.extraTextures.instance_overlay) {
-    const r = await transform(state.extraTextures.instance_overlay);
+    const r = await transform(
+      state.extraTextures.instance_overlay,
+      'extraTexture',
+    );
     if (r) extras.instance_overlay = r;
   }
 
   // lockImages.images
   const imagesRaw = await Promise.all(
     state.lockImages.images.map(async (img): Promise<LockImage | null> => {
-      const source = await transform(img.source);
+      const source = await transform(img.source, 'lockImage');
       if (!source) return null;
       return { ...img, source };
     }),
@@ -170,7 +235,7 @@ async function walkState(
       events[key] = entry;
       continue;
     }
-    const ogg = await transform(entry.ogg);
+    const ogg = await transform(entry.ogg, 'sound');
     if (!ogg) {
       events[key] = { mode: 'default' };
     } else {
@@ -199,11 +264,23 @@ export function extractBinariesToRefs(
   return walkState(state, (ref) => inlineToRef(ref, storage));
 }
 
-export function resolveBinariesToInline(
+export async function resolveBinariesToInline(
   state: WallState,
   storage: BinaryStorage,
 ): Promise<WallState> {
-  return walkState(state, (ref) => refToInline(ref, storage));
+  // 1 回の復元＝1 回の通知。前回分の集計を持ち越さない。
+  restoreReport = emptyReport();
+  try {
+    return await walkState(state, (ref, field) =>
+      refToInline(ref, storage, field),
+    );
+  } catch (e) {
+    // walk 自体が落ちたときは呼び出し側（persistAdapter）が state 全体を捨てて
+    // 既定 state で起動する。途中まで数えた欠落を残すと「一部だけ失われた」と
+    // 誤解させるので集計ごと捨てる（全体の失敗は restoreFailed が通知する）。
+    restoreReport = emptyReport();
+    throw e;
+  }
 }
 
 // ---------------------------------------------------------------------------

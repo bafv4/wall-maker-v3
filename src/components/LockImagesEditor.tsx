@@ -13,22 +13,65 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { errMsg } from '../core/errors';
 import { normalizeToPngBytes } from '../core/pngNormalize';
+import {
+  DEFAULT_LOCK_WEIGHT,
+  MAX_LOCK_WEIGHT,
+  effectiveDefaultWeight,
+  effectiveWeight,
+  lockWeightShares,
+} from '../core/lockWeights';
 import type { LockImage } from '../core/state';
 import { useWallStore } from '../store/useWallStore';
-import { Button, Switch, toast } from './ui';
+import { Button, Input, Switch, toast } from './ui';
 import { cn } from './ui/cn';
 
 interface RowProps {
   image: LockImage;
   index: number;
   total: number;
+  /** コレクションの既定重み（この画像が `weight` を持たないときに適用される）。 */
+  defaultWeight: number;
+  /** 抽選で選ばれる確率（0..1）。 */
+  share: number;
   onMoveUp: () => void;
   onMoveDown: () => void;
   onDelete: () => void;
+  onWeightChange: (weight: number | undefined) => void;
 }
 
-function LockImageRow({ image, index, total, onMoveUp, onMoveDown, onDelete }: RowProps) {
+function LockImageRow({
+  image,
+  index,
+  total,
+  defaultWeight,
+  share,
+  onMoveUp,
+  onMoveDown,
+  onDelete,
+  onWeightChange,
+}: RowProps) {
   const { t } = useTranslation();
+  // 入力途中の文字列を保持する（他の数値入力と同じく blur で確定）。
+  const [localWeight, setLocalWeight] = useState(
+    image.weight === undefined ? '' : String(image.weight),
+  );
+  useEffect(() => {
+    setLocalWeight((prev) => {
+      const next = image.weight === undefined ? '' : String(image.weight);
+      return Number(prev) === Number(next) && (prev === '') === (next === '')
+        ? prev
+        : next;
+    });
+  }, [image.weight]);
+
+  const commitWeight = () => {
+    const trimmed = localWeight.trim();
+    if (trimmed === '') {
+      onWeightChange(undefined); // 既定重みに従う
+      return;
+    }
+    onWeightChange(Number(trimmed));
+  };
   const previewUrl = useMemo(() => {
     if (image.source.kind !== 'inline') return null;
     return URL.createObjectURL(
@@ -46,6 +89,7 @@ function LockImageRow({ image, index, total, onMoveUp, onMoveDown, onDelete }: R
   }, [previewUrl]);
 
   const filename = index === 0 ? 'lock.png' : `lock-${index}.png`;
+  const weightInputId = `lock-weight-${image.id}`;
   const sizeKb =
     image.source.kind === 'inline'
       ? `${(image.source.bytes.byteLength / 1024).toFixed(1)} KB`
@@ -81,6 +125,33 @@ function LockImageRow({ image, index, total, onMoveUp, onMoveDown, onDelete }: R
         <p className="mt-0.5 truncate text-[11px] text-fg-subtle">
           {image.originalFileName ?? t('lock.noName')} · {sizeKb}
         </p>
+        <div className="mt-1 flex items-center gap-2">
+          <label className="text-[11px] text-fg-muted" htmlFor={weightInputId}>
+            {t('lock.weight.label')}
+          </label>
+          <Input
+            id={weightInputId}
+            type="number"
+            min={1}
+            max={MAX_LOCK_WEIGHT}
+            step={1}
+            value={localWeight}
+            placeholder={String(defaultWeight)}
+            onChange={(e) => setLocalWeight(e.target.value)}
+            onBlur={commitWeight}
+            className="h-6 w-20 text-xs"
+            title={t('lock.weight.hint')}
+          />
+          <span className="text-[11px] text-fg-subtle">
+            {image.weight === undefined
+              ? t('lock.weight.inherited', { value: defaultWeight })
+              : t('lock.weight.effective', {
+                  value: effectiveWeight(image, defaultWeight),
+                })}
+            {' · '}
+            {t('lock.weight.share', { percent: (share * 100).toFixed(1) })}
+          </span>
+        </div>
       </div>
       <div className="flex flex-shrink-0 items-center gap-0.5">
         <button
@@ -116,6 +187,19 @@ export function LockImagesEditor() {
   const addLockImage = useWallStore((s) => s.addLockImage);
   const removeLockImage = useWallStore((s) => s.removeLockImage);
   const reorderLockImages = useWallStore((s) => s.reorderLockImages);
+  const setLockImageWeight = useWallStore((s) => s.setLockImageWeight);
+  const setLockDefaultWeight = useWallStore((s) => s.setLockDefaultWeight);
+
+  const defaultWeight = effectiveDefaultWeight(lockImages);
+  const shares = useMemo(() => lockWeightShares(lockImages), [lockImages]);
+  const [localDefaultWeight, setLocalDefaultWeight] = useState(
+    String(defaultWeight),
+  );
+  useEffect(() => {
+    setLocalDefaultWeight((prev) =>
+      Number(prev) === defaultWeight ? prev : String(defaultWeight),
+    );
+  }, [defaultWeight]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pickingNow, setPickingNow] = useState(false);
@@ -223,6 +307,39 @@ export function LockImagesEditor() {
         </Button>
       </div>
 
+      {lockImages.enabled && lockImages.images.length > 1 && (
+        <div className="rounded-lg bg-panel p-3">
+          <div className="flex items-center gap-2">
+            <label
+              className="text-sm font-medium text-fg"
+              htmlFor="lock-default-weight"
+            >
+              {t('lock.weight.defaultLabel')}
+            </label>
+            <Input
+              id="lock-default-weight"
+              type="number"
+              min={1}
+              max={MAX_LOCK_WEIGHT}
+              step={1}
+              value={localDefaultWeight}
+              onChange={(e) => setLocalDefaultWeight(e.target.value)}
+              onBlur={() =>
+                setLockDefaultWeight(
+                  localDefaultWeight.trim() === ''
+                    ? DEFAULT_LOCK_WEIGHT
+                    : Number(localDefaultWeight),
+                )
+              }
+              className="h-7 w-24 text-sm"
+            />
+          </div>
+          <p className="mt-1 text-[11px] text-fg-subtle">
+            {t('lock.weight.defaultDescription')}
+          </p>
+        </div>
+      )}
+
       {lockImages.enabled && lockImages.images.length > 0 && (
         <ul className="space-y-2">
           {lockImages.images.map((img, i) => (
@@ -231,9 +348,12 @@ export function LockImagesEditor() {
               image={img}
               index={i}
               total={lockImages.images.length}
+              defaultWeight={defaultWeight}
+              share={shares[i] ?? 0}
               onMoveUp={() => moveUp(i)}
               onMoveDown={() => moveDown(i)}
               onDelete={() => removeLockImage(img.id)}
+              onWeightChange={(w) => setLockImageWeight(img.id, w)}
             />
           ))}
         </ul>

@@ -26,6 +26,9 @@ export interface Resolution {
   height: number;
 }
 
+/** 既定の framebuffer 解像度。初期 state と数値ガードのフォールバックで共有する。 */
+export const DEFAULT_RESOLUTION: Resolution = { width: 1920, height: 1080 };
+
 // ---------------------------------------------------------------------------
 // エリア / グループ（main / locked / preparing が共通で使う形）
 //
@@ -170,7 +173,8 @@ export type SoundEventKey = (typeof SOUND_EVENT_KEYS)[number];
  * 各イベントの設定。
  * - default: 何も出力しない（MOD 既定にフォールバック）
  * - off:     `{ replace: true, sounds: [] }` を出力（無音）
- * - custom:  ogg バイト＋`{ replace: true, sounds: ["<event>.ogg"] }`
+ * - custom:  ogg バイト＋`{ replace: true, sounds: ["seedqueue:<event>"] }`
+ *            （MC がサウンド名に .ogg を自動付加するため拡張子は書かない。第6.6章）
  */
 export type SoundEntry =
   | { mode: 'default' }
@@ -207,16 +211,33 @@ export interface LockImage {
   source: BinaryRef;
   /** UI 表示用の元ファイル名（任意）。 */
   originalFileName?: string;
-  // 機能拡充候補（第6.5章）
-  /** `<lock>.png.mcmeta` の `seedqueue.weight`。 */
+  /**
+   * `<lock>.png.mcmeta` の `seedqueue.weight`（抽選の重み、第6.5章）。
+   * 未指定なら {@link LockImages.defaultWeight} が使われる。SeedQueue は
+   * `Math.max(1, weight)` を取るので実効値は必ず 1 以上になる。
+   */
   weight?: number;
-  /** `lock.png` 限定：`seedqueue.defaultWeight`。 */
-  defaultWeight?: number;
+  /**
+   * 取り込んだ `.mcmeta` のうち `seedqueue` **以外**のセクション（`animation` など）。
+   * 本アプリはアニメーションを編集できないが、書き出し時にそのまま戻すことで
+   * インポート → エクスポートで他パックのメタデータを落とさないようにする。
+   */
+  mcmetaExtra?: Record<string, unknown>;
 }
 
 export interface LockImages {
   enabled: boolean;
   images: LockImage[];
+  /**
+   * `lock.png.mcmeta` の `seedqueue.defaultWeight`。個別の `weight` を持たない画像に
+   * 適用される既定の重みで、SeedQueue は **`lock.png` のメタデータからのみ**読む
+   * （読めなければ 1）。
+   *
+   * 物理的には lock.png に載るが、意味はコレクション全体の既定値なのでここに置く。
+   * `LockImage` 側に持たせると並べ替えで 1 枚目が変わったときに値が別画像へ移り、
+   * パック全体の抽選確率が黙って変わってしまう。
+   */
+  defaultWeight?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -263,9 +284,12 @@ export interface WallState {
 }
 
 // ---------------------------------------------------------------------------
-// バリデーション（シグネチャのみ・実装は後続 Phase）
+// バリデーション（不変条件の検証。正規化は core/coords.ts の toSafeInt 系が担当）
 // 不変条件: rows/columns は 1 以上の整数 / 座標は整数 / 負サイズ禁止。
 // エリアの重なりは許容（検証しない・第7.3章）。
+//
+// ここは「壊れているかを判定する述語」であって値を直さない。値を直す側（floorArea 等）は
+// coords.ts に集約してあるが、state.ts → coords.ts の import は循環になるため参照しない。
 // ---------------------------------------------------------------------------
 
 export interface ValidationIssue {
@@ -273,14 +297,93 @@ export interface ValidationIssue {
   message: string;
 }
 
-/** WallState 全体の不変条件を検証する。問題がなければ空配列。 */
-export declare function validateWallState(state: WallState): ValidationIssue[];
-
 /** rows/columns が 1 以上の整数か。 */
-export declare function isValidGridCount(n: number): boolean;
+export function isValidGridCount(n: number): boolean {
+  return Number.isInteger(n) && n >= 1;
+}
 
-/** 座標・サイズが整数で負でないか。 */
-export declare function isValidAreaGeometry(area: AreaCell): boolean;
+/** 座標・サイズが有限の整数で、サイズが 1 以上か（x/y は負を許容）。 */
+export function isValidAreaGeometry(area: AreaCell): boolean {
+  return (
+    Number.isInteger(area.x) &&
+    Number.isInteger(area.y) &&
+    Number.isInteger(area.width) &&
+    Number.isInteger(area.height) &&
+    area.width >= 1 &&
+    area.height >= 1
+  );
+}
+
+function validateArea(area: Area, path: string, out: ValidationIssue[]): void {
+  if (!isValidAreaGeometry(area)) {
+    out.push({
+      path,
+      message: 'x/y/width/height must be integers and width/height >= 1',
+    });
+  }
+  if (!isValidGridCount(area.rows)) {
+    out.push({ path: `${path}.rows`, message: 'rows must be an integer >= 1' });
+  }
+  if (!isValidGridCount(area.columns)) {
+    out.push({
+      path: `${path}.columns`,
+      message: 'columns must be an integer >= 1',
+    });
+  }
+  if (
+    area.padding !== undefined &&
+    (!Number.isInteger(area.padding) || area.padding < 0)
+  ) {
+    out.push({
+      path: `${path}.padding`,
+      message: 'padding must be an integer >= 0',
+    });
+  }
+  area.positions?.forEach((cell, i) => {
+    if (!isValidAreaGeometry(cell)) {
+      out.push({
+        path: `${path}.positions[${i}]`,
+        message: 'x/y/width/height must be integers and width/height >= 1',
+      });
+    }
+  });
+}
+
+/** WallState 全体の不変条件を検証する。問題がなければ空配列。 */
+export function validateWallState(state: WallState): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+
+  if (
+    !Number.isInteger(state.resolution.width) ||
+    state.resolution.width < 1 ||
+    !Number.isInteger(state.resolution.height) ||
+    state.resolution.height < 1
+  ) {
+    issues.push({
+      path: 'resolution',
+      message: 'width/height must be integers >= 1',
+    });
+  }
+
+  validateArea(state.layout.main, 'layout.main', issues);
+  validateArea(state.layout.locked, 'layout.locked', issues);
+  state.layout.preparing.forEach((p, i) =>
+    validateArea(p, `layout.preparing[${i}]`, issues),
+  );
+
+  state.background.layers.forEach((layer, i) => {
+    if (layer.type === 'image' && layer.transform) {
+      if (!isValidAreaGeometry(layer.transform)) {
+        issues.push({
+          path: `background.layers[${i}].transform`,
+          message: 'x/y/width/height must be integers and width/height >= 1',
+        });
+      }
+    }
+  });
+
+  return issues;
+}
 
 // ---------------------------------------------------------------------------
 // デフォルト state ファクトリ
@@ -301,7 +404,7 @@ export function createDefaultSoundSettings(): SoundSettings {
 }
 
 export function createDefaultWallState(): WallState {
-  const resolution: Resolution = { width: 1920, height: 1080 };
+  const resolution: Resolution = { ...DEFAULT_RESOLUTION };
   return {
     resolution,
     // 初期レイアウトは「Default」プリセット（定義は layoutPresets.ts に集約）。

@@ -10,30 +10,74 @@
  *  - 狭幅 (<768px): 縦並びの自然な高さレイアウトに切り替え、`main` 自体が縦スクロール。
  *    `h-full` + `flex-1` の入れ子は親が auto-height だと 0 に潰れるため、
  *    `md:` プレフィックスで固定高さ前提の構造を解除する。
+ *
+ * タブ本文は `React.lazy` で分割する。`TabsContent` はアクティブなタブしか描画しないのに
+ * 静的 import では全エディタが初期チャンクに入り、`react-colorful`（BackgroundEditor →
+ * CropModal）や `@ffmpeg/ffmpeg` ラッパ（SoundsEditor → audio/convert）まで初回に載る。
  */
 
-import { useEffect, useState } from 'react';
+import { Suspense, lazy, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { isTauri } from './adapters';
 import { AppHeader } from './components/AppHeader';
-import { BackgroundEditor } from './components/BackgroundEditor';
-import { FileEditor } from './components/FileEditor';
-import { LayoutEditor } from './components/LayoutEditor';
-import { LockImagesEditor } from './components/LockImagesEditor';
-import { PackInfoEditor } from './components/PackInfoEditor';
-import { SoundsEditor } from './components/SoundsEditor';
 import { WallPreview } from './components/WallPreview';
 import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
-  ToastRoot,
   cn,
 } from './components/ui';
 import { FileOperationsProvider } from './hooks/useFileOperations';
 import { useWallStore } from './store/useWallStore';
 import './App.css';
+
+// 各エディタは名前付き export なので default に詰め替えてから lazy に渡す。
+// 目当ての分割は BackgroundEditor（+ CropModal + react-colorful）と
+// SoundsEditor（+ audio/convert → @ffmpeg/*）だが、扱いを揃えて全タブを遅延させる。
+const BackgroundEditor = lazy(() =>
+  import('./components/BackgroundEditor').then((m) => ({
+    default: m.BackgroundEditor,
+  })),
+);
+const FileEditor = lazy(() =>
+  import('./components/FileEditor').then((m) => ({ default: m.FileEditor })),
+);
+const LayoutEditor = lazy(() =>
+  import('./components/LayoutEditor').then((m) => ({ default: m.LayoutEditor })),
+);
+const LockImagesEditor = lazy(() =>
+  import('./components/LockImagesEditor').then((m) => ({
+    default: m.LockImagesEditor,
+  })),
+);
+const PackInfoEditor = lazy(() =>
+  import('./components/PackInfoEditor').then((m) => ({
+    default: m.PackInfoEditor,
+  })),
+);
+const SoundsEditor = lazy(() =>
+  import('./components/SoundsEditor').then((m) => ({
+    default: m.SoundsEditor,
+  })),
+);
+
+/**
+ * タブ本文のチャンク取得中に出すプレースホルダ。
+ * チャンクは同一オリジンの小さな JS なので通常は一瞬で解決する。スピナー等は置かず、
+ * 高さだけ確保して切替時にパネルが潰れないようにする。
+ */
+function TabFallback() {
+  const { t } = useTranslation();
+  return (
+    <div
+      role="status"
+      className="flex min-h-40 items-center justify-center text-sm text-fg-subtle"
+    >
+      {t('common.loading')}
+    </div>
+  );
+}
 
 function App() {
   const { t } = useTranslation();
@@ -97,26 +141,30 @@ function App() {
                       </div>
                     </div>
                     <div className="p-4 md:min-h-0 md:flex-1 md:overflow-y-auto">
-                      {desktop && (
-                        <TabsContent value="file">
-                          <FileEditor />
+                      {/* TabsContent は非アクティブなタブを描画しないので、
+                          Suspense はパネル領域にひとつあれば足りる。 */}
+                      <Suspense fallback={<TabFallback />}>
+                        {desktop && (
+                          <TabsContent value="file">
+                            <FileEditor />
+                          </TabsContent>
+                        )}
+                        <TabsContent value="info">
+                          <PackInfoEditor />
                         </TabsContent>
-                      )}
-                      <TabsContent value="info">
-                        <PackInfoEditor />
-                      </TabsContent>
-                      <TabsContent value="layout">
-                        <LayoutEditor />
-                      </TabsContent>
-                      <TabsContent value="background" className="md:h-full">
-                        <BackgroundEditor />
-                      </TabsContent>
-                      <TabsContent value="lock">
-                        <LockImagesEditor />
-                      </TabsContent>
-                      <TabsContent value="sound">
-                        <SoundsEditor />
-                      </TabsContent>
+                        <TabsContent value="layout">
+                          <LayoutEditor />
+                        </TabsContent>
+                        <TabsContent value="background" className="md:h-full">
+                          <BackgroundEditor />
+                        </TabsContent>
+                        <TabsContent value="lock">
+                          <LockImagesEditor />
+                        </TabsContent>
+                        <TabsContent value="sound">
+                          <SoundsEditor />
+                        </TabsContent>
+                      </Suspense>
                     </div>
                   </Tabs>
                 </div>
@@ -139,7 +187,6 @@ function App() {
             </div>
           </div>
         </main>
-        <ToastRoot />
       </div>
     </FileOperationsProvider>
   );

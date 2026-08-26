@@ -289,6 +289,23 @@ SeedQueue が参照するリソース識別子（`assets/seedqueue/` 配下）�
 | `replaceLockedInstances` | boolean | — | `false` | — |
 | `mainFillOrder` | `"FORWARD"`/`"BACKWARD"`/`"RANDOM"` | — | `FORWARD` | main の埋め順 |
 
+> **実ソースで確定した失敗モード**（2026-08-25、`Layout.java` を確認）。いずれも `createLayout` の
+> `catch (Exception)` に落ち、警告トーストを出して**カスタムレイアウト全体が破棄**される（＝既定グリッドに戻る）。
+> パックが「読まれているのに効かない」ように見えるため、出力側で必ず避けること。
+>
+> - `locked` / `preparing` で `rows`/`columns` を**省略すると NullPointerException**。
+>   `Group.fromJson` は main にだけ `SeedQueue.config.rows/columns` を既定値として渡し、
+>   それ以外は `defaultRows == null` の分岐で `jsonObject.get("rows")` を無条件に触るため。
+>   **`rows`/`columns` を省略してよいのは `main` だけ。**
+> - `x`/`y`/`width`/`height` は `has()` 検査なしの `getAsJsonPrimitive` で読むため、
+>   **1 つでも欠けると NullPointerException**。Group と positions の全要素で 4 つとも必須。
+> - `rows`/`columns` が負だと `new Pos[rows * columns]` が `NegativeArraySizeException`。
+>   `0` は例外にならないが空配列（インスタンスが 1 つも表示されない）になる。
+> - `main.cosmetic: true` は `IllegalArgumentException`。
+> - `mainFillOrder` が enum 名以外だと `valueOf` が例外。
+> - `instance_background` / `instance_overlay` は `!has(...) || getAsBoolean()` なので**省略時 true**。
+>   よって出力するのは `false` のときだけでよい。
+
 **Group** は「グリッド指定」または「`positions` 明示指定」のいずれか:
 
 | キー | 型 | 既定 | 備考 |
@@ -336,13 +353,25 @@ SeedQueue（`LockTexture.createLockTextures`）の読み込み順は厳密に次
 つまり **複数画像でも 1 枚目は必ず `lock.png`、2 枚目以降が `lock-1.png`, `lock-2.png`, …**。
 
 - **正しい出力**：N 枚なら `lock.png`(1枚目), `lock-1.png`(2枚目), `lock-2.png`(3枚目), …
-- **旧アプリのバグ**：2 枚以上のとき `lock.png` を作らず `lock-1.png` から始めていた。SeedQueue は `lock.png` の
-  読み込みに失敗すると `lock-1.png` 以降を**一切探さない**ため、ロック画像が 1 枚も読まれない。新実装で是正する。
+- **旧アプリのバグ**：2 枚以上のとき `lock.png` を作らず `lock-1.png` から始めていた。新実装で是正する。
+  - 訂正（2026-08-25、`LockTexture.createLockTextures` の実ソースで確認）：以前ここに書いていた
+    「`lock.png` が無いと以降を一切読まない」は不正確。リソースパックは MOD のアセットに**重なる**ため
+    `lock.png` は MOD 同梱版が必ず解決する。パックが `lock-1.png` だけを入れると
+    **1 枚目＝MOD 既定、2 枚目＝パックの画像**という意図しない組み合わせになる。
+    走査は `lock-<現在読めた枚数>.png` を条件にした do-while なので、番号は詰まっている必要がある。
+  - 結論として「1 枚目は必ず `lock.png` を出す」という実装方針は変わらない。
 - サイズ自由（既定 lock.png は 16x26）。SeedQueue は読み込んだ寸法でアスペクト比を保持する。**正方形/固定サイズ要件はない**。
 - 無効化：透明 PNG を `lock.png` として上書きする（プレースホルダ。サイズはアプリ任意で 128x128 とする）。
   ファイルを置かないと MOD 既定の lock.png にフォールバックするため、無効化には透明上書きが必要。
-- 任意のメタ：`<lock>.png.mcmeta` に `{"seedqueue": {"weight": N}}` で重み付き抽選、`lock.png` には
-  `{"seedqueue": {"defaultWeight": N}}` で既定重み。lock もアニメ可。いずれも機能拡充の候補。
+- **重み付き抽選（実装済み）**：`<lock>.png.mcmeta` に `{"seedqueue": {"weight": N}}`、
+  `lock.png.mcmeta` に `{"seedqueue": {"defaultWeight": N}}`。`LockTexture.java` で確認した意味論:
+  - `defaultWeight` は **`lock.png` のメタデータからのみ**読む。読めなければ `1`。
+  - 各画像の `weight` が `0`（＝ GSON がフィールド未指定を 0 にする）なら `defaultWeight` で埋める。
+  - 実効値は `Math.max(1, weight)`。抽選は `random.nextInt(実効重みの総和)` を累積で引くので、
+    選ばれる確率は **実効重み ÷ 総和**。
+  - 本アプリは既定値どおり（`defaultWeight` が 1／個別重みが既定と同値）のときは `.mcmeta` を出さない。
+    取り込んだ `.mcmeta` の `seedqueue` 以外のセクション（`animation` 等）は保持して書き戻す。
+- lock はアニメ可（`animation` セクション）。アニメーションの編集自体は未対応（取り込み時に保持するのみ）。
 
 ### 6.6 sounds.json / sounds
 
@@ -365,12 +394,20 @@ SeedQueue のサウンドイベントは **13 種**（`SeedQueueSounds.java`）�
 | `open_wall` | Wall を開く | — |
 | `bypass_wall` | Wall をバイパス | — |
 
-`sounds.json` の各エントリは `{ "sounds": ["seedqueue:<name>" または "<file>"] }`。MC の規則上、上書き時に
+`sounds.json` の各エントリは `{ "sounds": ["seedqueue:<name>"] }`。MC の規則上、上書き時に
 既定音と二重再生させないため**上書きするイベントには `"replace": true` を付ける**。`sounds: []` で無音。
+
+**サウンド名は名前空間付き・拡張子なしで書く**（mod 本体の `assets/seedqueue/sounds.json` を直接確認して確定。
+確認日 2026-08-25。実体は `"lock_instance": { "sounds": ["seedqueue:lock_instance"] }`）。
+MC はサウンド名を `assets/<ns>/sounds/` 相対のパスとして解釈し `.ogg` を**自動で付加する**ため、
+名前に拡張子を書くと `assets/seedqueue/sounds/<event>.ogg.ogg` を探しに行き**黙って無音になる**。
 
 - **default（内蔵音を使う）**：そのイベントを `sounds.json` に書かない（MOD 既定にフォールバック）。
 - **off（無音）**：`{ "replace": true, "sounds": [] }`。
-- **custom（独自音）**：`assets/seedqueue/sounds/<event>.ogg` を配置し `{ "replace": true, "sounds": ["<event>.ogg"] }`。
+- **custom（独自音）**：`assets/seedqueue/sounds/<event>.ogg` を配置し `{ "replace": true, "sounds": ["seedqueue:<event>"] }`。
+
+> `parsePack` は既存パックの読込互換のため、`seedqueue:<event>` / `<event>` / `<event>.ogg` の 3 形式を
+> 受け付ける（`<event>.ogg` は v3.1.0 以前の誤った出力で作られたパック向けの後方互換）。
 
 > 旧アプリは 6 イベントしか扱わず、`reset_instance` を独立イベントとして扱わない・`play_instance`/`schedule_*`/
 > `open_wall`/`bypass_wall`/`scheduled_join_warning` を欠いていた。新実装は 13 イベントを正として UI を設計する

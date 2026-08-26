@@ -6,12 +6,15 @@
  *  - 音声変換は含めない。`WallState` に保持済みの変換済み ogg バイトをそのまま書く（第7.3章）。
  *  - 内部フラグ（`useGrid` / `show`）はエクスポート時に strip する（第6.3.2章）。
  *  - 座標・サイズは Math.floor で整数化済みの値だけを出力する（第6.3.1章）。
+ *  - `rows` / `columns` は 1 以上の整数に丸めてから出力する（第6.3章）。
+ *  - `useGrid=false` の main は `rows`/`columns` を省略し、SeedQueue 側の設定値に委ねる（第6.3.2章）。
  *  - Canvas/`toBlob` を背景 PNG 生成で使うため async。**ブラウザ/Tauri webview 専用**、Node では動かさない。
  *  - BinaryRef は `inline`（バイト直持ち）のみ受け付ける。`ref` は永続化済みの参照で、
  *    adapter 側で resolve して inline に戻してから buildPack を呼ぶ責務。
  */
 
-import { floorArea, floorCell, floorInt } from './coords';
+import { floorArea } from './coords';
+import { buildLockMcmeta, effectiveDefaultWeight } from './lockWeights';
 import { renderBackgroundToCanvas } from './renderBackground';
 import {
   SOUND_EVENT_KEYS,
@@ -26,6 +29,7 @@ import {
   PACK_FORMAT,
   PACK_PATHS,
   PLACEHOLDER_LOCK_SIZE,
+  SEEDQUEUE_NAMESPACE,
   type VirtualPack,
 } from './types';
 
@@ -174,16 +178,32 @@ function buildGroup(
     height: f.height,
   };
 
-  // useGrid=false かつ positions があれば positions 方式、それ以外は rows/columns
-  if (area.useGrid === false && area.positions && area.positions.length > 0) {
-    g.positions = area.positions.map((p) => floorCell(p));
-  } else {
-    g.rows = floorInt(area.rows);
-    g.columns = floorInt(area.columns);
+  // グリッド指定 / positions 明示指定の切替（第6.3章）。
+  //  - useGrid=false かつ positions あり  → positions 方式。
+  //  - useGrid=false かつ positions なし  → **main に限り** rows/columns を省略する。
+  //    SeedQueue は main の rows/columns 省略時にユーザ自身の SeedQueue 設定値へ
+  //    フォールバックする（Layout.java の Group.fromJson に defaultRows/defaultColumns を渡す形）。
+  //    locked/preparing は defaultRows==null で呼ばれ、rows 欠落時に NPE になって
+  //    カスタムレイアウト全体が破棄されるため、useGrid=false でも必ず出力する。
+  //  - それ以外                            → rows/columns。
+  //
+  // 出力値は生の area ではなく floorArea 済みの `f` から採る。`f` は rows/columns が
+  // 1 以上の整数（padding は 0 以上）であることを保証している。
+  const positions =
+    area.useGrid === false && f.positions && f.positions.length > 0
+      ? f.positions
+      : null;
+  const omitGridCounts = area.useGrid === false && opts.isMain;
+
+  if (positions) {
+    g.positions = positions;
+  } else if (!omitGridCounts) {
+    g.rows = f.rows;
+    g.columns = f.columns;
   }
 
-  if (area.padding !== undefined && area.padding > 0) {
-    g.padding = floorInt(area.padding);
+  if (f.padding !== undefined && f.padding > 0) {
+    g.padding = f.padding;
   }
 
   // 機能拡充候補（値が指定されているときだけ出力）
@@ -237,12 +257,18 @@ async function addLockImages(
   if (state.lockImages.images.length === 0) {
     return;
   }
+  const defaultWeight = effectiveDefaultWeight(state.lockImages);
   state.lockImages.images.forEach((img, i) => {
     const filename = i === 0 ? 'lock.png' : `lock-${i}.png`;
     pack.set(
       `${PACK_PATHS.texturesGuiWall}/${filename}`,
       resolveInline(img.source),
     );
+    // 抽選の重み（第6.5章）。既定値どおりなら .mcmeta 自体を出さない。
+    const mcmeta = buildLockMcmeta(img, { isFirst: i === 0, defaultWeight });
+    if (mcmeta) {
+      pack.set(`${PACK_PATHS.texturesGuiWall}/${filename}.mcmeta`, mcmeta);
+    }
   });
 }
 
@@ -284,7 +310,11 @@ function renderTransparentPng(
 
 // ===========================================================================
 // sounds.json + ogg
-// 第6.6章：default=書かない / off={replace:true,sounds:[]} / custom={replace:true,sounds:["<event>.ogg"]}+ogg配置
+// 第6.6章：default=書かない / off={replace:true,sounds:[]} /
+//          custom={replace:true,sounds:["seedqueue:<event>"]}＋`sounds/<event>.ogg` 配置
+// サウンド名は **名前空間付き・拡張子なし**（mod 本体の assets/seedqueue/sounds.json と同形式）。
+// MC はサウンド名を `assets/<ns>/sounds/` 相対パスと解釈して `.ogg` を自動付加するため、
+// 名前に `.ogg` を書くと `<event>.ogg.ogg` を探しに行き無音になる。
 // globalMode='off' は per-event 設定に関わらず全 13 イベントを off 扱いで出力。
 // ===========================================================================
 
@@ -305,7 +335,10 @@ function addSounds(pack: VirtualPack, state: WallState): void {
       continue;
     }
     // custom
-    soundsJson[event] = { replace: true, sounds: [`${event}.ogg`] };
+    soundsJson[event] = {
+      replace: true,
+      sounds: [`${SEEDQUEUE_NAMESPACE}:${event}`],
+    };
     pack.set(
       `${PACK_PATHS.sounds}/${event}.ogg`,
       resolveInline(entry.ogg),
@@ -321,13 +354,21 @@ function addSounds(pack: VirtualPack, state: WallState): void {
 // 内部ユーティリティ
 // ===========================================================================
 
+/**
+ * 未解決 ref（＝未ロード）を黙って落とさない。欠けたまま書き出すと
+ * 「見た目は普通なのにゲーム内で効かないパック」になり目視で気づけないため。
+ *
+ * ここに到達するのは不変条件違反（開発時のバグ）で、メッセージは開発者向け。
+ * ユーザ操作の経路では、書き出しハンドラが `collectUnresolvedBinaryFields` で
+ * 事前に検出し、翻訳済みの具体的なメッセージで中止する（契約は core/binaryFields.ts）。
+ */
 function resolveInline(ref: BinaryRef): Uint8Array {
   if (ref.kind === 'inline') {
     return ref.bytes;
   }
   throw new Error(
     `buildPack: received unresolved BinaryRef (storageKey=${ref.storageKey}). ` +
-      'Adapter must resolve refs to inline bytes before calling buildPack.',
+      'Callers must check collectUnresolvedBinaryFields() before calling buildPack.',
   );
 }
 

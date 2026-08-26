@@ -5,19 +5,28 @@
  * 仕様: REWRITE_SPEC.md 第7.2章。
  *
  * 不変条件:
- *  - 座標は floor 済みであること（coords.ts）。state 反映するアクションは座標を Math.floor で整数化する。
- *  - rows/columns は 1 以上の整数（後続バリデーション層で担保。アクションでも最低限の正規化を行う）。
+ *  - 幾何（x/y/width/height/rows/columns/padding）は `floorArea`/`floorCell`（coords.ts）が
+ *    一箇所で担保する：整数化・非有限値の排除・width/height >= 1・rows/columns >= 1・padding >= 0。
+ *    layout / 背景レイヤの transform に触るアクションは必ずどちらかを通すこと。
  *  - 解像度変更は `scaleStateForResolution` を必ず通す（背景レイヤと layout を同時にスケール、第8章 #9）。
  *  - import は浅いマージせず WallState を丸ごと差し替える（第8章 #6）。
+ *  - hydrate 時は `normalizeWallStateNumbers` を通す。旧版で Infinity が混入した state は
+ *    JSON 化で `x: null` として保存されており、通さないと永久に壊れたままになる。
  */
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import {
   floorArea,
-  floorInt,
+  floorCell,
+  normalizeWallStateNumbers,
   scaleStateForResolution,
+  toSafeInt,
 } from '../core/coords';
+import {
+  DEFAULT_LOCK_WEIGHT,
+  MAX_LOCK_WEIGHT,
+} from '../core/lockWeights';
 import {
   createDefaultWallState,
   type Area,
@@ -32,6 +41,7 @@ import {
   type SoundEntry,
   type SoundEventKey,
   type SoundSettings,
+  validateWallState,
   type VisibleArea,
   type WallState,
 } from '../core/state';
@@ -111,6 +121,10 @@ export interface WallStoreState {
   addLockImage: (img: LockImage) => void;
   removeLockImage: (id: string) => void;
   reorderLockImages: (ids: string[]) => void;
+  /** lock 画像 1 枚の抽選重み。`undefined` で「既定重みに従う」に戻す。 */
+  setLockImageWeight: (id: string, weight: number | undefined) => void;
+  /** コレクション全体の既定重み（`lock.png.mcmeta` の `seedqueue.defaultWeight`）。 */
+  setLockDefaultWeight: (weight: number) => void;
 
   // --- sounds ---
   setSoundGlobalMode: (mode: SoundSettings['globalMode']) => void;
@@ -122,20 +136,13 @@ export interface WallStoreState {
 // ヘルパ
 // ---------------------------------------------------------------------------
 
-/** 座標 patch を Area に当てて floor。rows/columns/padding も整数化する。 */
+/**
+ * 座標 patch を Area に当てて正規化する。
+ * 整数化・非有限値の排除・最小サイズ 1・rows/columns >= 1 はすべて `floorArea`（coords.ts）が担保する。
+ * UI 側のクランプが破れても壊れた値を state に入れないための最終防衛線。
+ */
 function mergeAreaPatch<T extends Area>(area: T, patch: Partial<T>): T {
-  const merged: T = { ...area, ...patch };
-  if (patch.rows !== undefined) merged.rows = Math.max(1, floorInt(patch.rows));
-  if (patch.columns !== undefined)
-    merged.columns = Math.max(1, floorInt(patch.columns));
-  const floored = floorArea(merged);
-  // 負サイズ禁止（CLAUDE.md 不変条件）。UI 側のクランプが破れても state には入れない。
-  floored.width = Math.max(1, floored.width);
-  floored.height = Math.max(1, floored.height);
-  if (floored.padding !== undefined) {
-    floored.padding = Math.max(0, floored.padding);
-  }
-  return floored;
+  return floorArea({ ...area, ...patch });
 }
 
 /** 既存レイヤと同じ判別子のみマージできるよう型安全に適用。種別不一致は no-op。 */
@@ -155,7 +162,12 @@ function applyLayerPatch(
       return { ...(layer as ColorLayer), ...patch };
     }
     case 'image': {
-      return { ...(layer as ImageLayer), ...patch };
+      const merged: ImageLayer = { ...(layer as ImageLayer), ...patch };
+      // transform は wall 座標系の幾何なので、エリアと同じ不変条件へ揃える
+      // （UI 側の `Math.floor(Number(v) || 0)` は "1e999" → Infinity を通してしまう）。
+      return merged.transform
+        ? { ...merged, transform: floorCell(merged.transform) }
+        : merged;
     }
     case 'gradient': {
       return { ...(layer as GradientLayer), ...patch };
@@ -194,16 +206,19 @@ export const useWallStore = create<WallStoreState>()(
           ui: { selectedBackgroundLayerId: null },
         }),
 
-      replaceWallState: (next) => set({ wall: next }),
+      // import など外部由来の state も幾何の不変条件へ引き戻してから採用する。
+      replaceWallState: (next) => set({ wall: normalizeWallStateNumbers(next) }),
 
       selectBackgroundLayer: (id) =>
         set((s) => ({ ui: { ...s.ui, selectedBackgroundLayerId: id } })),
 
+      // 非有限値（"1e999" → Infinity）が入ると sx/sy が Infinity になり layout 全体が壊れる。
+      // toSafeInt で 1..MAX_DIMENSION の整数に落としてからスケールする。
       setResolution: (r) =>
         set((s) => ({
           wall: scaleStateForResolution(s.wall, s.wall.resolution, {
-            width: Math.max(1, floorInt(r.width)),
-            height: Math.max(1, floorInt(r.height)),
+            width: toSafeInt(r.width, s.wall.resolution.width, 1),
+            height: toSafeInt(r.height, s.wall.resolution.height, 1),
           }),
         })),
 
@@ -219,8 +234,9 @@ export const useWallStore = create<WallStoreState>()(
         set((s) => ({
           wall: {
             ...s.wall,
-            // 受け取ったレイアウトを丸ごと置換。座標は念のため floor 整数化する
-            // （プリセット側で整数化済みだが、不変条件を境界で必ず保証する）。
+            // 受け取ったレイアウトを丸ごと置換。floorArea が整数化・非有限値の排除・
+            // 最小サイズ 1・rows/columns >= 1 まで担保する（プリセット以外の呼び出し元が
+            // 増えても不変条件が破れないよう、layout 系の入口では必ず通す）。
             layout: {
               main: floorArea(layout.main),
               locked: floorArea(layout.locked),
@@ -270,7 +286,8 @@ export const useWallStore = create<WallStoreState>()(
               ...s.wall.layout,
               preparing: [
                 ...s.wall.layout.preparing,
-                area ?? blankPreparing(s.wall),
+                // 外部から渡されたエリアも layout の入口で必ず正規化する。
+                area ? floorArea(area) : blankPreparing(s.wall),
               ],
             },
           },
@@ -340,13 +357,19 @@ export const useWallStore = create<WallStoreState>()(
         set((s) => {
           const map = new Map(s.wall.background.layers.map((l) => [l.id, l]));
           const ordered: BackgroundLayer[] = [];
+          // 採用済み id の Set。`ids.includes` をループ内で回すと O(n^2) になるうえ、
+          // ids に重複があるとレイヤが二重に並ぶ。
+          const taken = new Set<string>();
           for (const id of ids) {
             const l = map.get(id);
-            if (l) ordered.push(l);
+            if (l && !taken.has(id)) {
+              taken.add(id);
+              ordered.push(l);
+            }
           }
           // 並び替え対象に含まれていなかったレイヤは末尾に残す（破壊回避）
           for (const l of s.wall.background.layers) {
-            if (!ids.includes(l.id)) ordered.push(l);
+            if (!taken.has(l.id)) ordered.push(l);
           }
           return { wall: { ...s.wall, background: { layers: ordered } } };
         }),
@@ -396,12 +419,17 @@ export const useWallStore = create<WallStoreState>()(
         set((s) => {
           const map = new Map(s.wall.lockImages.images.map((i) => [i.id, i]));
           const ordered: LockImage[] = [];
+          // lock 画像は最大 255 枚（parsePack）。`ids.includes` の O(n^2) を避ける。
+          const taken = new Set<string>();
           for (const id of ids) {
             const i = map.get(id);
-            if (i) ordered.push(i);
+            if (i && !taken.has(id)) {
+              taken.add(id);
+              ordered.push(i);
+            }
           }
           for (const i of s.wall.lockImages.images) {
-            if (!ids.includes(i.id)) ordered.push(i);
+            if (!taken.has(i.id)) ordered.push(i);
           }
           return {
             wall: {
@@ -410,6 +438,44 @@ export const useWallStore = create<WallStoreState>()(
             },
           };
         }),
+
+      setLockImageWeight: (id, weight) =>
+        set((s) => ({
+          wall: {
+            ...s.wall,
+            lockImages: {
+              ...s.wall.lockImages,
+              images: s.wall.lockImages.images.map((img) => {
+                if (img.id !== id) return img;
+                if (weight === undefined) {
+                  // 「既定重みに従う」＝ .mcmeta に weight を書かない状態に戻す。
+                  const { weight: _drop, ...rest } = img;
+                  return rest;
+                }
+                return {
+                  ...img,
+                  weight: toSafeInt(weight, DEFAULT_LOCK_WEIGHT, 1, MAX_LOCK_WEIGHT),
+                };
+              }),
+            },
+          },
+        })),
+
+      setLockDefaultWeight: (weight) =>
+        set((s) => ({
+          wall: {
+            ...s.wall,
+            lockImages: {
+              ...s.wall.lockImages,
+              defaultWeight: toSafeInt(
+                weight,
+                DEFAULT_LOCK_WEIGHT,
+                1,
+                MAX_LOCK_WEIGHT,
+              ),
+            },
+          },
+        })),
 
       setSoundGlobalMode: (mode) =>
         set((s) => ({
@@ -440,6 +506,31 @@ export const useWallStore = create<WallStoreState>()(
       version: 1,
       storage: wallStorePersistStorage,
       partialize: (s): PersistedWallStore => ({ wall: s.wall }),
+      // 旧バージョンで Infinity/NaN が混入した state は JSON 化で `x: null` として
+      // 保存されており、通常操作では二度と直らない。hydrate 境界で数値を正規化して復旧させる。
+      merge: (persisted, current) => {
+        const wall = (persisted as Partial<PersistedWallStore> | undefined)
+          ?.wall;
+        if (!wall) return current;
+        try {
+          // 何をどう直したかを追えるよう、修復前に不正な箇所を列挙して警告する
+          // （復元後は正規化済みのため、後から原因を特定できなくなる）。
+          const issues = validateWallState(wall);
+          if (issues.length > 0) {
+            console.warn(
+              'wall-store: 復元した state に不正な数値があるため正規化します',
+              issues,
+            );
+          }
+          return { ...current, wall: normalizeWallStateNumbers(wall) };
+        } catch (e) {
+          // 正規化に失敗しても復元済みの state は捨てない。既定 state に倒すと
+          // 次の保存で localStorage が既定値で上書きされ、GC（persistAdapter）が
+          // 参照されなくなった画像・音声バイナリまで消してしまう。
+          console.error('wall-store: 復元した state の正規化に失敗しました', e);
+          return { ...current, wall };
+        }
+      },
       // getItem は reject しない設計（persistAdapter 参照）だが、万一の hydration
       // エラーを黙殺させないための保険。未設定だと zustand は例外を握り潰す。
       onRehydrateStorage: () => (_state, error) => {

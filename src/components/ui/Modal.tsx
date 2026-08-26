@@ -8,6 +8,7 @@
 
 import { useEffect, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
 
 export interface ModalProps {
@@ -28,6 +29,9 @@ export function Modal({
   className,
   dismissOnBackdrop = true,
 }: ModalProps) {
+  // 閉じるボタンはアイコン（×）だけなので、スクリーンリーダー向けのラベルは翻訳から取る。
+  const { t } = useTranslation();
+
   useEffect(() => {
     if (!open) return;
     const handler = (e: KeyboardEvent) => {
@@ -61,7 +65,7 @@ export function Modal({
               type="button"
               onClick={onClose}
               className="cursor-pointer rounded p-1.5 text-lg leading-none text-fg-subtle hover:bg-muted hover:text-fg"
-              aria-label="閉じる"
+              aria-label={t('common.close')}
             >
               ×
             </button>

@@ -1,6 +1,10 @@
 [package]
 name = "wall-maker-v3"
-version = "3.1.0"
+# ここは crate 自体のバージョン。Cargo には外部ファイル（package.json）を参照する手段が
+# ないため、**リリース時に package.json の `version` と手動で合わせること**。
+# アプリとして配布されるバージョンは `tauri.conf.json` の `version`（= `../package.json`
+# 参照）が使われるので、ここがズレてもバンドル成果物のバージョンは package.json 由来になる。
+version = "3.2.0"
 description = "SeedQueue Wall Maker — Minecraft Speedrunning 用 SeedQueue リソースパックエディタ"
 authors = ["bafv4"]
 edition = "2021"

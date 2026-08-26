@@ -19,6 +19,7 @@ import {
   useState,
 } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
 
 export interface SelectOption {
@@ -86,6 +87,8 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
   },
   forwardedRef,
 ) {
+  // `placeholder` 未指定時の既定文言と空リスト時の文言は翻訳から取る。
+  const { t } = useTranslation();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLUListElement>(null);
   const [open, setOpen] = useState(false);
@@ -221,7 +224,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
             !selectedLabel && 'text-fg-subtle',
           )}
         >
-          {selectedLabel ?? placeholder ?? '選択…'}
+          {selectedLabel ?? placeholder ?? t('common.selectPlaceholder')}
         </span>
         <span
           className={cn(
@@ -253,7 +256,9 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
             }}
           >
             {options.length === 0 ? (
-              <li className="px-3 py-2 text-xs text-fg-subtle">選択肢なし</li>
+              <li className="px-3 py-2 text-xs text-fg-subtle">
+                {t('common.noOptions')}
+              </li>
             ) : (
               options.map((o) => {
                 const active = o.value === value;

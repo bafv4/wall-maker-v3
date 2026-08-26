@@ -13,25 +13,17 @@
   },
   "preview": {
     "title": "Preview",
-    "hint": "Click an area to select. Drag to move; use corner / edge handles to resize. All values are stored as integers."
+    "hint": "Click an area to select. Drag to move; use corner / edge handles to resize. All values are stored as integers.",
+    "scale": "Real {{realWidth}}×{{realHeight}} / preview {{previewWidth}}×{{previewHeight}}",
+    "snapHint": "Hold Shift to disable snapping"
   },
   "common": {
-    "add": "Add",
-    "remove": "Remove",
-    "delete": "Delete",
+    "loading": "Loading…",
     "cancel": "Cancel",
     "apply": "Apply",
-    "ok": "OK",
     "close": "Close",
-    "open": "Open",
-    "clear": "Clear",
-    "change": "Change…",
-    "edit": "Edit",
-    "save": "Save",
-    "processing": "Working…",
-    "loading": "Loading…",
-    "yes": "Yes",
-    "no": "No"
+    "selectPlaceholder": "Select…",
+    "noOptions": "No options"
   },
   "header": {
     "import": "Import (.zip)",
@@ -39,7 +31,9 @@
     "reset": "Reset",
     "export": "Export (.zip)",
     "exporting": "Working…",
-    "aboutTooltip": "About / Licenses"
+    "aboutTooltip": "About / Licenses",
+    "releases": "Latest release",
+    "releasesTooltip": "Open the latest release page on GitHub"
   },
   "fileEditor": {
     "import": {
@@ -53,16 +47,21 @@
       "title": "Save (folder)",
       "description": "Write the resource pack as a folder. \"Save As\" picks a destination each time; \"Overwrite\" replaces the folder you opened or last saved to.",
       "currentTargetLabel": "Editing resource pack",
-      "currentTargetEmpty": "Not set (will be assigned when you open a folder or use \"Save As\")",
       "saveAs": "Save As…",
       "overwrite": "Overwrite",
-      "processing": "Working…"
+      "processing": "Working…",
+      "dialogTitle": "Choose a destination (parent folder) — a folder named after the resource pack will be created inside",
+      "restoredConfirm": {
+        "title": "Overwrite the restored save target?",
+        "message": "The save target \"{{path}}\" was restored from your last session. Overwriting deletes everything in that folder and writes the pack again. Overwrite it with what you are editing now?"
+      }
     },
     "export": {
       "title": "Export (.zip)",
       "description": "Save a single .zip file. Useful for sharing / distribution.",
       "button": "Export as .zip…",
-      "processing": "Working…"
+      "processing": "Working…",
+      "dialogTitle": "Export as .zip"
     },
     "reset": {
       "title": "Reset",
@@ -180,7 +179,10 @@
       "fileImage": "Image ({{size}} KB)",
       "imageRef": "Image (ref)"
     },
-    "selectStopAlias": "Selected stop"
+    "toast": {
+      "notRaster": "{{filename}}: unsupported image format (vector formats such as SVG are not supported — use PNG / JPEG / GIF / WebP)",
+      "imageFailed": "Failed to read {{filename}}: {{error}}"
+    }
   },
   "cropModal": {
     "title": "Crop image",
@@ -192,7 +194,7 @@
     "title": "Use lock images",
     "description": "Turn off to disable the lock overlay.",
     "addImage": "+ Add image",
-    "specNote": "SeedQueue will not load any lock-N.png if lock.png is missing. The first image in this list is always written as lock.png. Images are stored at their original size (aspect ratio preserved).",
+    "specNote": "The first image is always written as lock.png (if a pack ships only lock-1.png, the mod's built-in lock.png ends up as the first entry). Images are stored as-is without resizing (aspect ratio preserved). Weight controls how often an image is picked: its effective weight divided by the total is the probability.",
     "specMemo": "Format notes (click to expand)",
     "required": "Required",
     "noName": "No name",
@@ -203,6 +205,15 @@
       "disabled": "Disabled: a transparent 128×128 will be written as lock.png on export (blocks the SeedQueue default).",
       "emptyEnabled": "Enabled with no images: falls back to the mod default lock.png (nothing is written).",
       "active": "Enabled with {{count}} image(s): the first is written as lock.png; the rest as lock-1.png onward."
+    },
+    "weight": {
+      "label": "Weight",
+      "hint": "Selection weight. Leave empty to follow the default weight. Higher values are picked more often.",
+      "inherited": "default {{value}}",
+      "effective": "effective {{value}}",
+      "share": "{{percent}}%",
+      "defaultLabel": "Default weight",
+      "defaultDescription": "Applied to images without an explicit weight. Written to lock.png's .mcmeta as defaultWeight; omitted when it is 1."
     },
     "toast": {
       "notImage": "{{filename}}: not an image file",
@@ -235,6 +246,7 @@
     "unsupported": "{{filename}}: unsupported audio format (supported: ogg / mp3 / wav / flac / aac / m4a / opus / webm)",
     "convertSuccess": "Converted {{filename}} to OGG",
     "convertFailed": "Failed to convert {{filename}}: {{error}}",
+    "readFailed": "Failed to read {{filename}}: {{error}}",
     "events": {
       "play_instance": "Play instance",
       "lock_instance": "Lock instance",
@@ -275,6 +287,13 @@
     "languageJa": "日本語",
     "languageEn": "English"
   },
+  "binaryField": {
+    "packIcon": "pack icon",
+    "backgroundImage": "background image",
+    "extraTexture": "extra texture",
+    "lockImage": "lock image",
+    "sound": "sound"
+  },
   "toast": {
     "exportSuccess": "Exported to {{dest}}",
     "exportFailed": "Export failed: {{error}}",
@@ -285,10 +304,12 @@
     "overwriteNoTarget": "No save target yet — use \"Save As\" first",
     "importSuccess": "Imported {{filename}}",
     "importFailed": "Import failed: {{error}}",
-    "readZipFailed": "Failed to read .zip: {{error}}",
     "readFailed": "Read failed: {{error}}",
-    "writeCanceled": "Export canceled",
     "persistFailed": "Failed to auto-save your edits (export still works)",
-    "restoreFailed": "Could not restore your previous session — started fresh"
+    "restoreFailed": "Could not restore your previous session — started fresh",
+    "saveTargetPersistFailed": "Could not remember the save target (saving still works this session)",
+    "restoreMissing": "{{count}} item(s) could not be restored ({{fields}}). Please add them again.",
+    "restoreUnresolved": "{{count}} item(s) could not be loaded ({{fields}}). Reloading the app may restore them.",
+    "unresolvedBinaries": "Cannot export: some data is not loaded ({{fields}}). Reload the app, or set those items again."
   }
 }
