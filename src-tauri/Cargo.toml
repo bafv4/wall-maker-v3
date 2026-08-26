@@ -4,7 +4,7 @@ name = "wall-maker-v3"
 # ないため、**リリース時に package.json の `version` と手動で合わせること**。
 # アプリとして配布されるバージョンは `tauri.conf.json` の `version`（= `../package.json`
 # 参照）が使われるので、ここがズレてもバンドル成果物のバージョンは package.json 由来になる。
-version = "3.1.0"
+version = "3.2.0"
 description = "SeedQueue Wall Maker — Minecraft Speedrunning 用 SeedQueue リソースパックエディタ"
 authors = ["bafv4"]
 edition = "2021"
