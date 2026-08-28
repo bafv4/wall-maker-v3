@@ -103,6 +103,8 @@ export interface WallStoreState {
   addPreparing: (area?: VisibleArea) => void;
   removePreparing: (index: number) => void;
   updatePreparing: (index: number, patch: Partial<VisibleArea>) => void;
+  /** 複数エリアの位置を 1 回の set() でまとめて更新する（複数選択ドラッグ用）。 */
+  moveAreas: (moves: AreaMove[]) => void;
 
   // --- background ---
   addBackgroundLayer: (layer: BackgroundLayer) => void;
@@ -135,6 +137,16 @@ export interface WallStoreState {
 // ---------------------------------------------------------------------------
 // ヘルパ
 // ---------------------------------------------------------------------------
+
+/**
+ * `moveAreas` の 1 件分。プレビューでの複数選択ドラッグが、選択中の全エリアを
+ * 1 回の set() でまとめて動かすために使う（エリアごとに setMain/setLocked/… を
+ * 呼ぶと 1 pointermove あたり N 回の再レンダリング＋永続化が走ってしまう）。
+ */
+export type AreaMove =
+  | { kind: 'main'; x: number; y: number }
+  | { kind: 'locked'; x: number; y: number }
+  | { kind: 'preparing'; index: number; x: number; y: number };
 
 /**
  * 座標 patch を Area に当てて正規化する。
@@ -316,6 +328,37 @@ export const useWallStore = create<WallStoreState>()(
             },
           },
         })),
+
+      moveAreas: (moves) =>
+        set((s) => {
+          let main = s.wall.layout.main;
+          let locked = s.wall.layout.locked;
+          let preparing: VisibleArea[] | null = null;
+          for (const m of moves) {
+            if (m.kind === 'main') {
+              main = mergeAreaPatch(main, { x: m.x, y: m.y });
+            } else if (m.kind === 'locked') {
+              locked = mergeAreaPatch(locked, { x: m.x, y: m.y });
+            } else {
+              preparing ??= [...s.wall.layout.preparing];
+              const cur = preparing[m.index];
+              if (cur) {
+                preparing[m.index] = mergeAreaPatch(cur, { x: m.x, y: m.y });
+              }
+            }
+          }
+          return {
+            wall: {
+              ...s.wall,
+              layout: {
+                ...s.wall.layout,
+                main,
+                locked,
+                preparing: preparing ?? s.wall.layout.preparing,
+              },
+            },
+          };
+        }),
 
       addBackgroundLayer: (layer) =>
         set((s) => ({

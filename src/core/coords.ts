@@ -93,6 +93,26 @@ export function floorInt(n: number): number {
   return toSafeInt(n, 0, MIN_COORDINATE, MAX_DIMENSION);
 }
 
+/**
+ * セル群の外接矩形。プレビューの複数選択ドラッグでは、スナップ・指示線・
+ * オーバーレイ表示を個々のエリアではなく**選択全体**のこの矩形に対して行う。
+ * 呼び出し側が 1 件以上を保証する。入力が整数（store は floorArea/floorCell 済み）
+ * なら結果も整数。クランプは行わない（移動量の導出に使うため、値を歪めない）。
+ */
+export function boundingBox(cells: readonly AreaCell[]): AreaCell {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const c of cells) {
+    minX = Math.min(minX, c.x);
+    minY = Math.min(minY, c.y);
+    maxX = Math.max(maxX, c.x + c.width);
+    maxY = Math.max(maxY, c.y + c.height);
+  }
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+}
+
 export function floorCell<T extends AreaCell>(cell: T): T {
   return {
     ...cell,

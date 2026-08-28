@@ -13,7 +13,7 @@
   },
   "preview": {
     "title": "Preview",
-    "hint": "Click an area to select. Drag to move; use corner / edge handles to resize. All values are stored as integers.",
+    "hint": "Click an area to select; Ctrl/⌘+click for multi-select. Drag to move (a multi-selection moves together, snapping against the selection's bounding box); use corner / edge handles to resize. All values are stored as integers.",
     "scale": "Real {{realWidth}}×{{realHeight}} / preview {{previewWidth}}×{{previewHeight}}",
     "snapHint": "Hold Shift to disable snapping"
   },
