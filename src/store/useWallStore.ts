@@ -70,10 +70,15 @@ export type ExtraTextureSlot =
 
 /**
  * UI state — 永続化対象外（partialize で除外）。
- * 現状は背景レイヤの選択 ID のみ。後続 Phase でツール選択・モーダル状態などを追加可能。
  */
 export interface UIState {
   selectedBackgroundLayerId: string | null;
+  /**
+   * プレビューのエリア選択（1 件以上）。preparing は index 参照なので、
+   * `removePreparing` が削除と同じ set() 内で index を詰め直す
+   * （`removeBackgroundLayer` が selectedBackgroundLayerId を直すのと同じ流儀）。
+   */
+  selectedAreas: readonly AreaTarget[];
 }
 
 export interface WallStoreState {
@@ -86,6 +91,7 @@ export interface WallStoreState {
 
   // --- UI ---
   selectBackgroundLayer: (id: string | null) => void;
+  selectAreas: (targets: readonly AreaTarget[]) => void;
 
   // --- 解像度 / 全体スケール ---
   setResolution: (r: Resolution) => void;
@@ -139,14 +145,24 @@ export interface WallStoreState {
 // ---------------------------------------------------------------------------
 
 /**
+ * レイアウト上のエリアの参照。プレビューの選択（`ui.selectedAreas`）と
+ * `moveAreas` が共有する語彙（preparing は配列 index で参照する。store・
+ * LayoutEditor・AreaEditor が index 前提のため。安定 ID 化は将来課題）。
+ */
+export type AreaTarget =
+  | { kind: 'main' }
+  | { kind: 'locked' }
+  | { kind: 'preparing'; index: number };
+
+/**
  * `moveAreas` の 1 件分。プレビューでの複数選択ドラッグが、選択中の全エリアを
  * 1 回の set() でまとめて動かすために使う（エリアごとに setMain/setLocked/… を
  * 呼ぶと 1 pointermove あたり N 回の再レンダリング＋永続化が走ってしまう）。
  */
-export type AreaMove =
-  | { kind: 'main'; x: number; y: number }
-  | { kind: 'locked'; x: number; y: number }
-  | { kind: 'preparing'; index: number; x: number; y: number };
+export type AreaMove = AreaTarget & { x: number; y: number };
+
+/** エリア選択の既定値（main の単独選択）。識別子を共有して identity 比較を安定させる。 */
+export const DEFAULT_AREA_SELECTION: readonly AreaTarget[] = [{ kind: 'main' }];
 
 /**
  * 座標 patch を Area に当てて正規化する。
@@ -210,12 +226,15 @@ export const useWallStore = create<WallStoreState>()(
   persist(
     (set) => ({
       wall: createDefaultWallState(),
-      ui: { selectedBackgroundLayerId: null },
+      ui: { selectedBackgroundLayerId: null, selectedAreas: DEFAULT_AREA_SELECTION },
 
       reset: () =>
         set({
           wall: createDefaultWallState(),
-          ui: { selectedBackgroundLayerId: null },
+          ui: {
+            selectedBackgroundLayerId: null,
+            selectedAreas: DEFAULT_AREA_SELECTION,
+          },
         }),
 
       // import など外部由来の state も幾何の不変条件へ引き戻してから採用する。
@@ -223,6 +242,14 @@ export const useWallStore = create<WallStoreState>()(
 
       selectBackgroundLayer: (id) =>
         set((s) => ({ ui: { ...s.ui, selectedBackgroundLayerId: id } })),
+
+      selectAreas: (targets) =>
+        set((s) => ({
+          ui: {
+            ...s.ui,
+            selectedAreas: targets.length > 0 ? targets : DEFAULT_AREA_SELECTION,
+          },
+        })),
 
       // 非有限値（"1e999" → Infinity）が入ると sx/sy が Infinity になり layout 全体が壊れる。
       // toSafeInt で 1..MAX_DIMENSION の整数に落としてからスケールする。
@@ -306,15 +333,35 @@ export const useWallStore = create<WallStoreState>()(
         })),
 
       removePreparing: (index) =>
-        set((s) => ({
-          wall: {
-            ...s.wall,
-            layout: {
-              ...s.wall.layout,
-              preparing: s.wall.layout.preparing.filter((_, i) => i !== index),
+        set((s) => {
+          // 選択は index 参照なので、削除された番号を落とし、後続の番号を詰める。
+          // これを削除と同じ set() でやらないと、選択が黙って別のエリアを指す。
+          const selectedAreas = s.ui.selectedAreas.flatMap(
+            (t): AreaTarget[] => {
+              if (t.kind !== 'preparing') return [t];
+              if (t.index === index) return [];
+              return t.index > index ? [{ ...t, index: t.index - 1 }] : [t];
             },
-          },
-        })),
+          );
+          return {
+            wall: {
+              ...s.wall,
+              layout: {
+                ...s.wall.layout,
+                preparing: s.wall.layout.preparing.filter(
+                  (_, i) => i !== index,
+                ),
+              },
+            },
+            ui: {
+              ...s.ui,
+              selectedAreas:
+                selectedAreas.length > 0
+                  ? selectedAreas
+                  : DEFAULT_AREA_SELECTION,
+            },
+          };
+        }),
 
       updatePreparing: (index, patch) =>
         set((s) => ({

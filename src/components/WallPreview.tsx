@@ -46,7 +46,12 @@ import type {
   VisibleArea,
   WallState,
 } from '../core/state';
-import { useWallStore, type AreaMove } from '../store/useWallStore';
+import {
+  DEFAULT_AREA_SELECTION,
+  useWallStore,
+  type AreaMove,
+  type AreaTarget,
+} from '../store/useWallStore';
 import { snapMove, snapResize, type Handle } from './snap';
 import { cn } from './ui/cn';
 
@@ -55,9 +60,7 @@ import { cn } from './ui/cn';
 // ---------------------------------------------------------------------------
 
 type AreaRef =
-  | { kind: 'main' }
-  | { kind: 'locked' }
-  | { kind: 'preparing'; index: number }
+  | AreaTarget
   | { kind: 'layer'; layerId: string };
 
 type Mode = { type: 'move' } | { type: 'resize'; handle: Handle };
@@ -81,6 +84,11 @@ const MAIN_REF: AreaRef = { kind: 'main' };
 const LOCKED_REF: AreaRef = { kind: 'locked' };
 const MAIN_KEY = areaRefKey(MAIN_REF);
 const LOCKED_KEY = areaRefKey(LOCKED_REF);
+
+/** 選択集合から layer を除いて AreaTarget[] に絞る（選択にはエリアしか入らない）。 */
+function areaTargets(refs: readonly AreaRef[]): AreaTarget[] {
+  return refs.filter((r): r is AreaTarget => r.kind !== 'layer');
+}
 
 /**
  * 複数選択ドラッグの開始閾値（CSS px）。この距離を超えるまでは store に反映しない。
@@ -545,38 +553,27 @@ export function WallPreview() {
   const [preview, setPreview] = useState<Resolution>({ width: 0, height: 0 });
 
   // 選択集合（1 件以上）。Ctrl/⌘+クリックでトグル、通常クリックで単独選択。
-  const [rawSelected, setRawSelected] = useState<AreaRef[]>([MAIN_REF]);
-  // 非表示化・削除で消えたエリアを選択から除く。空になったら main に戻す
+  // 実体は store（ui.selectedAreas）。preparing 削除時の index 詰め直しは
+  // removePreparing が削除と同じ set() 内で行う（store 参照）。
+  const rawSelected = useWallStore((s) => s.ui.selectedAreas);
+  const selectAreas = useWallStore((s) => s.selectAreas);
+  // 非表示のエリアを選択から除く。空になったら main に戻す
   // （既存挙動: 空クリックでも main が選択される＝常に何かが選択されている）。
-  const selectedRefs = useMemo<AreaRef[]>(() => {
+  // ドラッグ中は layout.preparing の identity が毎フレーム変わるため、
+  // 何も落ちなかったときは入力の identity をそのまま返して下流の memo を守る。
+  const selectedRefs = useMemo<readonly AreaRef[]>(() => {
     const alive = rawSelected.filter((r) => {
       if (r.kind === 'main') return true;
       if (r.kind === 'locked') return layout.locked.show;
-      if (r.kind === 'preparing')
-        return layout.preparing[r.index]?.show === true;
-      return false; // layer は複数選択の対象外
+      return layout.preparing[r.index]?.show === true;
     });
-    return alive.length > 0 ? alive : [MAIN_REF];
+    if (alive.length === rawSelected.length) return rawSelected;
+    return alive.length > 0 ? alive : DEFAULT_AREA_SELECTION;
   }, [rawSelected, layout.locked.show, layout.preparing]);
   const selectedKeys = useMemo(
     () => new Set(selectedRefs.map(areaRefKey)),
     [selectedRefs],
   );
-
-  // preparing の選択参照は index ベースなので、配列が縮むと別エリアを指してしまう
-  // （#1 を消すと旧 #2 が index 0 になり、選択が黙って付け替わる）。エリアに安定 ID が
-  // 無い以上ここでは追跡できないため、削除を検知したら preparing の選択を全て落とす。
-  const prevPreparingLen = useRef(layout.preparing.length);
-  useEffect(() => {
-    const prev = prevPreparingLen.current;
-    prevPreparingLen.current = layout.preparing.length;
-    if (layout.preparing.length < prev) {
-      setRawSelected((sel) => {
-        const kept = sel.filter((r) => r.kind !== 'preparing');
-        return kept.length === sel.length ? sel : kept;
-      });
-    }
-  }, [layout.preparing.length]);
 
   /** ドラッグ中のオーバーレイ（px 表示・スナップ ヒット線）。null = 操作なし。 */
   const [dragOverlay, setDragOverlay] = useState<{
@@ -687,11 +684,10 @@ export function WallPreview() {
    * 再計算して drag に書き込む。開始時と startCellRefreshed の読み直し後に呼ぶ。
    */
   const initDragDerived = useCallback(
-    (drag: Pick<DragState, 'items' | 'mode'>): Pick<
-      DragState,
-      'bbox0' | 'maxStartX' | 'maxStartY' | 'cand'
-    > => {
-      const cells = drag.items.map((i) => i.startCell);
+    (
+      items: DragItem[],
+    ): Pick<DragState, 'bbox0' | 'maxStartX' | 'maxStartY' | 'cand'> => {
+      const cells = items.map((i) => i.startCell);
       const bbox0 = boundingBox(cells);
       let maxStartX = -Infinity;
       let maxStartY = -Infinity;
@@ -703,9 +699,7 @@ export function WallPreview() {
         bbox0,
         maxStartX,
         maxStartY,
-        cand: buildSnapCandidates(
-          new Set(drag.items.map((i) => areaRefKey(i.ref))),
-        ),
+        cand: buildSnapCandidates(new Set(items.map((i) => areaRefKey(i.ref)))),
       };
     },
     [buildSnapCandidates],
@@ -715,7 +709,7 @@ export function WallPreview() {
   const startDrag = useCallback(
     (
       e: ReactPointerEvent<HTMLDivElement>,
-      refs: AreaRef[],
+      refs: readonly AreaRef[],
       mode: Mode,
       pressedRef: AreaRef | null = null,
     ) => {
@@ -731,7 +725,7 @@ export function WallPreview() {
         items,
         pressedRef,
         moved: false,
-        ...initDragDerived({ items, mode }),
+        ...initDragDerived(items),
         startClientX: e.clientX,
         startClientY: e.clientY,
         startCellRefreshed: false,
@@ -759,7 +753,7 @@ export function WallPreview() {
     ) => {
       if (mode.type === 'resize') {
         // ハンドルは単独選択のときしか表示されないが、防御的に単独化しておく
-        setRawSelected([refId]);
+        if (refId.kind !== 'layer') selectAreas([refId]);
         startDrag(e, [refId], mode);
         return;
       }
@@ -769,11 +763,15 @@ export function WallPreview() {
         // Shift は「ドラッグ中のスナップ無効」に割当済みなのでトグルには使わない。
         // Shift+pointerdown をトグルにすると、ヒントに書かれた
         // 「Shift を押しながらドラッグ＝スナップなし移動」が開始できなくなる。
-        setRawSelected(
-          selectedKeys.has(key)
-            ? selectedRefs.filter((r) => areaRefKey(r) !== key)
-            : [...selectedRefs, refId],
-        );
+        if (refId.kind !== 'layer') {
+          selectAreas(
+            selectedKeys.has(key)
+              ? areaTargets(selectedRefs).filter(
+                  (r) => areaRefKey(r) !== key,
+                )
+              : [...areaTargets(selectedRefs), refId],
+          );
+        }
         return;
       }
       if (selectedKeys.has(key)) {
@@ -781,11 +779,11 @@ export function WallPreview() {
         // 閾値を超えず離された「クリック」なら pressedRef の単独選択へ縮退する。
         startDrag(e, selectedRefs, mode, refId);
       } else {
-        setRawSelected([refId]);
+        if (refId.kind !== 'layer') selectAreas([refId]);
         startDrag(e, [refId], mode);
       }
     },
-    [selectedKeys, selectedRefs, startDrag],
+    [selectedKeys, selectedRefs, selectAreas, startDrag],
   );
 
   const onPointerDownLayer = useCallback(
@@ -817,7 +815,7 @@ export function WallPreview() {
           setDragOverlay(null);
           return;
         }
-        Object.assign(drag, initDragDerived(drag));
+        Object.assign(drag, initDragDerived(drag.items));
       }
       const dxCss = e.clientX - drag.startClientX;
       const dyCss = e.clientY - drag.startClientY;
@@ -861,15 +859,15 @@ export function WallPreview() {
       // 開始セルは整数（store が floor 済み）なので bbox0 も整数。移動量を
       // 「floor した外接矩形の変位」として整数化してから各エリアへ同量だけ足すことで、
       // グループ内の相対位置が 1px も崩れない剛体移動になる。
-      if (drag.items.length > 1 && !drag.moved) {
-        // 複数選択では閾値を超えるまで store に反映しない。超えずに離されたら
-        // 「クリック」として onPointerUp が pressedRef の単独選択へ縮退させる。
-        if (
-          Math.abs(dxCss) < GROUP_DRAG_START_THRESHOLD_CSS &&
-          Math.abs(dyCss) < GROUP_DRAG_START_THRESHOLD_CSS
-        ) {
-          return;
-        }
+      // 複数選択では閾値を超えるまで store に反映しない。超えずに離されたら
+      // 「クリック」として onPointerUp が pressedRef の単独選択へ縮退させる。
+      if (
+        drag.items.length > 1 &&
+        !drag.moved &&
+        Math.abs(dxCss) < GROUP_DRAG_START_THRESHOLD_CSS &&
+        Math.abs(dyCss) < GROUP_DRAG_START_THRESHOLD_CSS
+      ) {
+        return;
       }
       drag.moved = true;
 
@@ -916,31 +914,31 @@ export function WallPreview() {
       };
       if (!rememberDragResult(drag, finalBox, hitX, hitY)) return;
 
-      if (drag.items.length === 1) {
-        // 単独はレイヤも含むので従来どおり dispatchCell（フル cell）で反映
-        const item = drag.items[0];
-        dispatchCell(item.ref, {
-          ...item.startCell,
-          x: item.startCell.x + intDx,
-          y: item.startCell.y + intDy,
+      // layer は選択に入らないので単独ドラッグでしか来ない。それ以外は
+      // 件数に関わらず moveAreas（1 回の set()）でまとめて反映する。
+      const soloLayer =
+        drag.items.length === 1 && drag.items[0].ref.kind === 'layer'
+          ? drag.items[0]
+          : null;
+      if (soloLayer) {
+        dispatchCell(soloLayer.ref, {
+          ...soloLayer.startCell,
+          x: soloLayer.startCell.x + intDx,
+          y: soloLayer.startCell.y + intDy,
         });
       } else {
-        // グループは 1 回の set() でまとめて反映（AreaMove へ変換。layer は来ない）
         moveAreas(
-          drag.items.flatMap((item): AreaMove[] => {
-            const x = item.startCell.x + intDx;
-            const y = item.startCell.y + intDy;
-            switch (item.ref.kind) {
-              case 'main':
-                return [{ kind: 'main', x, y }];
-              case 'locked':
-                return [{ kind: 'locked', x, y }];
-              case 'preparing':
-                return [{ kind: 'preparing', index: item.ref.index, x, y }];
-              case 'layer':
-                return [];
-            }
-          }),
+          drag.items.flatMap((item): AreaMove[] =>
+            item.ref.kind === 'layer'
+              ? []
+              : [
+                  {
+                    ...item.ref,
+                    x: item.startCell.x + intDx,
+                    y: item.startCell.y + intDy,
+                  },
+                ],
+          ),
         );
       }
       setDragOverlay({ cell: finalBox, hitX, hitY });
@@ -954,20 +952,16 @@ export function WallPreview() {
     // 複数選択のメンバーを「クリック」（閾値未満で離した）→ そのエリアの単独選択へ。
     // 旧実装の「pointerdown したエリアが必ず単独選択になる」を、グループ移動と
     // 両立する形（move が始まらなかったときだけ）で復元する。
-    if (
-      drag.mode.type === 'move' &&
-      drag.items.length > 1 &&
-      !drag.moved &&
-      drag.pressedRef
-    ) {
-      setRawSelected([drag.pressedRef]);
+    // pressedRef は複数選択の move でしか渡されないので、mode/件数の再検査は不要
+    if (drag.pressedRef && !drag.moved && drag.pressedRef.kind !== 'layer') {
+      selectAreas([drag.pressedRef]);
     }
     dragRef.current = null;
     setDragOverlay(null);
     if (e.currentTarget.hasPointerCapture(e.pointerId)) {
       e.currentTarget.releasePointerCapture(e.pointerId);
     }
-  }, []);
+  }, [selectAreas]);
 
   // ---- 描画用補助 ----
 
@@ -1008,7 +1002,7 @@ export function WallPreview() {
           // 空クリックで main の単独選択に戻す（Ctrl/⌘ 中はトグル操作の
           // 空振りとして選択を維持する。Shift はスナップ無効用なので対象外）
           if (e.target === e.currentTarget && !e.ctrlKey && !e.metaKey) {
-            setRawSelected([MAIN_REF]);
+            selectAreas(DEFAULT_AREA_SELECTION);
           }
         }}
       >
