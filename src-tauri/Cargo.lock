@@ -4523,7 +4523,7 @@ dependencies = [
 
 [[package]]
 name = "wall-maker-v3"
-version = "3.2.0"
+version = "3.3.0"
 dependencies = [
  "reqwest 0.12.28",
  "serde",
