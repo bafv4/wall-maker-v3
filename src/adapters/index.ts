@@ -16,6 +16,9 @@ import type { PackReadResult, PackReadSource } from '../core/types';
 // 型のみの import。`import type` は実行時に消えるため、Web バンドルへ
 // `desktopSaveTarget`（= `@tauri-apps/*`）が引き込まれることはない。
 import type { SaveTargetRestore } from './desktopSaveTarget';
+import type { AppUpdateInfo, AppUpdateProgress } from './desktopUpdate';
+
+export type { AppUpdateInfo, AppUpdateProgress } from './desktopUpdate';
 
 export type { PackReadResult, PackReadSource } from '../core/types';
 
@@ -85,4 +88,55 @@ export async function forgetSaveTarget(): Promise<void> {
   if (!isTauri()) return;
   const { clearSaveTarget } = await import('./desktopSaveTarget');
   await clearSaveTarget();
+}
+
+// ---------------------------------------------------------------------------
+// 更新通知（Desktop のみ。Web はリロードで常に最新なので no-op）
+// ---------------------------------------------------------------------------
+
+/**
+ * 最新リリースをチェックし、現在より新しければ情報を返す。Web では常に null。
+ * ネットワーク失敗は throw する（呼び出し側は通知を出さず console に留めること）。
+ */
+export async function checkAppUpdate(
+  currentVersion: string,
+): Promise<AppUpdateInfo | null> {
+  if (!isTauri()) return null;
+  const { checkAppUpdateDesktop } = await import('./desktopUpdate');
+  return checkAppUpdateDesktop(currentVersion);
+}
+
+/**
+ * リリースアセットを実行ファイルと同じフォルダへダウンロードし、保存パスを返す。
+ * Desktop 専用（Web から呼ぶと reject）。
+ */
+export async function downloadAppUpdate(
+  url: string,
+  fileName: string,
+  onProgress: (p: AppUpdateProgress) => void,
+): Promise<string> {
+  if (!isTauri()) throw new Error('downloadAppUpdate は Desktop 専用です');
+  const { downloadAppUpdateDesktop } = await import('./desktopUpdate');
+  return downloadAppUpdateDesktop(url, fileName, onProgress);
+}
+
+/** 保存済みファイルを OS のファイルマネージャで表示する（Desktop 専用、失敗は無視してよい）。 */
+export async function revealAppUpdateFile(path: string): Promise<void> {
+  if (!isTauri()) return;
+  const { revealDownloadedFile } = await import('./desktopUpdate');
+  await revealDownloadedFile(path);
+}
+
+/**
+ * 外部 URL を既定ブラウザで開く。Desktop は opener プラグイン経由
+ * （webview 内アンカーの `target=_blank` は環境依存で無反応になるため）、
+ * Web は通常の新規タブ。
+ */
+export async function openExternalUrl(url: string): Promise<void> {
+  if (isTauri()) {
+    const { openExternalUrlDesktop } = await import('./desktopUpdate');
+    await openExternalUrlDesktop(url);
+    return;
+  }
+  window.open(url, '_blank', 'noopener,noreferrer');
 }

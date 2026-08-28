@@ -130,7 +130,7 @@ export async function getPackWriter(): Promise<PackWriter> {
 - 出力先は**ユーザに選ばせて `tauri-plugin-store` に記憶する**のが基本動作。`.minecraft` の自動検出はしない
   （MCSR は MultiMC/Prism のインスタンス別フォルダが多い）。初回ダイアログの既定パスはホームディレクトリ。
 - 権限は `src-tauri/capabilities/` で最小化（`requireLiteralLeadingDot: false` で `.minecraft` を扱う）。
-- 配布対象は Win+Mac、自動更新なし、署名最小限（未署名警告は許容）。
+- 配布対象は Win+Mac、自動更新なし（起動時の更新通知＋配布形態に合うリリースアセットを実行ファイルと同じフォルダへダウンロードする補助のみ。適用はユーザー操作）、署名最小限（未署名警告は許容）。
 
 ## Verification
 
