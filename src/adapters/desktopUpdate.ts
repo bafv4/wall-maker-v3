@@ -13,6 +13,7 @@
  */
 
 import { Channel, invoke } from '@tauri-apps/api/core';
+import { openUrl, revealItemInDir } from '@tauri-apps/plugin-opener';
 
 export interface AppUpdateInfo {
   /** 最新版のバージョン（先頭 v なし。例 "3.3.0"） */
@@ -58,7 +59,6 @@ export async function downloadAppUpdateDesktop(
 
 /** 保存したファイルを OS のファイルマネージャで表示する（失敗は呼び出し側で握る）。 */
 export async function revealDownloadedFile(path: string): Promise<void> {
-  const { revealItemInDir } = await import('@tauri-apps/plugin-opener');
   await revealItemInDir(path);
 }
 
@@ -67,6 +67,5 @@ export async function revealDownloadedFile(path: string): Promise<void> {
  * 環境によって何も起きないため、外部リンクは必ずこちらを使う。
  */
 export async function openExternalUrlDesktop(url: string): Promise<void> {
-  const { openUrl } = await import('@tauri-apps/plugin-opener');
   await openUrl(url);
 }

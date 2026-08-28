@@ -16,3 +16,4 @@ export { toast, ToastRoot } from './Toast';
 export { Modal, type ModalProps } from './Modal';
 export { ConfirmDialog, type ConfirmDialogProps } from './ConfirmDialog';
 export { InfoTooltip, type InfoTooltipProps } from './InfoTooltip';
+export { ExternalLink, type ExternalLinkProps } from './ExternalLink';

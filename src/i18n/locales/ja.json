@@ -12,7 +12,6 @@
     "sound": "サウンド"
   },
     "update": {
-      "toastAvailable": "新しいバージョン v{{version}} が公開されています",
       "available": "新しいバージョン v{{version}} が公開されています（現在 v{{current}}）",
       "download": "{{name}} をダウンロード",
       "downloading": "ダウンロード中…",

@@ -5,8 +5,9 @@
  * あればタブの上に横断バナーを出す。「ダウンロード」で配布形態に合うアセットを
  * **実行ファイルと同じフォルダ**へ保存する（適用はユーザー自身。自動更新はしない）。
  *
- *  - チェック結果・却下状態はモジュールレベルに持つ。タブ切替やアンマウントで
- *    再フェッチ・再通知しないため（チェックはアプリ起動につき 1 回）。
+ *  - コンポーネントは App 直下（タブの外）に 1 度だけマウントされ、アンマウント
+ *    されない。checkPromise だけモジュールレベルに置くのは StrictMode の
+ *    二重 effect と HMR での再フェッチを防ぐため。
  *  - チェック失敗は console.warn のみ（オフライン起動を邪魔しない）。
  *  - 対応アセットが見つからないリリース（命名変更など）はダウンロードボタンを
  *    出さず、リリースページへのリンクだけ出す。
@@ -17,17 +18,15 @@ import { useTranslation } from 'react-i18next';
 import {
   checkAppUpdate,
   downloadAppUpdate,
-  openExternalUrl,
   revealAppUpdateFile,
   type AppUpdateInfo,
 } from '../adapters';
 import { errMsg } from '../core/errors';
-import { Button, toast } from './ui';
+import { formatBytes } from '../core/format';
+import { Button, ExternalLink, toast } from './ui';
 
-// アプリ起動につき 1 回だけチェックする（コンポーネントの再マウントでは再実行しない）
+// アプリ起動につき 1 回だけチェックする（StrictMode の二重 effect / HMR 対策）
 let checkPromise: Promise<AppUpdateInfo | null> | null = null;
-let dismissedVersion: string | null = null;
-let toastShown = false;
 
 function ensureCheck(current: string): Promise<AppUpdateInfo | null> {
   checkPromise ??= checkAppUpdate(current).catch((e: unknown) => {
@@ -52,18 +51,12 @@ export function DesktopUpdateNotice() {
   useEffect(() => {
     let canceled = false;
     void ensureCheck(__APP_VERSION__).then((result) => {
-      if (canceled || !result) return;
-      setInfo(result);
-      if (result.version === dismissedVersion) setDismissed(true);
-      if (!toastShown) {
-        toastShown = true;
-        toast.info(t('update.toastAvailable', { version: result.version }));
-      }
+      if (!canceled && result) setInfo(result);
     });
     return () => {
       canceled = true;
     };
-  }, [t]);
+  }, []);
 
   if (!info || dismissed) return null;
 
@@ -89,15 +82,6 @@ export function DesktopUpdateNotice() {
       });
   };
 
-  const dismiss = () => {
-    dismissedVersion = info.version;
-    setDismissed(true);
-  };
-
-  const sizeMb =
-    info.assetSize != null
-      ? ` (${(info.assetSize / 1024 / 1024).toFixed(1)} MB)`
-      : '';
 
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border bg-accent-soft px-4 py-2 text-sm text-fg">
@@ -111,7 +95,7 @@ export function DesktopUpdateNotice() {
       {download.kind === 'idle' && info.assetUrl && info.assetName && (
         <Button size="sm" onClick={startDownload}>
           {t('update.download', { name: info.assetName })}
-          {sizeMb}
+          {info.assetSize != null && ` (${formatBytes(info.assetSize)})`}
         </Button>
       )}
       {download.kind === 'downloading' && (
@@ -140,23 +124,13 @@ export function DesktopUpdateNotice() {
         </>
       )}
 
-      {/* Tauri webview では target=_blank が環境依存で無反応のため opener 経由で開く */}
-      <a
-        href={info.releaseUrl}
-        onClick={(e) => {
-          e.preventDefault();
-          void openExternalUrl(info.releaseUrl).catch((err: unknown) => {
-            console.warn('open release page failed', err);
-          });
-        }}
-        className="text-blue-600 underline hover:text-blue-800"
-      >
+      <ExternalLink href={info.releaseUrl}>
         {t('update.releasePage')}
-      </a>
+      </ExternalLink>
 
       <button
         type="button"
-        onClick={dismiss}
+        onClick={() => setDismissed(true)}
         className="ml-auto cursor-pointer rounded px-1.5 text-fg-subtle hover:text-fg"
         aria-label={t('common.close')}
         title={t('common.close')}

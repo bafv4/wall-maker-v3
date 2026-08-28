@@ -12,7 +12,6 @@
     "sound": "Sound"
   },
     "update": {
-      "toastAvailable": "A new version v{{version}} is available",
       "available": "A new version v{{version}} is available (current v{{current}})",
       "download": "Download {{name}}",
       "downloading": "Downloading…",

@@ -105,6 +105,10 @@ jobs:
       # Win: tauri/cargo が出す単一 .exe（フロント資産は exe に埋め込み済み）。
       #      WebView2 は同梱せず OS 既定ランタイムを使う。
       # Mac: .app バンドル自体がポータブル。zip して配布する。
+      # 注意: ポータブル版のファイル名（WallMaker-*-portable-windows-x64.exe /
+      # WallMaker-*-portable-macos-universal.zip）と NSIS/MSI/dmg の命名は
+      # `src-tauri/src/update.rs` の `pick_asset` が照合している。名前を変えると
+      # アプリ内の更新通知がアセットを見つけられなくなる（リリースページ誘導のみになる）。
       - name: Stage portable (Windows — standalone .exe)
         if: matrix.platform == 'windows-latest'
         shell: bash
