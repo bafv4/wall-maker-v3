@@ -11,9 +11,20 @@
     "lock": "Lock",
     "sound": "サウンド"
   },
+    "update": {
+      "available": "新しいバージョン v{{version}} が公開されています（現在 v{{current}}）",
+      "download": "{{name}} をダウンロード",
+      "downloading": "ダウンロード中…",
+      "downloadingPercent": "ダウンロード中… {{percent}}%",
+      "savedTo": "{{path}} に保存しました",
+      "downloaded": "更新ファイルを保存しました: {{path}}（適用するには保存したファイルを実行/差し替えてください）",
+      "downloadFailed": "更新のダウンロードに失敗しました: {{error}}",
+      "showInFolder": "フォルダで表示",
+      "releasePage": "リリースページ"
+    },
   "preview": {
     "title": "プレビュー",
-    "hint": "エリアをクリックで選択。ドラッグで移動、角・辺のハンドルでリサイズできます。操作値はすべて整数で記録されます。",
+    "hint": "エリアをクリックで選択、Ctrl/⌘+クリックで複数選択。ドラッグで移動（複数選択時はまとめて移動し、スナップは選択全体の外接矩形で判定）、角・辺のハンドルでリサイズできます。操作値はすべて整数で記録されます。",
     "scale": "実解像度 {{realWidth}}×{{realHeight}} / プレビュー {{previewWidth}}×{{previewHeight}}",
     "snapHint": "Shift でスナップ無効"
   },

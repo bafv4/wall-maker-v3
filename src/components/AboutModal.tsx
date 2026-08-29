@@ -10,7 +10,7 @@
 
 import { useTranslation, Trans } from 'react-i18next';
 import { SUPPORTED_LANGUAGES, setLanguage, type SupportedLanguage } from '../i18n';
-import { Modal } from './ui';
+import { ExternalLink, Modal } from './ui';
 
 export interface AboutModalProps {
   open: boolean;
@@ -23,25 +23,6 @@ const FFMPEG_REPO = 'https://github.com/FFmpeg/FFmpeg';
 const FFMPEG_WASM_REPO = 'https://github.com/ffmpegwasm/ffmpeg.wasm';
 const GPL3_URL = 'https://www.gnu.org/licenses/gpl-3.0.html';
 const GPL2_URL = 'https://www.gnu.org/licenses/old-licenses/gpl-2.0.html';
-
-interface LinkProps {
-  href: string;
-  // Trans に渡すときは children が空のまま使うため optional。
-  children?: React.ReactNode;
-}
-
-function ExternalLink({ href, children }: LinkProps) {
-  return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="text-blue-600 underline hover:text-blue-800"
-    >
-      {children}
-    </a>
-  );
-}
 
 function LanguageSwitcher() {
   const { t, i18n } = useTranslation();

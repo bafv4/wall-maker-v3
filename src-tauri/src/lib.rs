@@ -10,6 +10,9 @@
 //  * `read_pack_zip`     — 任意の .zip パスを丸ごと生バイトで返す
 //  * `read_pack_folder`  — 任意のフォルダを再帰 walk し、相対パス付きの生バイトで返す
 //  * `path_is_dir`       — 指定パスが実在するフォルダかを返す（記憶した保存先の存在検証用）
+//  * `update_check` / `update_download`（実装は update.rs）
+//    — GitHub Releases の最新版チェックと、配布形態に合うアセットの
+//      「実行ファイルと同じフォルダ」へのダウンロード（自動適用はしない）
 //  * `binary_put` / `binary_get` / `binary_delete` / `binary_keys`
 //    — 永続化バイナリ（画像/音声）の実体ストア。appDataDir/binaries/<key> に置く
 //      （フロントの `store/storage/desktop.ts` が使う。CLAUDE.md 第7.2章）
@@ -40,6 +43,8 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use tauri::ipc::{InvokeBody, Request, Response};
 use tauri::Manager;
+
+mod update;
 
 // ---------------------------------------------------------------------------
 // 生バイト IPC コンテナ
@@ -480,6 +485,8 @@ pub fn run() {
             binary_get,
             binary_delete,
             binary_keys,
+            update::update_check,
+            update::update_download,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

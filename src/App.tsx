@@ -61,6 +61,12 @@ const SoundsEditor = lazy(() =>
     default: m.SoundsEditor,
   })),
 );
+// 更新通知バナー（Desktop のみ描画。Web の初期チャンクに入れない）
+const DesktopUpdateNotice = lazy(() =>
+  import('./components/DesktopUpdateNotice').then((m) => ({
+    default: m.DesktopUpdateNotice,
+  })),
+);
 
 /**
  * タブ本文のチャンク取得中に出すプレースホルダ。
@@ -106,6 +112,11 @@ function App() {
     <FileOperationsProvider>
       <div className="flex h-screen flex-col bg-canvas text-fg">
         {!desktop && <AppHeader />}
+        {desktop && (
+          <Suspense fallback={null}>
+            <DesktopUpdateNotice />
+          </Suspense>
+        )}
 
         <main className="flex-1 min-h-0 overflow-y-auto md:overflow-hidden">
           <div

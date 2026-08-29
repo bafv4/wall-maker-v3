@@ -519,7 +519,7 @@ interface Area {
 - **状態**：Zustand 5 + `persist`（2層永続化、第7.2章）。
 - **デスクトップ**：Tauri 2（Rust シェル、`dialog`/`fs`/`store`/`opener` プラグイン）。
 - **配布**：対象は **Windows + macOS**。両 OS の実機でビルドするため CI は必須としない。
-  **自動更新なし**（`tauri-plugin-updater` は導入しない）。**署名は最小限**。
+  **自動更新なし（更新通知＋リリースアセットのダウンロード補助のみ。`update_check`/`update_download`）**（`tauri-plugin-updater` は導入しない）。**署名は最小限**。
   → macOS は notarization 無しで Gatekeeper 警告（初回は右クリック→開く）、Windows は未署名で SmartScreen 警告が出る点は許容する。
 - **ZIP**：JSZip（Web アダプタ）。
 - **音声**：ffmpeg.wasm を両環境で共有。**ffmpeg-core を自前バンドル/ホスト**して unpkg 依存を排除。
