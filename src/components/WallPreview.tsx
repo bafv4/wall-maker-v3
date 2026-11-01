@@ -11,7 +11,9 @@
  *    Ctrl/⌘+クリックで複数選択でき、選択中のエリアはドラッグでまとめて移動する
  *    （Shift はドラッグ中のスナップ無効に割当済みのため、トグルには使わない）。
  *    リサイズハンドルは単独選択のときだけ表示する（グループリサイズは非対応）。
- *  - 選択中の画像レイヤ（`fit:'manual'`）も同様に move/resize（レイヤは複数選択の対象外）。
+ *  - 選択中の画像レイヤ（`fit:'manual'`）と図形レイヤも同様に move/resize（レイヤは複数選択の
+ *    対象外）。レイヤの操作枠は**背景タブ表示中だけ**出す。エリアより手前に置くため、
+ *    他タブに残すと、選択したままのレイヤがエリアのドラッグを横取りする。
  *  - スナップ: 他エリア辺・中央・キャンバス端と中央へ磁着（プレビュー基準 6px）。Shift で無効化。
  *    複数選択の移動では**選択全体の外接矩形**の辺・中央で判定する（指示線も同じ基準）。
  *  - ドラッグ中は `x,y / w×h` のオーバーレイ表示。
@@ -536,7 +538,12 @@ function LayerBox({
 // WallPreview 本体
 // ---------------------------------------------------------------------------
 
-export function WallPreview() {
+export interface WallPreviewProps {
+  /** 背景タブを表示中か。false のときレイヤ操作枠は出さない。 */
+  backgroundEditing: boolean;
+}
+
+export function WallPreview({ backgroundEditing }: WallPreviewProps) {
   const { t } = useTranslation();
 
   // 限定したスライスのみを購読する（不要な再描画を避ける）
@@ -1071,7 +1078,7 @@ export function WallPreview() {
 
         {/* レイヤ操作枠（image の fit=manual / shape）。レイヤ選択中は操作対象なので
             エリアより手前に置く（main が全面を覆う既定レイアウトでも掴めるように）。 */}
-        {selectedLayer?.transform && (
+        {backgroundEditing && selectedLayer?.transform && (
           <LayerBox
             layerId={selectedLayer.id}
             transform={selectedLayer.transform}

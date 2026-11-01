@@ -188,7 +188,7 @@ function App() {
                     {t('preview.title')}
                   </h2>
                   <div className="md:flex-1 md:min-h-0">
-                    <WallPreview />
+                    <WallPreview backgroundEditing={tab === 'background'} />
                   </div>
                   <p className="mt-3 text-xs text-fg-subtle">
                     {t('preview.hint')}
