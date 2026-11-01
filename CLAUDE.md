@@ -27,7 +27,7 @@ SeedQueue Wall Maker は、Minecraft Speedrunning の [SeedQueue](https://github
 pnpm install          # 依存インストール
 pnpm dev              # Web 開発サーバ (Vite)
 pnpm build            # Web 本番ビルド
-pnpm lint             # ESLint
+pnpm lint             # Oxlint
 pnpm type-check       # tsc --noEmit
 
 pnpm tauri dev        # デスクトップ開発（Tauri + Vite）

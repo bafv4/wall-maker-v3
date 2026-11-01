@@ -1,0 +1,49 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  // ESLint（js/ts recommended + react-hooks 2 ルール + react-refresh）からの移行。
+  // 型情報なしの軽量ルールに留め、厳密な型チェックは `pnpm type-check`（tsc --noEmit）が担当する。
+  // 旧設定に無かった unicorn / oxc プラグインは有効にしない（ルール範囲を旧設定と揃える）。
+  "plugins": ["typescript", "react"],
+  "categories": {
+    "correctness": "error"
+  },
+  // 生成物・依存・ネイティブ側ビルドは対象外
+  "ignorePatterns": ["dist/**", "src-tauri/**", "public/ffmpeg/**"],
+  "env": {
+    "browser": true,
+    "worker": true,
+    "es2022": true
+  },
+  "globals": {
+    // Vite の define で注入されるコンパイル時定数
+    "__APP_VERSION__": "readonly"
+  },
+  "rules": {
+    "react/rules-of-hooks": "error",
+    "react/exhaustive-deps": "warn",
+    "react/only-export-components": ["warn", { "allowConstantExport": true }],
+    // react プラグインの correctness に含まれるが旧設定では不採用だったもの。
+    //  - set-state-in-effect: react-hooks v7 の実験的ルール。誤検知が多いため不採用（旧設定の方針）。
+    //  - jsx-key: react-i18next の <Trans components={[...]}> を描画リストと誤認する。
+    "react/set-state-in-effect": "off",
+    "react/jsx-key": "off",
+    // `_` 始まりは「意図的に未使用」の慣習。引数・変数・catch 共に許可する。
+    "no-unused-vars": [
+      "error",
+      {
+        "argsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_",
+        "caughtErrorsIgnorePattern": "^_"
+      }
+    ]
+  },
+  "overrides": [
+    {
+      // 設定ファイルは Node 実行
+      "files": ["*.js", "*.ts"],
+      "env": {
+        "node": true
+      }
+    }
+  ]
+}
