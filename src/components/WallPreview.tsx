@@ -1012,16 +1012,6 @@ export function WallPreview() {
           preview={preview}
         />
 
-        {/* 画像レイヤ操作枠（fit=manual） */}
-        {selectedLayer && (
-          <LayerBox
-            layer={selectedLayer}
-            resolution={resolution}
-            preview={preview}
-            onPointerDownLayer={onPointerDownLayer}
-          />
-        )}
-
         <AreaBox
           area={layout.main}
           refId={MAIN_REF}
@@ -1063,6 +1053,17 @@ export function WallPreview() {
             />
           );
         })}
+
+        {/* 画像レイヤ操作枠（fit=manual）。レイヤ選択中は操作対象なので
+            エリアより手前に置く（main が全面を覆う既定レイアウトでも掴めるように）。 */}
+        {selectedLayer && (
+          <LayerBox
+            layer={selectedLayer}
+            resolution={resolution}
+            preview={preview}
+            onPointerDownLayer={onPointerDownLayer}
+          />
+        )}
 
         {/* スナップヒット線 */}
         {hitLineX !== null && (
