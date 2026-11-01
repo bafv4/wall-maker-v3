@@ -33,7 +33,9 @@ pnpm tauri build      # デスクトップ配布ビルド
 ## リリースビルド（Windows / macOS）
 
 リリースは GitHub Actions（[`.github/workflows/release.yml`](.github/workflows/release.yml)）で
-自動化しています。配布対象は **Win + Mac**、自動更新なし、署名は最小限です。
+自動化しています。配布対象は **Win + Mac**、署名は最小限です。
+アプリは起動時に新しいリリースを通知します。Windows ポータブル版は「更新して再起動」で
+その場で更新でき、それ以外は配布形態に合うファイルのダウンロードまでを補助します。
 
 ### 自動ビルド（推奨）
 

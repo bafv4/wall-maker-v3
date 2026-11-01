@@ -20,7 +20,10 @@ import { Suspense, lazy, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { isTauri } from './adapters';
 import { AppHeader } from './components/AppHeader';
-import { WallPreview } from './components/WallPreview';
+import {
+  WallPreview,
+  type PreviewBoxMode,
+} from './components/WallPreview';
 import {
   Tabs,
   TabsContent,
@@ -92,6 +95,7 @@ function App() {
   const desktop = isTauri();
 
   const [tab, setTab] = useState(desktop ? 'file' : 'info');
+  const [boxMode, setBoxMode] = useState<PreviewBoxMode>('all');
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
@@ -184,11 +188,40 @@ function App() {
               {/* Right: Preview */}
               <div className="md:col-span-2 md:min-h-0">
                 <div className="flex flex-col rounded-lg border border-border bg-surface p-4 md:h-full">
-                  <h2 className="mb-3 text-sm font-semibold text-fg">
-                    {t('preview.title')}
-                  </h2>
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <h2 className="text-sm font-semibold text-fg">
+                      {t('preview.title')}
+                    </h2>
+                    {/* 枠の表示切替。見た目確認時に枠を消したり、片方だけ操作したりする用 */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-fg-subtle">
+                        {t('preview.boxes')}
+                      </span>
+                      <Tabs
+                        value={boxMode}
+                        onValueChange={(v) => setBoxMode(v as PreviewBoxMode)}
+                      >
+                        <TabsList className="h-8">
+                          {(['all', 'background', 'layout', 'none'] as const).map(
+                            (mode) => (
+                              <TabsTrigger
+                                key={mode}
+                                value={mode}
+                                className="h-6 px-2.5 text-xs"
+                              >
+                                {t(`preview.boxMode.${mode}`)}
+                              </TabsTrigger>
+                            ),
+                          )}
+                        </TabsList>
+                      </Tabs>
+                    </div>
+                  </div>
                   <div className="md:flex-1 md:min-h-0">
-                    <WallPreview />
+                    <WallPreview
+                      boxMode={boxMode}
+                      backgroundEditing={tab === 'background'}
+                    />
                   </div>
                   <p className="mt-3 text-xs text-fg-subtle">
                     {t('preview.hint')}

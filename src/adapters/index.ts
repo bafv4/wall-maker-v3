@@ -98,12 +98,10 @@ export async function forgetSaveTarget(): Promise<void> {
  * 最新リリースをチェックし、現在より新しければ情報を返す。Web では常に null。
  * ネットワーク失敗は throw する（呼び出し側は通知を出さず console に留めること）。
  */
-export async function checkAppUpdate(
-  currentVersion: string,
-): Promise<AppUpdateInfo | null> {
+export async function checkAppUpdate(): Promise<AppUpdateInfo | null> {
   if (!isTauri()) return null;
   const { checkAppUpdateDesktop } = await import('./desktopUpdate');
-  return checkAppUpdateDesktop(currentVersion);
+  return checkAppUpdateDesktop();
 }
 
 /**
@@ -118,6 +116,26 @@ export async function downloadAppUpdate(
   if (!isTauri()) throw new Error('downloadAppUpdate は Desktop 専用です');
   const { downloadAppUpdateDesktop } = await import('./desktopUpdate');
   return downloadAppUpdateDesktop(url, fileName, onProgress);
+}
+
+/**
+ * ワンクリック更新: 最新版をダウンロード・検証して実行ファイルを差し替える
+ * （`AppUpdateInfo.canAutoApply` のときだけ呼ぶ。Desktop 専用、Web から呼ぶと reject）。
+ * 完了後は {@link relaunchAfterAppUpdate} で再起動する。
+ */
+export async function applyAppUpdate(
+  onProgress: (p: AppUpdateProgress) => void,
+): Promise<void> {
+  if (!isTauri()) throw new Error('applyAppUpdate は Desktop 専用です');
+  const { applyPortableUpdateDesktop } = await import('./desktopUpdate');
+  await applyPortableUpdateDesktop(onProgress);
+}
+
+/** 差し替えた実行ファイルを起動してアプリを終了する（Desktop 専用）。 */
+export async function relaunchAfterAppUpdate(): Promise<void> {
+  if (!isTauri()) throw new Error('relaunchAfterAppUpdate は Desktop 専用です');
+  const { relaunchAfterUpdateDesktop } = await import('./desktopUpdate');
+  await relaunchAfterUpdateDesktop();
 }
 
 /** 保存済みファイルを OS のファイルマネージャで表示する（Desktop 専用、失敗は無視してよい）。 */

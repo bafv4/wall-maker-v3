@@ -64,9 +64,13 @@ export function collectUnresolvedBinaryFields(
   // pack.png — icon があれば必ず出力する
   check(state.packInfo.icon, 'packIcon');
 
-  // background.png — visible な image レイヤだけが合成対象
+  // background.png — visible な image レイヤだけが合成対象。
+  // 編集データ同梱時は非表示レイヤの元画像も wall-maker/ に書き出す（core/editorMeta.ts）。
   for (const layer of state.background.layers) {
-    if (layer.type === 'image' && layer.visible) {
+    if (
+      layer.type === 'image' &&
+      (layer.visible || state.packInfo.embedEditorData)
+    ) {
       check(layer.source, 'backgroundImage');
     }
   }

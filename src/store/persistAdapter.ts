@@ -177,6 +177,19 @@ function cancelPendingFlush(): void {
   pendingName = null;
 }
 
+/**
+ * 保留中・書き込み中の永続化を書き切るまで待つ（Desktop の更新後再起動の直前用）。
+ * プロセスを終わらせる側は離脱イベントの非同期書き込みの完走を期待できないため、
+ * 明示的に待ってから終了する。`timeoutMs` を過ぎたら諦めて resolve する（再起動は止めない）。
+ */
+export async function flushPersistedWrites(timeoutMs = 5000): Promise<void> {
+  dispatchFlush();
+  const deadline = Date.now() + timeoutMs;
+  while ((flushing || queuedValue) && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+}
+
 // 強制フラッシュ。クールダウン中の「まだ書いていない最新値」を抱えたまま
 // 操作の区切り／離脱を迎えないようにする。dispatchFlush は保留が無ければ no-op。
 if (typeof window !== 'undefined') {

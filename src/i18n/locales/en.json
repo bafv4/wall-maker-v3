@@ -20,13 +20,27 @@
       "downloaded": "Update file saved: {{path}} (run or replace the saved file to apply)",
       "downloadFailed": "Failed to download the update: {{error}}",
       "showInFolder": "Show in folder",
-      "releasePage": "Release page"
+      "releasePage": "Release page",
+      "applyAndRestart": "Update and restart",
+      "applying": "Downloading update…",
+      "applyingPercent": "Downloading update… {{percent}}%",
+      "restarting": "Restarting with the new version…",
+      "applied": "Update applied. Restart the app to use the new version",
+      "applyFailed": "Could not apply the update (you can download it manually): {{error}}",
+      "restartFailed": "The update was applied, but restarting failed. Please restart the app: {{error}}"
     },
   "preview": {
     "title": "Preview",
     "hint": "Click an area to select; Ctrl/⌘+click for multi-select. Drag to move (a multi-selection moves together, snapping against the selection's bounding box); use corner / edge handles to resize. All values are stored as integers.",
     "scale": "Real {{realWidth}}×{{realHeight}} / preview {{previewWidth}}×{{previewHeight}}",
-    "snapHint": "Hold Shift to disable snapping"
+    "snapHint": "Hold Shift to disable snapping",
+    "boxes": "Boxes",
+    "boxMode": {
+      "all": "All",
+      "background": "Background",
+      "layout": "Layout",
+      "none": "None"
+    }
   },
   "common": {
     "loading": "Loading…",
@@ -117,7 +131,9 @@
     "iconAria": "Choose resource pack icon",
     "iconImageRequired": "Please pick an image file",
     "iconDefaultName": "pack.png",
-    "iconClear": "Clear"
+    "iconClear": "Clear",
+    "embedEditorData": "Include background editing data",
+    "embedEditorDataHint": "Saves the background layer setup (original images, shape positions, colors, gradients) in a wall-maker/ folder so importing the .zip / folder restores each layer. Minecraft ignores it, but original images increase the file size."
   },
   "layoutEditor": {
     "presetTitle": "Layout preset",
@@ -151,6 +167,7 @@
     "addColor": "+ Color",
     "addImage": "+ Image",
     "addGradient": "+ Gradient",
+    "addShape": "+ Shape",
     "drawOrderHint": "In the list, ↑ = back (drawn first), ↓ = front (drawn last)",
     "layerListTitle": "Layers ({{count}})",
     "layerListEmpty": "No background layers.",
@@ -164,7 +181,8 @@
     "type": {
       "color": "Color",
       "image": "Image",
-      "gradient": "Gradient"
+      "gradient": "Gradient",
+      "shape": "Shape"
     },
     "opacity": "Opacity",
     "image": {
@@ -189,6 +207,16 @@
       "stopColorPrompt": "Color of selected stop (#{{n}})",
       "fileImage": "Image ({{size}} KB)",
       "imageRef": "Image (ref)"
+    },
+    "shape": {
+      "kindLabel": "Shape",
+      "kind": {
+        "rect": "Rectangle",
+        "triangle": "Triangle",
+        "ellipse": "Ellipse"
+      },
+      "boundsTitle": "Position & size",
+      "square": "Match height to width"
     },
     "toast": {
       "notRaster": "{{filename}}: unsupported image format (vector formats such as SVG are not supported — use PNG / JPEG / GIF / WebP)",

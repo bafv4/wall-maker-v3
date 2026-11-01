@@ -14,6 +14,7 @@
  */
 
 import { floorArea } from './coords';
+import { addEditorMeta } from './editorMeta';
 import { buildLockMcmeta, effectiveDefaultWeight } from './lockWeights';
 import { renderBackgroundToCanvas } from './renderBackground';
 import {
@@ -129,6 +130,11 @@ export async function buildPack(state: WallState): Promise<VirtualPack> {
 
   // 7) sounds.json + ogg ファイル（第6.6章）
   addSounds(pack, state);
+
+  // 8) 背景レイヤの編集データ（任意・SeedQueue 仕様外。再読込での復元用）
+  if (state.packInfo.embedEditorData) {
+    addEditorMeta(pack, state);
+  }
 
   return pack;
 }

@@ -90,11 +90,15 @@ export interface VisibleArea extends Area {
 }
 
 // ---------------------------------------------------------------------------
-// 背景レイヤ（color / image / gradient の判別共用体）
+// 背景レイヤ（color / image / gradient / shape の判別共用体）
 // 旧 store の構造を踏襲（第7.1章）。判別子は `type`。
 // ---------------------------------------------------------------------------
 
-export type BackgroundLayer = ColorLayer | ImageLayer | GradientLayer;
+export type BackgroundLayer =
+  | ColorLayer
+  | ImageLayer
+  | GradientLayer
+  | ShapeLayer;
 
 export interface ColorLayer {
   id: string;
@@ -141,6 +145,21 @@ export interface GradientLayer {
 export interface GradientStop {
   offset: number;
   color: string;
+}
+
+/** 図形の種類。triangle は外接矩形の上辺中央を頂点とする二等辺三角形、ellipse は外接矩形に内接する楕円。 */
+export type ShapeKind = 'rect' | 'triangle' | 'ellipse';
+
+export interface ShapeLayer {
+  id: string;
+  type: 'shape';
+  shape: ShapeKind;
+  /** 塗りつぶし色。 */
+  color: string;
+  /** 図形の外接矩形（絶対 px・整数）。image の transform と同じ不変条件で扱う。 */
+  transform: { x: number; y: number; width: number; height: number };
+  opacity: number;
+  visible: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -249,6 +268,11 @@ export interface PackInfo {
   description: string;
   /** pack.png 用アイコン。null=出力しない。 */
   icon: BinaryRef | null;
+  /**
+   * 背景レイヤ構成と元画像を `wall-maker/` 配下に同梱し、再読込でレイヤ単位に復元できるようにする
+   * （core/editorMeta.ts）。未設定=false。SeedQueue / Minecraft は読まない。
+   */
+  embedEditorData?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -372,7 +396,7 @@ export function validateWallState(state: WallState): ValidationIssue[] {
   );
 
   state.background.layers.forEach((layer, i) => {
-    if (layer.type === 'image' && layer.transform) {
+    if ((layer.type === 'image' || layer.type === 'shape') && layer.transform) {
       if (!isValidAreaGeometry(layer.transform)) {
         issues.push({
           path: `background.layers[${i}].transform`,

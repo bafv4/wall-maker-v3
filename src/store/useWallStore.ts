@@ -38,6 +38,7 @@ import {
   type MainArea,
   type PackInfo,
   type Resolution,
+  type ShapeLayer,
   type SoundEntry,
   type SoundEventKey,
   type SoundSettings,
@@ -57,7 +58,8 @@ import {
 export type BackgroundLayerPatch =
   | ({ type: 'color' } & Partial<Omit<ColorLayer, 'id' | 'type'>>)
   | ({ type: 'image' } & Partial<Omit<ImageLayer, 'id' | 'type'>>)
-  | ({ type: 'gradient' } & Partial<Omit<GradientLayer, 'id' | 'type'>>);
+  | ({ type: 'gradient' } & Partial<Omit<GradientLayer, 'id' | 'type'>>)
+  | ({ type: 'shape' } & Partial<Omit<ShapeLayer, 'id' | 'type'>>);
 
 export type ExtraTextureSlot =
   | 'overlay'
@@ -199,6 +201,10 @@ function applyLayerPatch(
     }
     case 'gradient': {
       return { ...(layer as GradientLayer), ...patch };
+    }
+    case 'shape': {
+      const merged: ShapeLayer = { ...(layer as ShapeLayer), ...patch };
+      return { ...merged, transform: floorCell(merged.transform) };
     }
   }
 }

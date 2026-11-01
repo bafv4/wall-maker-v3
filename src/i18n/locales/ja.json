@@ -20,13 +20,27 @@
       "downloaded": "更新ファイルを保存しました: {{path}}（適用するには保存したファイルを実行/差し替えてください）",
       "downloadFailed": "更新のダウンロードに失敗しました: {{error}}",
       "showInFolder": "フォルダで表示",
-      "releasePage": "リリースページ"
+      "releasePage": "リリースページ",
+      "applyAndRestart": "更新して再起動",
+      "applying": "更新をダウンロード中…",
+      "applyingPercent": "更新をダウンロード中… {{percent}}%",
+      "restarting": "新しいバージョンで再起動しています…",
+      "applied": "更新を適用しました。アプリを起動し直すと新しいバージョンになります",
+      "applyFailed": "更新を適用できませんでした（手動でダウンロードできます）: {{error}}",
+      "restartFailed": "更新は適用済みですが、再起動に失敗しました。アプリを起動し直してください: {{error}}"
     },
   "preview": {
     "title": "プレビュー",
     "hint": "エリアをクリックで選択、Ctrl/⌘+クリックで複数選択。ドラッグで移動（複数選択時はまとめて移動し、スナップは選択全体の外接矩形で判定）、角・辺のハンドルでリサイズできます。操作値はすべて整数で記録されます。",
     "scale": "実解像度 {{realWidth}}×{{realHeight}} / プレビュー {{previewWidth}}×{{previewHeight}}",
-    "snapHint": "Shift でスナップ無効"
+    "snapHint": "Shift でスナップ無効",
+    "boxes": "ボックス",
+    "boxMode": {
+      "all": "すべて",
+      "background": "背景",
+      "layout": "レイアウト",
+      "none": "なし"
+    }
   },
   "common": {
     "loading": "読込中…",
@@ -117,7 +131,9 @@
     "iconAria": "リソースパックアイコンを選択",
     "iconImageRequired": "画像ファイルを選択してください",
     "iconDefaultName": "pack.png",
-    "iconClear": "クリア"
+    "iconClear": "クリア",
+    "embedEditorData": "背景の編集データを同梱する",
+    "embedEditorDataHint": "背景レイヤの構成（元画像・図形の位置・色・グラデーション）を wall-maker/ フォルダに保存し、.zip / フォルダの読み込み時にレイヤごと復元します。Minecraft には影響しませんが、元画像の分だけファイルサイズが増えます。"
   },
   "layoutEditor": {
     "presetTitle": "レイアウトプリセット",
@@ -151,6 +167,7 @@
     "addColor": "+ 色",
     "addImage": "+ 画像",
     "addGradient": "+ グラデーション",
+    "addShape": "+ 図形",
     "drawOrderHint": "一覧で ↑=奥（先に描画） / ↓=手前（最後に描画）",
     "layerListTitle": "レイヤ一覧 ({{count}})",
     "layerListEmpty": "背景レイヤがありません。",
@@ -164,7 +181,8 @@
     "type": {
       "color": "色",
       "image": "画像",
-      "gradient": "グラデ"
+      "gradient": "グラデ",
+      "shape": "図形"
     },
     "opacity": "不透明度",
     "image": {
@@ -189,6 +207,16 @@
       "stopColorPrompt": "選択中のストップの色（#{{n}}）",
       "fileImage": "画像 ({{size}} KB)",
       "imageRef": "画像 (ref)"
+    },
+    "shape": {
+      "kindLabel": "図形の種類",
+      "kind": {
+        "rect": "四角形",
+        "triangle": "三角形",
+        "ellipse": "円"
+      },
+      "boundsTitle": "位置・サイズ",
+      "square": "縦横を揃える（高さ＝幅）"
     },
     "toast": {
       "notRaster": "{{filename}}: 使用できない画像形式です（SVG などのベクタ形式は非対応。PNG / JPEG / GIF / WebP などを選んでください）",

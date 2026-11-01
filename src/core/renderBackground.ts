@@ -18,6 +18,7 @@ import type {
   GradientLayer,
   ImageLayer,
   Resolution,
+  ShapeLayer,
   WallState,
 } from './state';
 
@@ -159,6 +160,38 @@ export function drawGradientLayer(
   ctx.fillRect(0, 0, res.width, res.height);
 }
 
+/** 図形は transform（外接矩形）の中に描く。解像度は使わない（座標は実解像度 px のまま）。 */
+export function drawShapeLayer(ctx: AnyCtx2D, layer: ShapeLayer): void {
+  const { x, y, width, height } = layer.transform;
+  ctx.fillStyle = layer.color;
+  switch (layer.shape) {
+    case 'rect':
+      ctx.fillRect(x, y, width, height);
+      return;
+    case 'triangle':
+      ctx.beginPath();
+      ctx.moveTo(x + width / 2, y);
+      ctx.lineTo(x + width, y + height);
+      ctx.lineTo(x, y + height);
+      ctx.closePath();
+      ctx.fill();
+      return;
+    case 'ellipse':
+      ctx.beginPath();
+      ctx.ellipse(
+        x + width / 2,
+        y + height / 2,
+        width / 2,
+        height / 2,
+        0,
+        0,
+        Math.PI * 2,
+      );
+      ctx.fill();
+      return;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // メイン関数: pre-decode → clear → 同期で全レイヤ draw
 // ---------------------------------------------------------------------------
@@ -235,6 +268,9 @@ export async function renderBackgroundToCanvas(
       }
       case 'gradient':
         drawGradientLayer(ctx, layer, resolution);
+        break;
+      case 'shape':
+        drawShapeLayer(ctx, layer);
         break;
     }
     ctx.restore();

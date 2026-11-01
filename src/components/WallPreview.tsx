@@ -11,7 +11,11 @@
  *    Ctrl/⌘+クリックで複数選択でき、選択中のエリアはドラッグでまとめて移動する
  *    （Shift はドラッグ中のスナップ無効に割当済みのため、トグルには使わない）。
  *    リサイズハンドルは単独選択のときだけ表示する（グループリサイズは非対応）。
- *  - 選択中の画像レイヤ（`fit:'manual'`）も同様に move/resize（レイヤは複数選択の対象外）。
+ *  - 選択中の画像レイヤ（`fit:'manual'`）と図形レイヤも同様に move/resize（レイヤは複数選択の
+ *    対象外）。レイヤの操作枠は**背景タブ表示中だけ**出す。エリアより手前に置くため、
+ *    他タブに残すと、選択したままのレイヤがエリアのドラッグを横取りする。
+ *  - `boxMode` でエリア枠（レイアウト）/ レイヤ操作枠（背景）の表示を切り替える。
+ *    非表示の枠は描画しない＝操作もできない（見た目の確認用）。
  *  - スナップ: 他エリア辺・中央・キャンバス端と中央へ磁着（プレビュー基準 6px）。Shift で無効化。
  *    複数選択の移動では**選択全体の外接矩形**の辺・中央で判定する（指示線も同じ基準）。
  *  - ドラッグ中は `x,y / w×h` のオーバーレイ表示。
@@ -43,6 +47,7 @@ import type {
   ImageLayer,
   MainArea,
   Resolution,
+  ShapeLayer,
   VisibleArea,
   WallState,
 } from '../core/state';
@@ -457,11 +462,14 @@ function AreaBox({
 }
 
 // ---------------------------------------------------------------------------
-// 画像レイヤボックス（fit='manual' + 選択中のみ表示）
+// レイヤボックス（image の fit='manual' / shape の選択中のみ表示）
 // ---------------------------------------------------------------------------
 
 interface LayerBoxProps {
-  layer: ImageLayer;
+  layerId: string;
+  /** 操作対象の矩形（実解像度 px）。 */
+  transform: AreaCell;
+  label: string;
   resolution: Resolution;
   preview: Resolution;
   onPointerDownLayer: (
@@ -472,13 +480,14 @@ interface LayerBoxProps {
 }
 
 function LayerBox({
-  layer,
+  layerId,
+  transform,
+  label,
   resolution,
   preview,
   onPointerDownLayer,
 }: LayerBoxProps) {
-  if (layer.fit !== 'manual' || !layer.transform) return null;
-  const pv = realToPreview(layer.transform, { real: resolution, preview });
+  const pv = realToPreview(transform, { real: resolution, preview });
   const color = '#9333ea';
 
   return (
@@ -496,14 +505,14 @@ function LayerBox({
       }}
       onPointerDown={(e) => {
         if (e.button !== 0) return;
-        onPointerDownLayer(e, layer.id, { type: 'move' });
+        onPointerDownLayer(e, layerId, { type: 'move' });
       }}
     >
       <div
         className="pointer-events-none absolute left-1 top-1 rounded bg-white/85 px-1.5 py-0.5 text-[10px] font-medium"
         style={{ color }}
       >
-        image layer
+        {label}
       </div>
       {HANDLE_LIST.map((h) => (
         <div
@@ -516,7 +525,7 @@ function LayerBox({
           onPointerDown={(e) => {
             if (e.button !== 0) return;
             e.stopPropagation();
-            onPointerDownLayer(e, layer.id, {
+            onPointerDownLayer(e, layerId, {
               type: 'resize',
               handle: h,
             });
@@ -531,7 +540,16 @@ function LayerBox({
 // WallPreview 本体
 // ---------------------------------------------------------------------------
 
-export function WallPreview() {
+/** プレビューに重ねる枠の表示範囲。layout=エリア枠、background=レイヤ操作枠。 */
+export type PreviewBoxMode = 'all' | 'background' | 'layout' | 'none';
+
+export interface WallPreviewProps {
+  boxMode: PreviewBoxMode;
+  /** 背景タブを表示中か。false のときレイヤ操作枠は出さない。 */
+  backgroundEditing: boolean;
+}
+
+export function WallPreview({ boxMode, backgroundEditing }: WallPreviewProps) {
   const { t } = useTranslation();
 
   // 限定したスライスのみを購読する（不要な再描画を避ける）
@@ -582,12 +600,14 @@ export function WallPreview() {
     hitY: number | null;
   } | null>(null);
 
-  // 選択中の画像レイヤ
-  const selectedLayer = useMemo<ImageLayer | null>(() => {
+  // 選択中の、プレビューで操作できるレイヤ（image の manual 配置 / shape）
+  const selectedLayer = useMemo<ImageLayer | ShapeLayer | null>(() => {
     if (!selectedLayerId) return null;
     const l = background.layers.find((x) => x.id === selectedLayerId);
-    if (!l || l.type !== 'image') return null;
-    return l;
+    if (!l) return null;
+    if (l.type === 'shape') return l;
+    if (l.type === 'image' && l.fit === 'manual' && l.transform) return l;
+    return null;
   }, [background.layers, selectedLayerId]);
 
   // ---- コンテナ幅 → preview サイズ ----
@@ -639,7 +659,9 @@ export function WallPreview() {
         return wall.layout.preparing[refId.index] ?? null;
       case 'layer': {
         const l = wall.background.layers.find((x) => x.id === refId.layerId);
-        if (!l || l.type !== 'image') return null;
+        if (!l) return null;
+        if (l.type === 'shape') return l.transform;
+        if (l.type !== 'image') return null;
         if (l.fit !== 'manual') return null;
         return (
           l.transform ?? {
@@ -666,12 +688,18 @@ export function WallPreview() {
         case 'preparing':
           updatePreparing(refId.index, cell);
           break;
-        case 'layer':
+        case 'layer': {
+          // patch の判別子はレイヤ種別に合わせる（不一致は store が無視する）
+          const l = useWallStore
+            .getState()
+            .wall.background.layers.find((x) => x.id === refId.layerId);
+          if (l?.type !== 'image' && l?.type !== 'shape') break;
           updateBackgroundLayer(refId.layerId, {
-            type: 'image',
+            type: l.type,
             transform: floorCell(cell),
           });
           break;
+        }
       }
     },
     [setMain, setLocked, updatePreparing, updateBackgroundLayer],
@@ -970,6 +998,9 @@ export function WallPreview() {
     .filter(({ p }) => p.show);
 
   const soleSelection = selectedRefs.length === 1;
+  const showAreas = boxMode === 'all' || boxMode === 'layout';
+  const showLayerBox =
+    backgroundEditing && (boxMode === 'all' || boxMode === 'background');
 
   // ドラッグオーバーレイ位置（プレビュー px）
   const overlayPv = useMemo(() => {
@@ -1012,57 +1043,66 @@ export function WallPreview() {
           preview={preview}
         />
 
-        {/* 画像レイヤ操作枠（fit=manual） */}
-        {selectedLayer && (
+        {showAreas && (
+          <>
+            <AreaBox
+              area={layout.main}
+              refId={MAIN_REF}
+              color="#2563eb"
+              label="main"
+              resolution={resolution}
+              preview={preview}
+              selected={selectedKeys.has(MAIN_KEY)}
+              soleSelection={soleSelection}
+              onPointerDownArea={onPointerDownArea}
+            />
+            {layout.locked.show && (
+              <AreaBox
+                area={layout.locked}
+                refId={LOCKED_REF}
+                color="#ea580c"
+                label="locked"
+                resolution={resolution}
+                preview={preview}
+                selected={selectedKeys.has(LOCKED_KEY)}
+                soleSelection={soleSelection}
+                onPointerDownArea={onPointerDownArea}
+              />
+            )}
+            {visiblePreparing.map(({ p, index }) => {
+              const ref: AreaRef = { kind: 'preparing', index };
+              return (
+                <AreaBox
+                  key={index}
+                  area={p}
+                  refId={ref}
+                  color="#16a34a"
+                  label={`preparing #${index + 1}`}
+                  resolution={resolution}
+                  preview={preview}
+                  selected={selectedKeys.has(areaRefKey(ref))}
+                  soleSelection={soleSelection}
+                  onPointerDownArea={onPointerDownArea}
+                />
+              );
+            })}
+          </>
+        )}
+
+        {/* レイヤ操作枠（image の fit=manual / shape）。レイヤ選択中は操作対象なので
+            エリアより手前に置く（main が全面を覆う既定レイアウトでも掴めるように）。 */}
+        {showLayerBox && selectedLayer?.transform && (
           <LayerBox
-            layer={selectedLayer}
+            layerId={selectedLayer.id}
+            transform={selectedLayer.transform}
+            label={
+              selectedLayer.type === 'shape' ? 'shape layer' : 'image layer'
+            }
             resolution={resolution}
             preview={preview}
             onPointerDownLayer={onPointerDownLayer}
           />
         )}
-
-        <AreaBox
-          area={layout.main}
-          refId={MAIN_REF}
-          color="#2563eb"
-          label="main"
-          resolution={resolution}
-          preview={preview}
-          selected={selectedKeys.has(MAIN_KEY)}
-          soleSelection={soleSelection}
-          onPointerDownArea={onPointerDownArea}
-        />
-        {layout.locked.show && (
-          <AreaBox
-            area={layout.locked}
-            refId={LOCKED_REF}
-            color="#ea580c"
-            label="locked"
-            resolution={resolution}
-            preview={preview}
-            selected={selectedKeys.has(LOCKED_KEY)}
-            soleSelection={soleSelection}
-            onPointerDownArea={onPointerDownArea}
-          />
-        )}
-        {visiblePreparing.map(({ p, index }) => {
-          const ref: AreaRef = { kind: 'preparing', index };
-          return (
-            <AreaBox
-              key={index}
-              area={p}
-              refId={ref}
-              color="#16a34a"
-              label={`preparing #${index + 1}`}
-              resolution={resolution}
-              preview={preview}
-              selected={selectedKeys.has(areaRefKey(ref))}
-              soleSelection={soleSelection}
-              onPointerDownArea={onPointerDownArea}
-            />
-          );
-        })}
 
         {/* スナップヒット線 */}
         {hitLineX !== null && (
