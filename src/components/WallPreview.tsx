@@ -43,6 +43,7 @@ import type {
   ImageLayer,
   MainArea,
   Resolution,
+  ShapeLayer,
   VisibleArea,
   WallState,
 } from '../core/state';
@@ -457,11 +458,14 @@ function AreaBox({
 }
 
 // ---------------------------------------------------------------------------
-// 画像レイヤボックス（fit='manual' + 選択中のみ表示）
+// レイヤボックス（image の fit='manual' / shape の選択中のみ表示）
 // ---------------------------------------------------------------------------
 
 interface LayerBoxProps {
-  layer: ImageLayer;
+  layerId: string;
+  /** 操作対象の矩形（実解像度 px）。 */
+  transform: AreaCell;
+  label: string;
   resolution: Resolution;
   preview: Resolution;
   onPointerDownLayer: (
@@ -472,13 +476,14 @@ interface LayerBoxProps {
 }
 
 function LayerBox({
-  layer,
+  layerId,
+  transform,
+  label,
   resolution,
   preview,
   onPointerDownLayer,
 }: LayerBoxProps) {
-  if (layer.fit !== 'manual' || !layer.transform) return null;
-  const pv = realToPreview(layer.transform, { real: resolution, preview });
+  const pv = realToPreview(transform, { real: resolution, preview });
   const color = '#9333ea';
 
   return (
@@ -496,14 +501,14 @@ function LayerBox({
       }}
       onPointerDown={(e) => {
         if (e.button !== 0) return;
-        onPointerDownLayer(e, layer.id, { type: 'move' });
+        onPointerDownLayer(e, layerId, { type: 'move' });
       }}
     >
       <div
         className="pointer-events-none absolute left-1 top-1 rounded bg-white/85 px-1.5 py-0.5 text-[10px] font-medium"
         style={{ color }}
       >
-        image layer
+        {label}
       </div>
       {HANDLE_LIST.map((h) => (
         <div
@@ -516,7 +521,7 @@ function LayerBox({
           onPointerDown={(e) => {
             if (e.button !== 0) return;
             e.stopPropagation();
-            onPointerDownLayer(e, layer.id, {
+            onPointerDownLayer(e, layerId, {
               type: 'resize',
               handle: h,
             });
@@ -582,12 +587,14 @@ export function WallPreview() {
     hitY: number | null;
   } | null>(null);
 
-  // 選択中の画像レイヤ
-  const selectedLayer = useMemo<ImageLayer | null>(() => {
+  // 選択中の、プレビューで操作できるレイヤ（image の manual 配置 / shape）
+  const selectedLayer = useMemo<ImageLayer | ShapeLayer | null>(() => {
     if (!selectedLayerId) return null;
     const l = background.layers.find((x) => x.id === selectedLayerId);
-    if (!l || l.type !== 'image') return null;
-    return l;
+    if (!l) return null;
+    if (l.type === 'shape') return l;
+    if (l.type === 'image' && l.fit === 'manual' && l.transform) return l;
+    return null;
   }, [background.layers, selectedLayerId]);
 
   // ---- コンテナ幅 → preview サイズ ----
@@ -639,7 +646,9 @@ export function WallPreview() {
         return wall.layout.preparing[refId.index] ?? null;
       case 'layer': {
         const l = wall.background.layers.find((x) => x.id === refId.layerId);
-        if (!l || l.type !== 'image') return null;
+        if (!l) return null;
+        if (l.type === 'shape') return l.transform;
+        if (l.type !== 'image') return null;
         if (l.fit !== 'manual') return null;
         return (
           l.transform ?? {
@@ -666,12 +675,18 @@ export function WallPreview() {
         case 'preparing':
           updatePreparing(refId.index, cell);
           break;
-        case 'layer':
+        case 'layer': {
+          // patch の判別子はレイヤ種別に合わせる（不一致は store が無視する）
+          const l = useWallStore
+            .getState()
+            .wall.background.layers.find((x) => x.id === refId.layerId);
+          if (l?.type !== 'image' && l?.type !== 'shape') break;
           updateBackgroundLayer(refId.layerId, {
-            type: 'image',
+            type: l.type,
             transform: floorCell(cell),
           });
           break;
+        }
       }
     },
     [setMain, setLocked, updatePreparing, updateBackgroundLayer],
@@ -1054,11 +1069,15 @@ export function WallPreview() {
           );
         })}
 
-        {/* 画像レイヤ操作枠（fit=manual）。レイヤ選択中は操作対象なので
+        {/* レイヤ操作枠（image の fit=manual / shape）。レイヤ選択中は操作対象なので
             エリアより手前に置く（main が全面を覆う既定レイアウトでも掴めるように）。 */}
-        {selectedLayer && (
+        {selectedLayer?.transform && (
           <LayerBox
-            layer={selectedLayer}
+            layerId={selectedLayer.id}
+            transform={selectedLayer.transform}
+            label={
+              selectedLayer.type === 'shape' ? 'shape layer' : 'image layer'
+            }
             resolution={resolution}
             preview={preview}
             onPointerDownLayer={onPointerDownLayer}

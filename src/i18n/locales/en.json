@@ -151,6 +151,7 @@
     "addColor": "+ Color",
     "addImage": "+ Image",
     "addGradient": "+ Gradient",
+    "addShape": "+ Shape",
     "drawOrderHint": "In the list, ↑ = back (drawn first), ↓ = front (drawn last)",
     "layerListTitle": "Layers ({{count}})",
     "layerListEmpty": "No background layers.",
@@ -164,7 +165,8 @@
     "type": {
       "color": "Color",
       "image": "Image",
-      "gradient": "Gradient"
+      "gradient": "Gradient",
+      "shape": "Shape"
     },
     "opacity": "Opacity",
     "image": {
@@ -189,6 +191,16 @@
       "stopColorPrompt": "Color of selected stop (#{{n}})",
       "fileImage": "Image ({{size}} KB)",
       "imageRef": "Image (ref)"
+    },
+    "shape": {
+      "kindLabel": "Shape",
+      "kind": {
+        "rect": "Rectangle",
+        "triangle": "Triangle",
+        "ellipse": "Ellipse"
+      },
+      "boundsTitle": "Position & size",
+      "square": "Match height to width"
     },
     "toast": {
       "notRaster": "{{filename}}: unsupported image format (vector formats such as SVG are not supported — use PNG / JPEG / GIF / WebP)",

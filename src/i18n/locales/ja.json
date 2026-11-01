@@ -151,6 +151,7 @@
     "addColor": "+ 色",
     "addImage": "+ 画像",
     "addGradient": "+ グラデーション",
+    "addShape": "+ 図形",
     "drawOrderHint": "一覧で ↑=奥（先に描画） / ↓=手前（最後に描画）",
     "layerListTitle": "レイヤ一覧 ({{count}})",
     "layerListEmpty": "背景レイヤがありません。",
@@ -164,7 +165,8 @@
     "type": {
       "color": "色",
       "image": "画像",
-      "gradient": "グラデ"
+      "gradient": "グラデ",
+      "shape": "図形"
     },
     "opacity": "不透明度",
     "image": {
@@ -189,6 +191,16 @@
       "stopColorPrompt": "選択中のストップの色（#{{n}}）",
       "fileImage": "画像 ({{size}} KB)",
       "imageRef": "画像 (ref)"
+    },
+    "shape": {
+      "kindLabel": "図形の種類",
+      "kind": {
+        "rect": "四角形",
+        "triangle": "三角形",
+        "ellipse": "円"
+      },
+      "boundsTitle": "位置・サイズ",
+      "square": "縦横を揃える（高さ＝幅）"
     },
     "toast": {
       "notRaster": "{{filename}}: 使用できない画像形式です（SVG などのベクタ形式は非対応。PNG / JPEG / GIF / WebP などを選んでください）",

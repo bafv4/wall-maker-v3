@@ -4,7 +4,7 @@
  * 仕様: REWRITE_SPEC.md 第4.2章（Canvas 合成）/ 第7.1章（判別共用体）。
  *  - 配列の先頭が「奥」、末尾が「手前」（buildPack/renderBackground の描画順と一致）。
  *  - 全ての state mutation は `updateBackgroundLayer(id, patch)` で型安全に。
- *  - color/image/gradient の判別は patch.type で narrow される。
+ *  - color/image/gradient/shape の判別は patch.type で narrow される。
  *
  * UI: アコーディオンを廃止し、上部レイヤ一覧 + 下部エディタの master-detail 構造に変更。
  *  - 選択中レイヤは store の `ui.selectedBackgroundLayerId` を共有
@@ -30,6 +30,8 @@ import type {
   GradientLayer,
   GradientStop,
   ImageLayer,
+  ShapeKind,
+  ShapeLayer,
 } from '../core/state';
 import {
   useWallStore,
@@ -522,6 +524,116 @@ function GradientEditor({
 }
 
 // ---------------------------------------------------------------------------
+// Shape レイヤ
+// ---------------------------------------------------------------------------
+
+function ShapeEditor({
+  layer,
+  onUpdate,
+}: {
+  layer: ShapeLayer;
+  onUpdate: (patch: BackgroundLayerPatch) => void;
+}) {
+  const { t } = useTranslation();
+  const shapeOptions = [
+    { value: 'rect', label: t('background.shape.kind.rect') },
+    { value: 'triangle', label: t('background.shape.kind.triangle') },
+    { value: 'ellipse', label: t('background.shape.kind.ellipse') },
+  ];
+
+  const handleTransformField =
+    (field: 'x' | 'y' | 'width' | 'height') =>
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const v = Math.floor(Number(e.target.value) || 0);
+      const next = { ...layer.transform, [field]: v };
+      if (next.width < 1) next.width = 1;
+      if (next.height < 1) next.height = 1;
+      onUpdate({ type: 'shape', transform: next });
+    };
+
+  // 高さを幅に揃える（正方形・正円にする）
+  const handleSquare = () =>
+    onUpdate({
+      type: 'shape',
+      transform: { ...layer.transform, height: layer.transform.width },
+    });
+
+  const fields = [
+    { key: 'x', label: t('areaEditor.x'), min: undefined },
+    { key: 'y', label: t('areaEditor.y'), min: undefined },
+    { key: 'width', label: t('areaEditor.width'), min: 1 },
+    { key: 'height', label: t('areaEditor.height'), min: 1 },
+  ] as const;
+
+  return (
+    <div className="space-y-3">
+      <Select
+        label={t('background.shape.kindLabel')}
+        value={layer.shape}
+        onValueChange={(v) =>
+          onUpdate({ type: 'shape', shape: v as ShapeKind })
+        }
+        options={shapeOptions}
+      />
+
+      <div className="flex justify-center">
+        <HexColorPicker
+          color={layer.color}
+          onChange={(c) => onUpdate({ type: 'shape', color: c })}
+        />
+      </div>
+      <div className="flex items-center gap-2">
+        <span
+          className="h-7 w-7 rounded border border-border-strong"
+          style={{ background: layer.color }}
+        />
+        <code className="rounded bg-muted px-2 py-1 text-xs">
+          {layer.color}
+        </code>
+      </div>
+
+      <div className="rounded-md bg-muted p-3">
+        <div className="mb-2 flex items-center justify-between">
+          <span className="text-xs font-medium text-fg-muted">
+            {t('background.shape.boundsTitle')}
+          </span>
+          <span className="text-[11px] text-fg-subtle">
+            {t('background.image.manualHint')}
+          </span>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          {fields.map((f) => (
+            <label key={f.key} className="text-xs text-fg-muted">
+              {f.label}
+              <input
+                type="number"
+                min={f.min}
+                value={layer.transform[f.key]}
+                onChange={handleTransformField(f.key)}
+                className="mt-0.5 h-8 w-full rounded border border-border-strong bg-surface px-1.5 text-xs text-fg"
+              />
+            </label>
+          ))}
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          className="mt-2"
+          onClick={handleSquare}
+        >
+          {t('background.shape.square')}
+        </Button>
+      </div>
+
+      <OpacityRow
+        value={layer.opacity}
+        onChange={(v) => onUpdate({ type: 'shape', opacity: v })}
+      />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // LayerListItem — レイヤ一覧の 1 行
 // ---------------------------------------------------------------------------
 
@@ -529,6 +641,7 @@ const TYPE_COLOR: Record<BackgroundLayer['type'], string> = {
   color: 'bg-emerald-100 text-emerald-700 border-emerald-300',
   image: 'bg-violet-100 text-violet-700 border-violet-300',
   gradient: 'bg-amber-100 text-amber-700 border-amber-300',
+  shape: 'bg-sky-100 text-sky-700 border-sky-300',
 };
 
 /**
@@ -536,6 +649,7 @@ const TYPE_COLOR: Record<BackgroundLayer['type'], string> = {
  *  - color    : `#rrggbb` 値そのまま
  *  - gradient : `角度° / N stops`
  *  - image    : 元ファイル名 ／ 無ければ「画像 (xx KB)」
+ *  - shape    : `図形名 幅×高さ`
  */
 function layerHeadline(
   layer: BackgroundLayer,
@@ -553,6 +667,8 @@ function layerHeadline(
           size: (layer.source.bytes.byteLength / 1024).toFixed(1),
         });
       return t('background.gradient.imageRef');
+    case 'shape':
+      return `${t(`background.shape.kind.${layer.shape}`)} ${layer.transform.width}×${layer.transform.height}`;
   }
 }
 
@@ -674,6 +790,7 @@ function LayerListItem({
 export function BackgroundEditor() {
   const { t } = useTranslation();
   const layers = useWallStore((s) => s.wall.background.layers);
+  const resolution = useWallStore((s) => s.wall.resolution);
   const selectedLayerId = useWallStore((s) => s.ui.selectedBackgroundLayerId);
   const addBackgroundLayer = useWallStore((s) => s.addBackgroundLayer);
   const removeBackgroundLayer = useWallStore((s) => s.removeBackgroundLayer);
@@ -769,6 +886,28 @@ export function BackgroundEditor() {
     selectBackgroundLayer(id);
   };
 
+  const handleAddShape = () => {
+    const id = crypto.randomUUID();
+    // 初期配置は解像度の 1/4 サイズで中央
+    const width = Math.max(1, Math.floor(resolution.width / 4));
+    const height = Math.max(1, Math.floor(resolution.height / 4));
+    addBackgroundLayer({
+      id,
+      type: 'shape',
+      shape: 'rect',
+      color: '#ffffff',
+      transform: {
+        x: Math.floor((resolution.width - width) / 2),
+        y: Math.floor((resolution.height - height) / 2),
+        width,
+        height,
+      },
+      opacity: 1,
+      visible: true,
+    });
+    selectBackgroundLayer(id);
+  };
+
   const moveUp = (i: number) => {
     if (i === 0) return;
     const ids = layers.map((l) => l.id);
@@ -828,6 +967,9 @@ export function BackgroundEditor() {
             </Button>
             <Button size="sm" onClick={handleAddGradient}>
               {t('background.addGradient')}
+            </Button>
+            <Button size="sm" onClick={handleAddShape}>
+              {t('background.addShape')}
             </Button>
           </div>
           <p className="text-[11px] text-fg-subtle">
@@ -895,6 +1037,12 @@ export function BackgroundEditor() {
               )}
               {selectedLayer.type === 'gradient' && (
                 <GradientEditor
+                  layer={selectedLayer}
+                  onUpdate={(p) => updateBackgroundLayer(selectedLayer.id, p)}
+                />
+              )}
+              {selectedLayer.type === 'shape' && (
+                <ShapeEditor
                   layer={selectedLayer}
                   onUpdate={(p) => updateBackgroundLayer(selectedLayer.id, p)}
                 />
