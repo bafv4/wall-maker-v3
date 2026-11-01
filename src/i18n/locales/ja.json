@@ -20,7 +20,14 @@
       "downloaded": "更新ファイルを保存しました: {{path}}（適用するには保存したファイルを実行/差し替えてください）",
       "downloadFailed": "更新のダウンロードに失敗しました: {{error}}",
       "showInFolder": "フォルダで表示",
-      "releasePage": "リリースページ"
+      "releasePage": "リリースページ",
+      "applyAndRestart": "更新して再起動",
+      "applying": "更新をダウンロード中…",
+      "applyingPercent": "更新をダウンロード中… {{percent}}%",
+      "restarting": "新しいバージョンで再起動しています…",
+      "applied": "更新を適用しました。アプリを起動し直すと新しいバージョンになります",
+      "applyFailed": "更新を適用できませんでした（手動でダウンロードできます）: {{error}}",
+      "restartFailed": "更新は適用済みですが、再起動に失敗しました。アプリを起動し直してください: {{error}}"
     },
   "preview": {
     "title": "プレビュー",

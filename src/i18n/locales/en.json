@@ -20,7 +20,14 @@
       "downloaded": "Update file saved: {{path}} (run or replace the saved file to apply)",
       "downloadFailed": "Failed to download the update: {{error}}",
       "showInFolder": "Show in folder",
-      "releasePage": "Release page"
+      "releasePage": "Release page",
+      "applyAndRestart": "Update and restart",
+      "applying": "Downloading update…",
+      "applyingPercent": "Downloading update… {{percent}}%",
+      "restarting": "Restarting with the new version…",
+      "applied": "Update applied. Restart the app to use the new version",
+      "applyFailed": "Could not apply the update (you can download it manually): {{error}}",
+      "restartFailed": "The update was applied, but restarting failed. Please restart the app: {{error}}"
     },
   "preview": {
     "title": "Preview",

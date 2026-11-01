@@ -1,7 +1,8 @@
 # Wall Maker — Win / Mac リリースビルド
 #
-# 仕様: REWRITE_SPEC.md 第10章 Phase 9 / CLAUDE.md「配布対象は Win+Mac、自動更新なし、
-# 署名最小限（未署名警告は許容）」。
+# 仕様: REWRITE_SPEC.md 第10章 Phase 9 / CLAUDE.md「配布対象は Win+Mac、署名最小限
+# （未署名警告は許容）」。更新はアプリ内通知＋ユーザー操作のみ（Windows ポータブル版は
+# ワンクリックで exe 差し替え、他はアセットのダウンロード補助）。
 #
 # トリガ:
 #   - `v*` タグ push      → ドラフトリリースを自動生成して両 OS 用バンドルを添付
@@ -109,6 +110,9 @@ jobs:
       # WallMaker-*-portable-macos-universal.zip）と NSIS/MSI/dmg の命名は
       # `src-tauri/src/update.rs` の `pick_asset` が照合している。名前を変えると
       # アプリ内の更新通知がアセットを見つけられなくなる（リリースページ誘導のみになる）。
+      # Windows ポータブル版のワンクリック更新は、GitHub がアセットに付ける `digest`
+      # （SHA-256）で検証してから exe を差し替える。アセットを後から差し替えた場合も
+      # digest は GitHub 側で再計算されるので、ワークフロー側で用意するものは無い。
       - name: Stage portable (Windows — standalone .exe)
         if: matrix.platform == 'windows-latest'
         shell: bash

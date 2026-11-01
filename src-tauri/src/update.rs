@@ -1,9 +1,13 @@
-// 更新通知＋リリースアセットのダウンロード。
+// 更新通知＋リリースアセットのダウンロード＋Windows ポータブル版のワンクリック更新。
 //
-// 方針（CLAUDE.md「自動更新なし」の範囲内）:
-//  * インストールの自動適用はしない。GitHub Releases の最新版をチェックして通知し、
-//    ユーザーが押したときだけ、**現在の実行ファイルと同じフォルダ**へ該当アセットを
-//    ダウンロードする（適用＝インストーラ実行や差し替えはユーザー自身が行う）。
+// 方針（CLAUDE.md「デスクトップ機能を足す」の更新ポリシー）:
+//  * GitHub Releases の最新版をチェックして通知する。バックグラウンドでの自動適用はしない。
+//  * **Windows ポータブル版（リリースビルド）だけ**、ユーザーが押したときに exe を
+//    差し替えて再起動する（{@link update_apply_portable} / {@link update_relaunch}）。
+//    ダウンロードは GitHub が公開するアセットの SHA-256（API の `digest`）とサイズで
+//    検証し、一致しなければ差し替えない。
+//  * それ以外（インストーラ導入・macOS）は、ユーザーが押したときだけ**現在の実行ファイルと
+//    同じフォルダ**へ該当アセットをダウンロードする（適用＝インストーラ実行等はユーザー自身）。
 //  * 配布形態に合わせたアセットを選ぶ。ポータブル版で使用中ならポータブル版を、
 //    インストーラ導入なら NSIS setup（無ければ MSI）を選ぶ。判定はアンインストーラの
 //    有無と実行ファイルの場所で行い、**判別できないときはポータブル版に倒す**
@@ -13,10 +17,12 @@
 
 use std::fs;
 use std::io::Write;
-use std::path::PathBuf;
-use std::sync::OnceLock;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Mutex, OnceLock};
 
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use tauri::Manager;
 
 /// 更新チェック対象のリポジトリ（このアプリ自身）。
@@ -32,6 +38,8 @@ struct GhReleaseAsset {
     name: String,
     browser_download_url: String,
     size: u64,
+    /// GitHub が計算したアセットのハッシュ（"sha256:<hex>"）。古いリリースには無い。
+    digest: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -46,12 +54,16 @@ struct GhRelease {
 pub struct UpdateInfo {
     /// 最新版のバージョン（先頭 v なし。例 "3.3.0"）
     version: String,
+    /// 実行中のバージョン（tauri.conf.json の `version`）
+    current_version: String,
     /// リリースページ URL
     release_url: String,
     /// この配布形態に合うアセット。見つからなければ None（リリースページへ誘導）
     asset_name: Option<String>,
     asset_url: Option<String>,
     asset_size: Option<u64>,
+    /// ワンクリック更新（{@link update_apply_portable}）が使えるか
+    can_auto_apply: bool,
 }
 
 #[derive(Serialize, Clone)]
@@ -208,12 +220,8 @@ fn github_client() -> Result<reqwest::Client, String> {
     Ok(CLIENT.get_or_init(|| built).clone())
 }
 
-/// 最新リリースを調べ、現在より新しければ配布形態に合うアセット情報を返す。
-/// 新しくなければ Ok(None)。ネットワーク失敗はエラー（フロントは黙って握る）。
-#[tauri::command]
-pub async fn update_check(current_version: String) -> Result<Option<UpdateInfo>, String> {
-    let client = github_client()?;
-    let release: GhRelease = client
+async fn fetch_latest_release() -> Result<GhRelease, String> {
+    github_client()?
         .get(UPDATE_REPO_API)
         .header("Accept", "application/vnd.github+json")
         .send()
@@ -223,23 +231,97 @@ pub async fn update_check(current_version: String) -> Result<Option<UpdateInfo>,
         .map_err(|e| format!("更新チェックが HTTP エラー: {e}"))?
         .json()
         .await
-        .map_err(|e| format!("更新チェックの応答を解釈できません: {e}"))?;
+        .map_err(|e| format!("更新チェックの応答を解釈できません: {e}"))
+}
+
+/// `digest` が "sha256:<64 桁 hex>" ならその hex（小文字）を返す。
+fn expected_sha256(asset: &GhReleaseAsset) -> Option<String> {
+    let hex = asset.digest.as_deref()?.strip_prefix("sha256:")?;
+    (hex.len() == 64 && hex.bytes().all(|b| b.is_ascii_hexdigit()))
+        .then(|| hex.to_ascii_lowercase())
+}
+
+fn to_hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+/// ワンクリック更新の対象か。Windows のポータブル版リリースビルドで、検証用の
+/// SHA-256 が取れるアセットがあるときだけ。debug ビルド（`tauri dev`）は
+/// target/debug の exe を差し替えてしまうので対象外。
+fn can_auto_apply(kind: InstallKind, asset: Option<&GhReleaseAsset>) -> bool {
+    cfg!(target_os = "windows")
+        && !cfg!(debug_assertions)
+        && matches!(kind, InstallKind::Portable)
+        && asset.is_some_and(|a| {
+            a.browser_download_url.starts_with(UPDATE_DOWNLOAD_PREFIX)
+                && expected_sha256(a).is_some()
+        })
+}
+
+/// 最新リリースを調べ、現在より新しければ配布形態に合うアセット情報を返す。
+/// 新しくなければ Ok(None)。ネットワーク失敗はエラー（フロントは黙って握る）。
+/// 現在のバージョンはフロントから受けず `package_info` を使う（適用側と判定を揃える）。
+#[tauri::command]
+pub async fn update_check(app: tauri::AppHandle) -> Result<Option<UpdateInfo>, String> {
+    let current_version = app.package_info().version.to_string();
+    let release = fetch_latest_release().await?;
 
     if !is_newer_version(&release.tag_name, &current_version) {
         return Ok(None);
     }
-    let asset = pick_asset(&release.assets, detect_install_kind());
+    let kind = detect_install_kind();
+    let asset = pick_asset(&release.assets, kind);
     Ok(Some(UpdateInfo {
         version: release
             .tag_name
             .strip_prefix('v')
             .unwrap_or(&release.tag_name)
             .to_string(),
+        current_version,
         release_url: release.html_url,
         asset_name: asset.map(|a| a.name.clone()),
         asset_url: asset.map(|a| a.browser_download_url.clone()),
         asset_size: asset.map(|a| a.size),
+        can_auto_apply: can_auto_apply(kind, asset),
     }))
+}
+
+/// レスポンス本体を `file` へ流し込み、受信バイト数を返す。各チャンクは `on_chunk`
+/// にも渡す（ハッシュ計算用）。失敗時の一時ファイル削除は呼び出し側の責務。
+async fn stream_download(
+    resp: &mut reqwest::Response,
+    file: &mut fs::File,
+    part: &Path,
+    on_progress: &tauri::ipc::Channel<DownloadProgress>,
+    mut on_chunk: impl FnMut(&[u8]),
+) -> Result<u64, String> {
+    let total = resp.content_length();
+    // チャンクは TLS レコード単位（8〜16KB）で届くため、素の File だと 100MB 級の
+    // アセットで数千〜万回の write システムコールになる。1MB バッファでまとめる。
+    let mut writer = std::io::BufWriter::with_capacity(1 << 20, file);
+    let mut received: u64 = 0;
+    let mut last_emit: u64 = 0;
+    while let Some(bytes) = resp
+        .chunk()
+        .await
+        .map_err(|e| format!("ダウンロード中に切断されました: {e}"))?
+    {
+        writer
+            .write_all(&bytes)
+            .map_err(|e| format!("書き込みに失敗 {}: {e}", part.display()))?;
+        on_chunk(&bytes);
+        received += bytes.len() as u64;
+        // 進捗はチャンクごとに送ると IPC が煩すぎるので 512KB ごと
+        if received - last_emit >= 512 * 1024 {
+            last_emit = received;
+            let _ = on_progress.send(DownloadProgress { received, total });
+        }
+    }
+    writer
+        .flush()
+        .map_err(|e| format!("書き込みに失敗 {}: {e}", part.display()))?;
+    let _ = on_progress.send(DownloadProgress { received, total });
+    Ok(received)
 }
 
 /// リリースアセットを実行ファイルと同じフォルダへダウンロードする。
@@ -274,7 +356,6 @@ pub async fn update_download(
         .map_err(|e| format!("ダウンロード開始に失敗: {e}"))?
         .error_for_status()
         .map_err(|e| format!("ダウンロードが HTTP エラー: {e}"))?;
-    let total = resp.content_length();
 
     // 保存先: 実行ファイルと同じフォルダ。`.part` の作成自体が書き込み可否の判定を
     // 兼ねる（失敗したら OS のダウンロードフォルダで作り直す）。
@@ -294,35 +375,12 @@ pub async fn update_download(
     let part = dir.join(format!("{file_name}.part"));
     let final_path = dir.join(&file_name);
 
-    // チャンクは TLS レコード単位（8〜16KB）で届くため、素の File だと 100MB 級の
-    // アセットで数千〜万回の write システムコールになる。1MB バッファでまとめる。
-    let mut writer = std::io::BufWriter::with_capacity(1 << 20, &mut file);
-    let mut received: u64 = 0;
-    let mut last_emit: u64 = 0;
-    loop {
-        let chunk = resp.chunk().await.map_err(|e| {
-            let _ = fs::remove_file(&part);
-            format!("ダウンロード中に切断されました: {e}")
-        })?;
-        let Some(bytes) = chunk else { break };
-        writer.write_all(&bytes).map_err(|e| {
-            let _ = fs::remove_file(&part);
-            format!("書き込みに失敗 {}: {e}", part.display())
-        })?;
-        received += bytes.len() as u64;
-        // 進捗はチャンクごとに送ると IPC が煩すぎるので 512KB ごと
-        if received - last_emit >= 512 * 1024 {
-            last_emit = received;
-            let _ = on_progress.send(DownloadProgress { received, total });
-        }
-    }
-    writer.flush().map_err(|e| {
-        let _ = fs::remove_file(&part);
-        format!("書き込みに失敗 {}: {e}", part.display())
-    })?;
-    drop(writer);
+    let streamed = stream_download(&mut resp, &mut file, &part, &on_progress, |_| {}).await;
     drop(file);
-    let _ = on_progress.send(DownloadProgress { received, total });
+    if let Err(e) = streamed {
+        let _ = fs::remove_file(&part);
+        return Err(e);
+    }
 
     // 同名ファイルがあれば上書き（同じバージョンの再ダウンロード）。
     // fsync はしない: 中断は `.part` のままなので壊れたファイルが完成品に見える
@@ -334,6 +392,174 @@ pub async fn update_download(
     fs::rename(&part, &final_path)
         .map_err(|e| format!("ファイルの確定に失敗 {}: {e}", final_path.display()))?;
     Ok(final_path.to_string_lossy().to_string())
+}
+
+/// 適用中/適用済みなら true（二重実行と、差し替え後の再適用を防ぐ）。
+static APPLYING: AtomicBool = AtomicBool::new(false);
+/// 差し替え後に起動する exe（= 差し替え前の元パス）。update_relaunch が使う。
+/// 実行中 exe はリネーム後に `current_exe()` が退避先を指しうるので、ここに控える。
+static RELAUNCH_TARGET: Mutex<Option<PathBuf>> = Mutex::new(None);
+
+/// 差し替えで退避した旧 exe（`<exe 名>.old`）。起動時に削除する。
+fn replaced_exe_path(exe: &Path) -> Option<PathBuf> {
+    let name = exe.file_name()?.to_string_lossy().into_owned();
+    Some(exe.with_file_name(format!("{name}.old")))
+}
+
+/// Windows ポータブル版のワンクリック更新（ダウンロード＋差し替えまで。再起動は
+/// {@link update_relaunch}）。
+///
+/// フロントからは URL を受けず、最新リリースをここで取り直して判定する
+/// （webview から任意の exe を書き込ませないため）。手順:
+///  1. `<exe 名>.update.part` へダウンロードしつつ SHA-256 を計算
+///  2. サイズと GitHub の `digest` を照合。不一致なら破棄してエラー
+///  3. 実行中 exe を `<exe 名>.old` へリネーム（Windows は実行中ファイルの上書きは
+///     できないがリネームはできる）→ 新 exe を元の名前へ。失敗したら巻き戻す
+/// ユーザーが exe をリネームしていても、その名前のまま差し替わる。
+#[tauri::command]
+pub async fn update_apply_portable(
+    app: tauri::AppHandle,
+    on_progress: tauri::ipc::Channel<DownloadProgress>,
+) -> Result<(), String> {
+    if APPLYING.swap(true, Ordering::SeqCst) {
+        return Err("更新はすでに適用中か適用済みです".into());
+    }
+    let result = apply_portable(&app, &on_progress).await;
+    if result.is_err() {
+        APPLYING.store(false, Ordering::SeqCst);
+    }
+    result
+}
+
+async fn apply_portable(
+    app: &tauri::AppHandle,
+    on_progress: &tauri::ipc::Channel<DownloadProgress>,
+) -> Result<(), String> {
+    let release = fetch_latest_release().await?;
+    if !is_newer_version(&release.tag_name, &app.package_info().version.to_string()) {
+        return Err("新しいバージョンはありません".into());
+    }
+    let kind = detect_install_kind();
+    let asset = pick_asset(&release.assets, kind)
+        .filter(|a| can_auto_apply(kind, Some(a)))
+        .ok_or("この環境ではワンクリック更新を使えません（Windows ポータブル版のみ）")?;
+    let expected = expected_sha256(asset).ok_or("アセットのハッシュがありません")?;
+
+    let exe = std::env::current_exe().map_err(|e| format!("実行パス取得に失敗: {e}"))?;
+    let old = replaced_exe_path(&exe).ok_or("実行ファイル名を取得できません")?;
+    let part = old.with_extension("update.part");
+
+    let mut resp = github_client()?
+        .get(&asset.browser_download_url)
+        .send()
+        .await
+        .map_err(|e| format!("ダウンロード開始に失敗: {e}"))?
+        .error_for_status()
+        .map_err(|e| format!("ダウンロードが HTTP エラー: {e}"))?;
+    let mut file = fs::File::create(&part)
+        .map_err(|e| format!("一時ファイル作成に失敗 {}: {e}", part.display()))?;
+    let mut hasher = Sha256::new();
+    let streamed = stream_download(&mut resp, &mut file, &part, on_progress, |b| {
+        hasher.update(b)
+    })
+    .await;
+    // 実行ファイルとして置き換えるので、こちらは確定前にディスクへ書き切る
+    let synced = streamed.and_then(|n| {
+        file.sync_all()
+            .map(|_| n)
+            .map_err(|e| format!("書き込みに失敗 {}: {e}", part.display()))
+    });
+    drop(file);
+    let received = match synced {
+        Ok(n) => n,
+        Err(e) => {
+            let _ = fs::remove_file(&part);
+            return Err(e);
+        }
+    };
+    let actual = to_hex(&hasher.finalize());
+    if received != asset.size || actual != expected {
+        let _ = fs::remove_file(&part);
+        return Err(format!(
+            "ダウンロードしたファイルの検証に失敗しました（サイズ {received}/{} / SHA-256 {}）",
+            asset.size,
+            if actual == expected { "一致" } else { "不一致" }
+        ));
+    }
+
+    swap_exe(&exe, &part, &old)?;
+    *RELAUNCH_TARGET
+        .lock()
+        .map_err(|_| "内部状態の取得に失敗しました")? = Some(exe);
+    Ok(())
+}
+
+/// `exe` を `old` へ退避し、`new_exe` を `exe` の位置へ置く。失敗したら元に戻す。
+fn swap_exe(exe: &Path, new_exe: &Path, old: &Path) -> Result<(), String> {
+    let fail = |msg: String| {
+        let _ = fs::remove_file(new_exe);
+        Err(msg)
+    };
+    // 前回更新の残骸（起動時の削除が間に合わなかった等）
+    if old.exists() {
+        if let Err(e) = fs::remove_file(old) {
+            return fail(format!("前回の更新ファイルを削除できません {}: {e}", old.display()));
+        }
+    }
+    if let Err(e) = fs::rename(exe, old) {
+        return fail(format!("実行中ファイルの退避に失敗 {}: {e}", exe.display()));
+    }
+    if let Err(e) = fs::rename(new_exe, exe) {
+        let _ = fs::rename(old, exe);
+        return fail(format!("新しい実行ファイルの配置に失敗 {}: {e}", exe.display()));
+    }
+    Ok(())
+}
+
+/// 差し替えた exe を起動してこのプロセスを終了する。フロントは呼ぶ前に永続化を
+/// 書き切っておくこと（終了で保留中の書き込みが失われる）。
+#[tauri::command]
+pub fn update_relaunch(app: tauri::AppHandle) -> Result<(), String> {
+    let target = RELAUNCH_TARGET
+        .lock()
+        .map_err(|_| "内部状態の取得に失敗しました")?
+        .clone()
+        .ok_or("適用済みの更新がありません")?;
+    let mut cmd = std::process::Command::new(&target);
+    if let Some(dir) = target.parent() {
+        cmd.current_dir(dir);
+    }
+    cmd.spawn()
+        .map_err(|e| format!("新しいバージョンの起動に失敗: {e}"))?;
+    app.exit(0);
+    Ok(())
+}
+
+/// 起動時の後片付け: 差し替えで退避した旧 exe と、中断した `.update.part` を消す。
+/// 旧プロセスの終了直後は旧 exe がまだロックされていることがあるので、別スレッドで
+/// 少し待ちながら再試行する（起動は待たせない）。
+pub fn cleanup_replaced_exe() {
+    if !cfg!(target_os = "windows") {
+        return;
+    }
+    let Some(old) = std::env::current_exe()
+        .ok()
+        .and_then(|exe| replaced_exe_path(&exe))
+    else {
+        return;
+    };
+    let _ = fs::remove_file(old.with_extension("update.part"));
+    if !old.exists() {
+        return;
+    }
+    std::thread::spawn(move || {
+        for _ in 0..20 {
+            if fs::remove_file(&old).is_ok() || !old.exists() {
+                return;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(500));
+        }
+    });
 }
 
 #[cfg(test)]
@@ -357,7 +583,43 @@ mod tests {
             name: name.into(),
             browser_download_url: format!("{UPDATE_DOWNLOAD_PREFIX}v9.9.9/{name}"),
             size: 1,
+            digest: None,
         }
+    }
+
+    #[test]
+    fn digest_parse() {
+        let mut a = asset("x.exe");
+        assert_eq!(expected_sha256(&a), None);
+        let hex = "5FA71685".repeat(8);
+        a.digest = Some(format!("sha256:{hex}"));
+        assert_eq!(expected_sha256(&a), Some(hex.to_ascii_lowercase()));
+        a.digest = Some(format!("sha512:{hex}"));
+        assert_eq!(expected_sha256(&a), None);
+        a.digest = Some("sha256:abc".into());
+        assert_eq!(expected_sha256(&a), None);
+        assert_eq!(to_hex(&[0x00, 0xab, 0x0f]), "00ab0f");
+    }
+
+    #[test]
+    fn swap_exe_replaces_and_keeps_old() {
+        let dir = std::env::temp_dir().join(format!("wm-swap-test-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let exe = dir.join("app.exe");
+        let old = replaced_exe_path(&exe).unwrap();
+        let part = old.with_extension("update.part");
+        assert_eq!(old.file_name().unwrap(), "app.exe.old");
+        assert_eq!(part.file_name().unwrap(), "app.exe.update.part");
+
+        fs::write(&exe, b"v1").unwrap();
+        fs::write(&old, b"stale").unwrap(); // 前回の残骸は消して置き換える
+        fs::write(&part, b"v2").unwrap();
+        swap_exe(&exe, &part, &old).unwrap();
+        assert_eq!(fs::read(&exe).unwrap(), b"v2");
+        assert_eq!(fs::read(&old).unwrap(), b"v1");
+        assert!(!part.exists());
+        fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]

@@ -10,9 +10,10 @@
 //  * `read_pack_zip`     — 任意の .zip パスを丸ごと生バイトで返す
 //  * `read_pack_folder`  — 任意のフォルダを再帰 walk し、相対パス付きの生バイトで返す
 //  * `path_is_dir`       — 指定パスが実在するフォルダかを返す（記憶した保存先の存在検証用）
-//  * `update_check` / `update_download`（実装は update.rs）
-//    — GitHub Releases の最新版チェックと、配布形態に合うアセットの
-//      「実行ファイルと同じフォルダ」へのダウンロード（自動適用はしない）
+//  * `update_check` / `update_download` / `update_apply_portable` / `update_relaunch`
+//    （実装は update.rs）— GitHub Releases の最新版チェックと、配布形態に合うアセットの
+//      「実行ファイルと同じフォルダ」へのダウンロード。Windows ポータブル版のみ、
+//      ユーザー操作で exe を差し替えて再起動するワンクリック更新
 //  * `binary_put` / `binary_get` / `binary_delete` / `binary_keys`
 //    — 永続化バイナリ（画像/音声）の実体ストア。appDataDir/binaries/<key> に置く
 //      （フロントの `store/storage/desktop.ts` が使う。CLAUDE.md 第7.2章）
@@ -473,6 +474,8 @@ pub fn run() {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_title(&title);
             }
+            // ワンクリック更新で退避した旧 exe の削除（Windows ポータブル版のみ該当）
+            update::cleanup_replaced_exe();
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -487,6 +490,8 @@ pub fn run() {
             binary_keys,
             update::update_check,
             update::update_download,
+            update::update_apply_portable,
+            update::update_relaunch,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
