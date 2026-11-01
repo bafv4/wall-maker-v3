@@ -33,7 +33,14 @@
     "title": "プレビュー",
     "hint": "エリアをクリックで選択、Ctrl/⌘+クリックで複数選択。ドラッグで移動（複数選択時はまとめて移動し、スナップは選択全体の外接矩形で判定）、角・辺のハンドルでリサイズできます。操作値はすべて整数で記録されます。",
     "scale": "実解像度 {{realWidth}}×{{realHeight}} / プレビュー {{previewWidth}}×{{previewHeight}}",
-    "snapHint": "Shift でスナップ無効"
+    "snapHint": "Shift でスナップ無効",
+    "boxes": "ボックス",
+    "boxMode": {
+      "all": "すべて",
+      "background": "背景",
+      "layout": "レイアウト",
+      "none": "なし"
+    }
   },
   "common": {
     "loading": "読込中…",

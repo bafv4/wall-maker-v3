@@ -14,6 +14,8 @@
  *  - 選択中の画像レイヤ（`fit:'manual'`）と図形レイヤも同様に move/resize（レイヤは複数選択の
  *    対象外）。レイヤの操作枠は**背景タブ表示中だけ**出す。エリアより手前に置くため、
  *    他タブに残すと、選択したままのレイヤがエリアのドラッグを横取りする。
+ *  - `boxMode` でエリア枠（レイアウト）/ レイヤ操作枠（背景）の表示を切り替える。
+ *    非表示の枠は描画しない＝操作もできない（見た目の確認用）。
  *  - スナップ: 他エリア辺・中央・キャンバス端と中央へ磁着（プレビュー基準 6px）。Shift で無効化。
  *    複数選択の移動では**選択全体の外接矩形**の辺・中央で判定する（指示線も同じ基準）。
  *  - ドラッグ中は `x,y / w×h` のオーバーレイ表示。
@@ -538,12 +540,16 @@ function LayerBox({
 // WallPreview 本体
 // ---------------------------------------------------------------------------
 
+/** プレビューに重ねる枠の表示範囲。layout=エリア枠、background=レイヤ操作枠。 */
+export type PreviewBoxMode = 'all' | 'background' | 'layout' | 'none';
+
 export interface WallPreviewProps {
+  boxMode: PreviewBoxMode;
   /** 背景タブを表示中か。false のときレイヤ操作枠は出さない。 */
   backgroundEditing: boolean;
 }
 
-export function WallPreview({ backgroundEditing }: WallPreviewProps) {
+export function WallPreview({ boxMode, backgroundEditing }: WallPreviewProps) {
   const { t } = useTranslation();
 
   // 限定したスライスのみを購読する（不要な再描画を避ける）
@@ -992,6 +998,9 @@ export function WallPreview({ backgroundEditing }: WallPreviewProps) {
     .filter(({ p }) => p.show);
 
   const soleSelection = selectedRefs.length === 1;
+  const showAreas = boxMode === 'all' || boxMode === 'layout';
+  const showLayerBox =
+    backgroundEditing && (boxMode === 'all' || boxMode === 'background');
 
   // ドラッグオーバーレイ位置（プレビュー px）
   const overlayPv = useMemo(() => {
@@ -1034,51 +1043,55 @@ export function WallPreview({ backgroundEditing }: WallPreviewProps) {
           preview={preview}
         />
 
-        <AreaBox
-          area={layout.main}
-          refId={MAIN_REF}
-          color="#2563eb"
-          label="main"
-          resolution={resolution}
-          preview={preview}
-          selected={selectedKeys.has(MAIN_KEY)}
-          soleSelection={soleSelection}
-          onPointerDownArea={onPointerDownArea}
-        />
-        {layout.locked.show && (
-          <AreaBox
-            area={layout.locked}
-            refId={LOCKED_REF}
-            color="#ea580c"
-            label="locked"
-            resolution={resolution}
-            preview={preview}
-            selected={selectedKeys.has(LOCKED_KEY)}
-            soleSelection={soleSelection}
-            onPointerDownArea={onPointerDownArea}
-          />
-        )}
-        {visiblePreparing.map(({ p, index }) => {
-          const ref: AreaRef = { kind: 'preparing', index };
-          return (
+        {showAreas && (
+          <>
             <AreaBox
-              key={index}
-              area={p}
-              refId={ref}
-              color="#16a34a"
-              label={`preparing #${index + 1}`}
+              area={layout.main}
+              refId={MAIN_REF}
+              color="#2563eb"
+              label="main"
               resolution={resolution}
               preview={preview}
-              selected={selectedKeys.has(areaRefKey(ref))}
+              selected={selectedKeys.has(MAIN_KEY)}
               soleSelection={soleSelection}
               onPointerDownArea={onPointerDownArea}
             />
-          );
-        })}
+            {layout.locked.show && (
+              <AreaBox
+                area={layout.locked}
+                refId={LOCKED_REF}
+                color="#ea580c"
+                label="locked"
+                resolution={resolution}
+                preview={preview}
+                selected={selectedKeys.has(LOCKED_KEY)}
+                soleSelection={soleSelection}
+                onPointerDownArea={onPointerDownArea}
+              />
+            )}
+            {visiblePreparing.map(({ p, index }) => {
+              const ref: AreaRef = { kind: 'preparing', index };
+              return (
+                <AreaBox
+                  key={index}
+                  area={p}
+                  refId={ref}
+                  color="#16a34a"
+                  label={`preparing #${index + 1}`}
+                  resolution={resolution}
+                  preview={preview}
+                  selected={selectedKeys.has(areaRefKey(ref))}
+                  soleSelection={soleSelection}
+                  onPointerDownArea={onPointerDownArea}
+                />
+              );
+            })}
+          </>
+        )}
 
         {/* レイヤ操作枠（image の fit=manual / shape）。レイヤ選択中は操作対象なので
             エリアより手前に置く（main が全面を覆う既定レイアウトでも掴めるように）。 */}
-        {backgroundEditing && selectedLayer?.transform && (
+        {showLayerBox && selectedLayer?.transform && (
           <LayerBox
             layerId={selectedLayer.id}
             transform={selectedLayer.transform}
