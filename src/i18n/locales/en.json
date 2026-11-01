@@ -117,7 +117,9 @@
     "iconAria": "Choose resource pack icon",
     "iconImageRequired": "Please pick an image file",
     "iconDefaultName": "pack.png",
-    "iconClear": "Clear"
+    "iconClear": "Clear",
+    "embedEditorData": "Include background editing data",
+    "embedEditorDataHint": "Saves the background layer setup (original images, shape positions, colors, gradients) in a wall-maker/ folder so importing the .zip / folder restores each layer. Minecraft ignores it, but original images increase the file size."
   },
   "layoutEditor": {
     "presetTitle": "Layout preset",

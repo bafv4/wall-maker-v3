@@ -117,7 +117,9 @@
     "iconAria": "リソースパックアイコンを選択",
     "iconImageRequired": "画像ファイルを選択してください",
     "iconDefaultName": "pack.png",
-    "iconClear": "クリア"
+    "iconClear": "クリア",
+    "embedEditorData": "背景の編集データを同梱する",
+    "embedEditorDataHint": "背景レイヤの構成（元画像・図形の位置・色・グラデーション）を wall-maker/ フォルダに保存し、.zip / フォルダの読み込み時にレイヤごと復元します。Minecraft には影響しませんが、元画像の分だけファイルサイズが増えます。"
   },
   "layoutEditor": {
     "presetTitle": "レイアウトプリセット",

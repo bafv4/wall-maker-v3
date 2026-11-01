@@ -268,6 +268,11 @@ export interface PackInfo {
   description: string;
   /** pack.png 用アイコン。null=出力しない。 */
   icon: BinaryRef | null;
+  /**
+   * 背景レイヤ構成と元画像を `wall-maker/` 配下に同梱し、再読込でレイヤ単位に復元できるようにする
+   * （core/editorMeta.ts）。未設定=false。SeedQueue / Minecraft は読まない。
+   */
+  embedEditorData?: boolean;
 }
 
 // ---------------------------------------------------------------------------

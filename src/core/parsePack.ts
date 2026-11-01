@@ -8,6 +8,8 @@
  *  - 背景は1枚の `ImageLayer`（fit='stretch'）として復元する。
  *    色レイヤ・グラデーション情報は背景 PNG として焼き込まれているため、構造的には復元不能。
  *    旧アプリの "imageLayers" 不整合バグ（第8章 #5）を避けるため、必ず `background.layers` に載せる。
+ *    ただし本アプリが同梱した編集データ（`wall-maker/background.json`、core/editorMeta.ts）が
+ *    読めれば、そちらからレイヤ構成を復元する（background.png より優先）。
  *  - **解像度は呼び出し側で指定する**：SeedQueue パックフォーマットは framebuffer 解像度を
  *    保持しないため、何 px を想定したパックかは呼び出し側が決定する。
  *    `background.png` のサイズが妥当な推定値になるため、`detectBackgroundResolution`
@@ -29,6 +31,7 @@
  */
 
 import { floorArea, floorCell, floorInt } from './coords';
+import { parseEditorMeta, readEditorMetaResolution } from './editorMeta';
 import { parseLockMcmeta } from './lockWeights';
 import { errMsg } from './errors';
 import { getDefaultPresetLayout } from './layoutPresets';
@@ -136,10 +139,13 @@ export async function parsePack(
     );
   }
 
-  // 5) 背景レイヤ復元（1 枚の image layer として）
+  // 5) 背景レイヤ復元（編集データがあればレイヤ構成ごと、無ければ 1 枚の image layer として）
+  const metaLayers = parseEditorMeta(pack, resolution);
   const backgroundPath = `${PACK_PATHS.texturesGuiWall}/background.png`;
   const backgroundBytes = readBytes(pack, backgroundPath);
-  const backgroundLayers: BackgroundLayer[] = backgroundBytes
+  const backgroundLayers: BackgroundLayer[] = metaLayers
+    ? metaLayers
+    : backgroundBytes
     ? [
         {
           id: crypto.randomUUID(),
@@ -225,6 +231,8 @@ export async function parsePack(
       name: defaults.packInfo.name,
       description,
       icon,
+      // 編集データ付きで書き出されたパックは、再保存でも同梱を続ける
+      embedEditorData: metaLayers !== null,
     },
     sounds,
     lockImages,
@@ -714,6 +722,10 @@ function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
 export async function detectBackgroundResolution(
   pack: VirtualPack,
 ): Promise<Resolution | null> {
+  // 編集データがあれば書き出し時の解像度がそのまま記録されている（全レイヤ非表示で
+  // background.png が無いパックでも推定できる）。
+  const metaResolution = readEditorMetaResolution(pack);
+  if (metaResolution) return metaResolution;
   const bytes = readBytes(pack, `${PACK_PATHS.texturesGuiWall}/background.png`);
   if (!bytes) return null;
   try {

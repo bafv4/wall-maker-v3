@@ -12,7 +12,7 @@ import { MAX_DIMENSION, toSafeInt } from '../core/coords';
 import { normalizeToPngBytes } from '../core/pngNormalize';
 import { useWallStore } from '../store/useWallStore';
 import { presetValueOf, useResolutionPresets } from './resolutionPresets';
-import { Button, Input, Select, toast } from './ui';
+import { Button, Input, Select, Switch, toast } from './ui';
 import { cn } from './ui/cn';
 
 // ---------------------------------------------------------------------------
@@ -319,6 +319,21 @@ export function PackInfoEditor() {
             }}
           />
         </div>
+      </section>
+
+      <section className="space-y-1.5 rounded-lg bg-panel p-3">
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-sm font-medium text-fg">
+            {t('packInfo.embedEditorData')}
+          </span>
+          <Switch
+            checked={packInfo.embedEditorData ?? false}
+            onChange={(b) => setPackInfo({ embedEditorData: b })}
+          />
+        </div>
+        <p className="text-[11px] text-fg-subtle">
+          {t('packInfo.embedEditorDataHint')}
+        </p>
       </section>
 
       <ResolutionSection />
