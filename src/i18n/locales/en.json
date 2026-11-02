@@ -359,6 +359,8 @@
     "restoreMissing": "{{count}} item(s) could not be restored ({{fields}}). Please add them again.",
     "restoreUnresolved": "{{count}} item(s) could not be loaded ({{fields}}). Reloading the app may restore them.",
     "unresolvedBinaries": "Cannot export: some data is not loaded ({{fields}}). Reload the app, or set those items again.",
-    "unplayableSounds": "Cannot export: some sounds can't be played by Minecraft ({{events}}) and would crash SeedQueue. Please choose them again."
+    "unplayableSounds": "Cannot export: some sounds can't be played by Minecraft ({{events}}) and would crash SeedQueue. Please choose them again.",
+    "importSoundUnplayable": "Some sounds can't be played by Minecraft (Opus, 3+ channels, or corrupted) and were reset to default ({{events}}). Please choose them again.",
+    "importSoundUnresolved": "Some sound settings use a form this app can't represent and were reset to default ({{events}})."
   }
 }

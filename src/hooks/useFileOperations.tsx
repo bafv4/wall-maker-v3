@@ -34,6 +34,7 @@
  *    「どれが未ロードか」を示して中止する（欠けたパックを黙って書き出さない）。
  *  - 同様に、Minecraft で再生できない custom 音声（Opus 等）があれば中止する
  *    （SeedQueue がゲームをクラッシュさせるため。`core/oggVorbis.ts`）。
+ * インポートで表せなかったサウンドは既定に戻し、`parsePack` の `onSoundIssue` で集めて知らせる。
  */
 
 import {
@@ -67,7 +68,11 @@ import {
   buildPackInWorker,
 } from '../core/exportWorkerClient';
 import { isPlayableOggVorbis } from '../core/oggVorbis';
-import { detectBackgroundResolution, parsePack } from '../core/parsePack';
+import {
+  detectBackgroundResolution,
+  parsePack,
+  type SoundImportIssue,
+} from '../core/parsePack';
 import {
   SOUND_EVENT_KEYS,
   type Resolution,
@@ -156,6 +161,27 @@ function summarizeFields(
     labels.push(t(`binaryField.${kind}`));
   }
   return count > 0 ? { count, fields: labels.join(' / ') } : null;
+}
+
+/** インポートで既定に戻したサウンドを、理由ごとに 1 トーストで知らせる。 */
+function notifySoundImportIssues(
+  issues: readonly SoundImportIssue[],
+  t: TFunction,
+): void {
+  for (const kind of ['unplayable', 'unresolved'] as const) {
+    const events = issues
+      .filter((i) => i.kind === kind)
+      .map((i) => t(`sound.events.${i.event}`));
+    if (events.length === 0) continue;
+    toast.error(
+      t(
+        kind === 'unplayable'
+          ? 'toast.importSoundUnplayable'
+          : 'toast.importSoundUnresolved',
+        { events: events.join(' / ') },
+      ),
+    );
+  }
 }
 
 export function FileOperationsProvider({ children }: { children: ReactNode }) {
@@ -330,13 +356,18 @@ export function FileOperationsProvider({ children }: { children: ReactNode }) {
     setImportState({ kind: 'parsing', payload });
     setBusy(true);
     try {
-      const wall = await parsePack(payload.pack, { resolution });
+      const soundIssues: SoundImportIssue[] = [];
+      const wall = await parsePack(payload.pack, {
+        resolution,
+        onSoundIssue: (issue) => soundIssues.push(issue),
+      });
       const stem = payload.displayName.replace(/\.zip$/i, '').trim();
       if (stem) wall.packInfo.name = stem;
       replaceWallState(wall);
       selectBackgroundLayer(null);
       setSourceFolder(payload.sourceFolder); // フォルダ起点なら覚える、.zip 起点なら null
       toast.success(t('toast.importSuccess', { filename: payload.displayName }));
+      notifySoundImportIssues(soundIssues, t);
       setImportState({ kind: 'idle' });
     } catch (e) {
       console.error('parsePack failed', e);

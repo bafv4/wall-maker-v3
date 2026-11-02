@@ -359,6 +359,8 @@
     "restoreMissing": "復元できなかったデータが {{count}} 件あります（{{fields}}）。もう一度追加してください",
     "restoreUnresolved": "読み込めなかったデータが {{count}} 件あります（{{fields}}）。アプリを再読み込みすると復元される場合があります",
     "unresolvedBinaries": "未ロードのデータがあるため書き出せません（{{fields}}）。アプリを再読み込みするか、該当データを設定し直してください",
-    "unplayableSounds": "Minecraft で再生できない音声があるため書き出せません（{{events}}）。SeedQueue がクラッシュする原因になるので、音声を選び直してください"
+    "unplayableSounds": "Minecraft で再生できない音声があるため書き出せません（{{events}}）。SeedQueue がクラッシュする原因になるので、音声を選び直してください",
+    "importSoundUnplayable": "Minecraft で再生できない音声（Opus・3ch 以上・破損など）のため、既定に戻しました（{{events}}）。音声を選び直してください",
+    "importSoundUnresolved": "本アプリで扱えない形式のサウンド設定があったため、既定に戻しました（{{events}}）"
   }
 }

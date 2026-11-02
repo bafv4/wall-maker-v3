@@ -424,6 +424,9 @@ builtin（`seedqueue:reset_instance`）を指定する。`off`（空）もフォ
 > `parsePack` は既存パックの読込互換のため、`seedqueue:custom/<event>` / `seedqueue:<event>` / `<event>` / `<event>.ogg` を
 > 受け付ける（参照先の ogg がパック内にあれば custom。`<event>.ogg` は v3.1.0 以前の誤った出力で作られたパック向け）。
 > パック内に無く `seedqueue:reset_instance` / `seedqueue:lock_instance` を指すものは builtin として読む。
+> MC の読込規則に合わせ、`replace` 省略の空は default・`replace: true` の空（`sounds` 省略含む）は off、
+> 要素はオブジェクト形式（`{ "name": ... }`）も読む（`type: "event"` は対象外）。複数要素は先頭から最初に解決できたものを採る。
+> `seedqueue` 以外の名前空間・解決できない参照・再生できない ogg は default に倒し、インポート後にトーストで知らせる。
 
 > 旧アプリは 6 イベントしか扱わず、`reset_instance` を独立イベントとして扱わない・`play_instance`/`schedule_*`/
 > `open_wall`/`bypass_wall`/`scheduled_join_warning` を欠いていた。新実装は 13 イベントを正として UI を設計する
