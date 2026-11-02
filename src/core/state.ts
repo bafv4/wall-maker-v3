@@ -199,7 +199,8 @@ export type BuiltinSoundKey = (typeof BUILTIN_SOUND_KEYS)[number];
 /**
  * 各イベントの設定。
  * - default: 何も出力しない（MOD 既定にフォールバック）
- * - off:     `{ replace: true, sounds: [] }` を出力（無音）
+ * - off:     `{ replace: true, sounds: [] }` を出力（無音）。reset_all / reset_column / reset_row は
+ *            空だと reset_instance へフォールバックするため、無音 ogg を割り当てる（buildPack）
  * - builtin: `{ replace: true, sounds: ["seedqueue:<sound>"] }` を出力し、mod 内蔵の音を鳴らす
  *            （ogg は同梱しない。例: reset_all に内蔵リセット音を 1 回だけ鳴らす）
  * - custom:  ogg バイト＋`{ replace: true, sounds: ["seedqueue:custom/<event>"] }`

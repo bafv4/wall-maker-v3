@@ -284,7 +284,7 @@
     "replace": "差替",
     "specMemo": "仕様メモ（クリックで展開）",
     "specDefault": "default: sounds.json に何も書きません（MOD 既定にフォールバック）。既定音がある lock_instance / reset_instance はそのまま鳴ります。",
-    "specOff": "off: {\"replace\": true, \"sounds\": []} を出力して無音にします。",
+    "specOff": "off: {\"replace\": true, \"sounds\": []} を出力して無音にします。すべて/列/行リセットは空だとインスタンスごとのリセット音が鳴ってしまうため、短い無音 ogg（sounds/custom/silent.ogg）を割り当てます（リセット音も無音のときは不要なので割り当てません）。",
     "specBuiltin": "内蔵リセット音 / 内蔵ロック音: SeedQueue 本体に入っている音を {\"replace\": true, \"sounds\": [\"seedqueue:reset_instance\"]} のように参照します（ogg は同梱しません）。",
     "specCustom": "custom: assets/seedqueue/sounds/custom/<event>.ogg を配置して上書きします（内蔵音のファイルは上書きしません）。",
     "specFormat": "音声形式: 再生可能な Ogg Vorbis（1〜2ch）はそのまま、それ以外（MP3/WAV/FLAC/AAC/M4A/OPUS/WEBM、Opus や 3ch 以上の OGG）は ffmpeg.wasm（self-host）で Ogg Vorbis (q:6・最大 2ch) に変換します。初回変換時のみ ffmpeg core 資材のダウンロードが入ります（数 MB）。",

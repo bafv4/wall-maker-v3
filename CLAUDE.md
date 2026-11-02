@@ -110,7 +110,8 @@ export async function getPackWriter(): Promise<PackWriter> {
   custom=`{replace:true,sounds:["seedqueue:custom/<event>"]}`＋`sounds/custom/<event>.ogg` 配置。変更するイベントのみ出力すればよい。
   **サウンド名は名前空間付き・拡張子なし**（`.ogg` を書くと MC が `.ogg.ogg` を探して黙って無音になる）。
   custom を `sounds/` 直下に置かない（内蔵の `reset_instance.ogg` 等を上書きし builtin の参照先が変わる）。
-  `reset_all`/`reset_column`/`reset_row` は音が無いと各インスタンスの `reset_instance` を連打するフォールバックがある。
+  `reset_all`/`reset_column`/`reset_row` は音が無いと各インスタンスの `reset_instance` を連打するフォールバックがある
+  （空配列では無音にならない。off は無音 ogg `seedqueue:custom/silent` を割り当てる）。
   `seedqueue` 名前空間の音声が読めないと SeedQueue はゲームをクラッシュさせる。**Ogg Vorbis・1〜2ch 以外を同梱しない**
   （Opus の `.ogg` も不可。アップロード時に `core/oggVorbis.ts` で検査し、それ以外は変換する）。
 

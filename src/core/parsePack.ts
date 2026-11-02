@@ -15,7 +15,7 @@
  *    `background.png` のサイズが妥当な推定値になるため、`detectBackgroundResolution`
  *    で取り出して UI 側のデフォルト値に使う運用を想定。
  *  - sounds: `sounds.json` 不在のイベントは `mode: 'default'`、`replace=true` で空は `off`、
- *    参照先の ogg がパック内にあれば `custom`
+ *    無音 ogg（`seedqueue:custom/silent`）も `off`。参照先の ogg がパック内にあれば `custom`
  *    （現行の `seedqueue:custom/<event>`、v3.4.0 以前の `seedqueue:<event>`、`<event>` /
  *    `<event>.ogg` も可）。パック内に無く `seedqueue:reset_instance` / `seedqueue:lock_instance` を
  *    指していれば mod 内蔵音（`builtin`）。`replace` 省略・オブジェクト形式の要素も読む。
@@ -54,9 +54,11 @@ import {
   type WallState,
 } from './state';
 import {
+  CUSTOM_SOUND_DIR,
   PACK_FORMAT,
   PACK_PATHS,
   SEEDQUEUE_NAMESPACE,
+  SILENT_SOUND_FILE,
   type VirtualPack,
 } from './types';
 
@@ -629,6 +631,7 @@ function soundItemName(item: unknown): string | null {
  * **出力してよい正しい形式は `seedqueue:<path>`（名前空間付き・拡張子なし）だけ**。
  * 読込側は壊れたパックも拾えるよう、次の形式を受け付ける（寛容側に倒す）:
  *  - `seedqueue:custom/<event>` … 現行の出力（サブフォルダもそのままパスとして解決する）
+ *  - `seedqueue:custom/silent`  … reset_all 等の「無音にする」で buildPack が割り当てる無音 ogg → off
  *  - `seedqueue:<event>` … mod 本体と同じ形式。v3.4.0 以前の custom 出力もこれ。
  *                          パック内に無く内蔵ファイル名なら mod 内蔵音（builtin）
  *  - `<event>`           … 名前空間省略。MC は `minecraft:` 扱いにするので出力しては**いけない**が、
@@ -651,6 +654,10 @@ function resolveSoundName(
     path = path.slice(0, -'.ogg'.length);
   }
   if (!path) return null;
+
+  if (path === `${CUSTOM_SOUND_DIR}/${SILENT_SOUND_FILE}`) {
+    return { mode: 'off' };
+  }
 
   const oggBytes = readBytes(pack, `${PACK_PATHS.sounds}/${path}.ogg`);
   if (oggBytes) {

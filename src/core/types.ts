@@ -84,5 +84,12 @@ export const PACK_PATHS = {
  */
 export const CUSTOM_SOUND_DIR = 'custom' as const;
 
+/**
+ * 無音 ogg（core/silentOgg.ts）のファイル名（拡張子なし・`CUSTOM_SOUND_DIR` 配下）。
+ * サウンド名は `seedqueue:custom/silent`。reset_all / reset_column / reset_row の
+ * 「無音にする」専用（空配列ではフォールバックの reset_instance が鳴るため。第6.6章）。
+ */
+export const SILENT_SOUND_FILE = 'silent' as const;
+
 /** lock 画像の無効化プレースホルダのサイズ（透明 PNG, 第6.5章）。 */
 export const PLACEHOLDER_LOCK_SIZE = 128 as const;

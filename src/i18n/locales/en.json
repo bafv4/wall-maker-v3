@@ -284,7 +284,7 @@
     "replace": "Replace",
     "specMemo": "Format notes (click to expand)",
     "specDefault": "default: nothing is written to sounds.json (falls back to mod defaults). Events with built-in sounds (lock_instance / reset_instance) still play.",
-    "specOff": "off: writes {\"replace\": true, \"sounds\": []} to silence the event.",
+    "specOff": "off: writes {\"replace\": true, \"sounds\": []} to silence the event. For reset all / column / row an empty list falls back to the per-instance reset sound, so a short silent OGG (sounds/custom/silent.ogg) is assigned instead (not needed when the reset sound is off too).",
     "specBuiltin": "Built-in reset / lock: references the sound bundled with SeedQueue, e.g. {\"replace\": true, \"sounds\": [\"seedqueue:reset_instance\"]} (no OGG is included).",
     "specCustom": "custom: places assets/seedqueue/sounds/custom/<event>.ogg and overrides (built-in sound files are left untouched).",
     "specFormat": "Audio formats: playable Ogg Vorbis (1–2 ch) is passed through. Anything else (MP3/WAV/FLAC/AAC/M4A/OPUS/WEBM, or OGG using Opus or 3+ channels) is converted to Ogg Vorbis (q:6, up to 2 ch) via self-hosted ffmpeg.wasm. Core assets (a few MB) are downloaded on first conversion.",
