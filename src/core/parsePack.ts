@@ -15,8 +15,9 @@
  *    `background.png` のサイズが妥当な推定値になるため、`detectBackgroundResolution`
  *    で取り出して UI 側のデフォルト値に使う運用を想定。
  *  - sounds: `sounds.json` 不在のイベントは `mode: 'default'`、`replace=true, sounds=[]` は `off`、
- *    `sounds=["seedqueue:<event>"]`（`<event>` / 旧出力の `<event>.ogg` も可）は
- *    対応 ogg を読み込んで `custom` に。
+ *    参照先の ogg がパック内にあれば `custom`（現行の `seedqueue:custom/<event>`、
+ *    v3.4.0 以前の `seedqueue:<event>`、`<event>` / `<event>.ogg` も可）。パック内に無く
+ *    `seedqueue:reset_instance` / `seedqueue:lock_instance` を指していれば mod 内蔵音（`builtin`）。
  *  - lock 画像: 1 枚目=`lock.png`、以降 `lock-1.png` `lock-2.png` …。
  *  - 不正/欠損ファイルは安全側にフォールバックし、致命的でない限り例外を投げない。
  *    `custom_layout.json` が欠損または parse 不能なときだけ throw する（SeedQueue パックではない）。
@@ -36,10 +37,12 @@ import { parseLockMcmeta } from './lockWeights';
 import { errMsg } from './errors';
 import { getDefaultPresetLayout } from './layoutPresets';
 import {
+  BUILTIN_SOUND_KEYS,
   SOUND_EVENT_KEYS,
   createDefaultWallState,
   type AreaCell,
   type BackgroundLayer,
+  type BuiltinSoundKey,
   type LockImage,
   type MainArea,
   type Resolution,
@@ -48,7 +51,12 @@ import {
   type VisibleArea,
   type WallState,
 } from './state';
-import { PACK_FORMAT, PACK_PATHS, type VirtualPack } from './types';
+import {
+  PACK_FORMAT,
+  PACK_PATHS,
+  SEEDQUEUE_NAMESPACE,
+  type VirtualPack,
+} from './types';
 
 // ===========================================================================
 // オプション
@@ -588,8 +596,9 @@ async function isFullyTransparentImage(bytes: Uint8Array): Promise<boolean> {
  *
  * MC はサウンド名を `assets/<ns>/sounds/` 相対のパスと解釈し `.ogg` を自動付加するため、
  * **出力してよい正しい形式は `seedqueue:<event>`（名前空間付き・拡張子なし）だけ**。
- * 読込側は壊れたパックも拾えるよう、次の 3 形式を受け付ける（寛容側に倒す）:
- *  - `seedqueue:<event>` … mod 本体と同じ正しい形式
+ * 読込側は壊れたパックも拾えるよう、次の形式を受け付ける（寛容側に倒す）:
+ *  - `seedqueue:custom/<event>` … 現行の出力（サブフォルダもそのままパスとして解決する）
+ *  - `seedqueue:<event>` … mod 本体と同じ形式。v3.4.0 以前の custom 出力もこれ
  *  - `<event>`           … 名前空間省略。MC は `minecraft:` 扱いにするので出力しては**いけない**が、
  *                          このパック内の ogg を指す意図と解釈して読む
  *  - `<event>.ogg`       … v3.1.0 以前の壊れた出力で作られた既存パックとの後方互換
@@ -606,6 +615,18 @@ function soundNameToOggFileName(soundName: string): string | null {
   }
   if (!name) return null;
   return `${name}.ogg`;
+}
+
+/**
+ * サウンド名が mod 内蔵ファイル（`seedqueue:reset_instance` / `seedqueue:lock_instance`）を
+ * 指していればそのキー。名前空間省略は MC 上 `minecraft:` になり内蔵音を指さないので対象外。
+ * パック内に同名ファイルがある場合（旧出力の custom）は呼び出し側で custom を優先すること。
+ */
+function toBuiltinSoundKey(soundName: string): BuiltinSoundKey | null {
+  const prefix = `${SEEDQUEUE_NAMESPACE}:`;
+  if (!soundName.startsWith(prefix)) return null;
+  const name = soundName.slice(prefix.length);
+  return BUILTIN_SOUND_KEYS.find((k) => k === name) ?? null;
 }
 
 function parseSounds(pack: VirtualPack): WallState['sounds'] {
@@ -644,7 +665,14 @@ function parseSounds(pack: VirtualPack): WallState['sounds'] {
         `${PACK_PATHS.sounds}/${filename}`,
       );
       if (!oggBytes) {
-        // ファイルが見つからなければ default に倒す（壊れたパック対策）
+        // パック内に無い: mod 内蔵ファイルの参照なら builtin
+        const builtin = toBuiltinSoundKey(soundName);
+        if (builtin) {
+          events[key] = { mode: 'builtin', sound: builtin };
+          anyNonOff = true;
+          continue;
+        }
+        // それ以外は default に倒す（壊れたパック対策）
         console.warn(
           `parsePack: ${key} で参照される ${filename} が見つかりませんでした`,
         );
@@ -693,6 +721,7 @@ function areResetEventsUnified(
  */
 function sameSoundEntry(a: SoundEntry, b: SoundEntry): boolean {
   if (a.mode !== b.mode) return false;
+  if (a.mode === 'builtin' && b.mode === 'builtin') return a.sound === b.sound;
   if (a.mode !== 'custom' || b.mode !== 'custom') return true;
   if (a.ogg.kind !== 'inline' || b.ogg.kind !== 'inline') return false;
   return bytesEqual(a.ogg.bytes, b.ogg.bytes);

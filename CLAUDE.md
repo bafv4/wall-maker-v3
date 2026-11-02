@@ -106,7 +106,11 @@ export async function getPackWriter(): Promise<PackWriter> {
 - **sounds.json**: イベントは**全13種**（`play_instance` `lock_instance` `reset_instance` `reset_all` `reset_column`
   `reset_row` `schedule_join` `schedule_all` `scheduled_join_warning` `start_benchmark` `finish_benchmark` `open_wall` `bypass_wall`）。
   既定音は `lock_instance`/`reset_instance` のみ。default=書かない / off=`{replace:true,sounds:[]}` /
-  custom=`{replace:true,sounds:["<event>.ogg"]}`＋ogg配置。変更するイベントのみ出力すればよい。
+  builtin=`{replace:true,sounds:["seedqueue:reset_instance"]}`（mod 内蔵音を参照、ogg 同梱なし）/
+  custom=`{replace:true,sounds:["seedqueue:custom/<event>"]}`＋`sounds/custom/<event>.ogg` 配置。変更するイベントのみ出力すればよい。
+  **サウンド名は名前空間付き・拡張子なし**（`.ogg` を書くと MC が `.ogg.ogg` を探して黙って無音になる）。
+  custom を `sounds/` 直下に置かない（内蔵の `reset_instance.ogg` 等を上書きし builtin の参照先が変わる）。
+  `reset_all`/`reset_column`/`reset_row` は音が無いと各インスタンスの `reset_instance` を連打するフォールバックがある。
 
 > フォーマットを変更したら、代表パターンを出力して **Minecraft 実機で読み込み検証**する（自動比較テストは行わない）。
 > 現行アプリの出力は不具合があり ground truth に使えないため、フィクスチャ比較はしない。

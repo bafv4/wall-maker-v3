@@ -404,10 +404,23 @@ MC はサウンド名を `assets/<ns>/sounds/` 相対のパスとして解釈し
 
 - **default（内蔵音を使う）**：そのイベントを `sounds.json` に書かない（MOD 既定にフォールバック）。
 - **off（無音）**：`{ "replace": true, "sounds": [] }`。
-- **custom（独自音）**：`assets/seedqueue/sounds/<event>.ogg` を配置し `{ "replace": true, "sounds": ["seedqueue:<event>"] }`。
+- **builtin（mod 内蔵音を指定）**：`{ "replace": true, "sounds": ["seedqueue:reset_instance"] }`（または `lock_instance`）。
+  ogg は同梱せず、mod jar 内の `assets/seedqueue/sounds/<sound>.ogg` を参照する。
+- **custom（独自音）**：`assets/seedqueue/sounds/custom/<event>.ogg` を配置し `{ "replace": true, "sounds": ["seedqueue:custom/<event>"] }`。
+  直下（`sounds/<event>.ogg`）に置くと mod 内蔵の `reset_instance.ogg` / `lock_instance.ogg` を上書きし、
+  builtin や mod 既定の参照先までカスタム音に変わるため `custom/` に分ける（v3.4.0 以前は直下に出力していた）。
 
-> `parsePack` は既存パックの読込互換のため、`seedqueue:<event>` / `<event>` / `<event>.ogg` の 3 形式を
-> 受け付ける（`<event>.ogg` は v3.1.0 以前の誤った出力で作られたパック向けの後方互換）。
+**reset_all / reset_column / reset_row のフォールバック**（`SeedQueueWallScreen#resetAllInstances` 等）：
+これらの音が鳴らなかった（音が無い）場合、リセットした各インスタンスで `reset_instance` を 1 tick ずつずらして鳴らす。
+mod 既定では 3 イベントとも空なので、既定の「すべてリセット」はリセット音の連打になる。1 回だけ鳴らすには
+builtin（`seedqueue:reset_instance`）を指定する。`off`（空）もフォールバックが働くため単独では無音にならない。
+
+**壊れた音声ファイルはクラッシュする**（`SoundSystemMixin#crashBrokenSeedQueueSoundFiles`）：`seedqueue` 名前空間の
+サウンドで音声の読込に失敗すると SeedQueue は意図的に例外を投げる。ogg は Minecraft 1.16 が再生できる Vorbis で出力すること。
+
+> `parsePack` は既存パックの読込互換のため、`seedqueue:custom/<event>` / `seedqueue:<event>` / `<event>` / `<event>.ogg` を
+> 受け付ける（参照先の ogg がパック内にあれば custom。`<event>.ogg` は v3.1.0 以前の誤った出力で作られたパック向け）。
+> パック内に無く `seedqueue:reset_instance` / `seedqueue:lock_instance` を指すものは builtin として読む。
 
 > 旧アプリは 6 イベントしか扱わず、`reset_instance` を独立イベントとして扱わない・`play_instance`/`schedule_*`/
 > `open_wall`/`bypass_wall`/`scheduled_join_warning` を欠いていた。新実装は 13 イベントを正として UI を設計する

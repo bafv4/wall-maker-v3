@@ -189,15 +189,27 @@ export const SOUND_EVENT_KEYS = [
 export type SoundEventKey = (typeof SOUND_EVENT_KEYS)[number];
 
 /**
+ * SeedQueue 本体（mod jar）が内蔵している音声ファイル（`assets/seedqueue/sounds/<key>.ogg`）。
+ * mod 同梱の sounds.json で既定音を持つのはこの 2 イベントだけ（第6.6章）。
+ */
+export const BUILTIN_SOUND_KEYS = ['reset_instance', 'lock_instance'] as const;
+
+export type BuiltinSoundKey = (typeof BUILTIN_SOUND_KEYS)[number];
+
+/**
  * 各イベントの設定。
  * - default: 何も出力しない（MOD 既定にフォールバック）
  * - off:     `{ replace: true, sounds: [] }` を出力（無音）
- * - custom:  ogg バイト＋`{ replace: true, sounds: ["seedqueue:<event>"] }`
- *            （MC がサウンド名に .ogg を自動付加するため拡張子は書かない。第6.6章）
+ * - builtin: `{ replace: true, sounds: ["seedqueue:<sound>"] }` を出力し、mod 内蔵の音を鳴らす
+ *            （ogg は同梱しない。例: reset_all に内蔵リセット音を 1 回だけ鳴らす）
+ * - custom:  ogg バイト＋`{ replace: true, sounds: ["seedqueue:custom/<event>"] }`
+ *            （MC がサウンド名に .ogg を自動付加するため拡張子は書かない。`custom/` 配下に
+ *            置くのは、内蔵ファイル名を上書きして builtin の参照先を変えないため。第6.6章）
  */
 export type SoundEntry =
   | { mode: 'default' }
   | { mode: 'off' }
+  | { mode: 'builtin'; sound: BuiltinSoundKey }
   | {
       mode: 'custom';
       /** 変換済み ogg バイト参照。変換はアップロード時に済ませる（第7.3章）。 */

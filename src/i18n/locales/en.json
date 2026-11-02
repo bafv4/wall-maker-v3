@@ -264,7 +264,11 @@
     "modeOptions": {
       "default": "Default",
       "off": "Silent",
-      "custom": "Custom OGG"
+      "custom": "Custom OGG",
+      "builtin": {
+        "reset_instance": "Built-in reset",
+        "lock_instance": "Built-in lock"
+      }
     },
     "outputMode": "Output mode",
     "perEventLabel": "Per-event configuration",
@@ -273,6 +277,7 @@
     "resetUnifiedTitle": "Group reset events",
     "resetUnifiedDescription": "Consolidate reset_instance / reset_all / reset_column / reset_row into one row.",
     "unifiedRowLabel": "Reset events (grouped)",
+    "unifiedRowInfo": "Choose \"Built-in reset\" to play the reset sound only once for reset all / column / row as well (by default it plays once per instance that was reset).",
     "builtinBadge": "Built-in sound",
     "converting": "Converting to OGG…",
     "customDefault": "custom.ogg",
@@ -280,7 +285,8 @@
     "specMemo": "Format notes (click to expand)",
     "specDefault": "default: nothing is written to sounds.json (falls back to mod defaults). Events with built-in sounds (lock_instance / reset_instance) still play.",
     "specOff": "off: writes {\"replace\": true, \"sounds\": []} to silence the event.",
-    "specCustom": "custom: places assets/seedqueue/sounds/<event>.ogg and overrides.",
+    "specBuiltin": "Built-in reset / lock: references the sound bundled with SeedQueue, e.g. {\"replace\": true, \"sounds\": [\"seedqueue:reset_instance\"]} (no OGG is included).",
+    "specCustom": "custom: places assets/seedqueue/sounds/custom/<event>.ogg and overrides (built-in sound files are left untouched).",
     "specFormat": "Audio formats: OGG is passed through. MP3/WAV/FLAC/AAC/M4A/OPUS/WEBM are converted to Ogg Vorbis (q:6) via self-hosted ffmpeg.wasm. Core assets (a few MB) are downloaded on first conversion.",
     "unsupported": "{{filename}}: unsupported audio format (supported: ogg / mp3 / wav / flac / aac / m4a / opus / webm)",
     "convertSuccess": "Converted {{filename}} to OGG",
@@ -302,6 +308,9 @@
       "bypass_wall": "Bypass"
     },
     "eventInfo": {
+      "reset_all": "There is no dedicated sound by default; the reset sound plays once per instance that was reset. Choose \"Built-in reset\" to play it only once.",
+      "reset_column": "There is no dedicated sound by default; the reset sound plays once per instance that was reset. Choose \"Built-in reset\" to play it only once.",
+      "reset_row": "There is no dedicated sound by default; the reset sound plays once per instance that was reset. Choose \"Built-in reset\" to play it only once.",
       "schedule_join": "Reserve a not-yet-ready instance to enter automatically as soon as it becomes ready.",
       "schedule_all": "Reserve to enter the first instance that becomes ready.",
       "scheduled_join_warning": "A warning related to a scheduled join (e.g. the target instance isn't ready yet).",

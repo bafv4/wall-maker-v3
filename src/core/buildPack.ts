@@ -27,6 +27,7 @@ import {
   type WallState,
 } from './state';
 import {
+  CUSTOM_SOUND_DIR,
   PACK_FORMAT,
   PACK_PATHS,
   PLACEHOLDER_LOCK_SIZE,
@@ -317,10 +318,13 @@ function renderTransparentPng(
 // ===========================================================================
 // sounds.json + ogg
 // 第6.6章：default=書かない / off={replace:true,sounds:[]} /
-//          custom={replace:true,sounds:["seedqueue:<event>"]}＋`sounds/<event>.ogg` 配置
+//          builtin={replace:true,sounds:["seedqueue:<sound>"]}（mod 内蔵の ogg を参照・同梱しない）/
+//          custom={replace:true,sounds:["seedqueue:custom/<event>"]}＋`sounds/custom/<event>.ogg` 配置
 // サウンド名は **名前空間付き・拡張子なし**（mod 本体の assets/seedqueue/sounds.json と同形式）。
 // MC はサウンド名を `assets/<ns>/sounds/` 相対パスと解釈して `.ogg` を自動付加するため、
 // 名前に `.ogg` を書くと `<event>.ogg.ogg` を探しに行き無音になる。
+// custom を `custom/` 配下に置くのは、直下の `reset_instance.ogg` 等を上書きすると
+// 内蔵音の参照（builtin、および mod 既定の reset_instance / lock_instance）まで差し替わるため。
 // globalMode='off' は per-event 設定に関わらず全 13 イベントを off 扱いで出力。
 // ===========================================================================
 
@@ -340,13 +344,20 @@ function addSounds(pack: VirtualPack, state: WallState): void {
       soundsJson[event] = { replace: true, sounds: [] };
       continue;
     }
+    if (entry.mode === 'builtin') {
+      soundsJson[event] = {
+        replace: true,
+        sounds: [`${SEEDQUEUE_NAMESPACE}:${entry.sound}`],
+      };
+      continue;
+    }
     // custom
     soundsJson[event] = {
       replace: true,
-      sounds: [`${SEEDQUEUE_NAMESPACE}:${event}`],
+      sounds: [`${SEEDQUEUE_NAMESPACE}:${CUSTOM_SOUND_DIR}/${event}`],
     };
     pack.set(
-      `${PACK_PATHS.sounds}/${event}.ogg`,
+      `${PACK_PATHS.sounds}/${CUSTOM_SOUND_DIR}/${event}.ogg`,
       resolveInline(entry.ogg),
     );
   }
