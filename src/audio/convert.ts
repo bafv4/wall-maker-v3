@@ -21,11 +21,14 @@
  * 詳細は AboutModal と README を参照。
  *
  * 入力ファイル: `audio/*`（拡張子から ffmpeg のフォーマット推定）。
- * OGG ファイルは ffmpeg をロードせず素通しする。
+ * Minecraft 1.16 がそのまま再生できる Ogg Vorbis（1〜2ch）だけは ffmpeg をロードせず素通しする。
+ * 拡張子が `.ogg` でも Opus・3ch 以上・壊れたファイルは変換に回す（素通しすると SeedQueue が
+ * ゲームをクラッシュさせる。core/oggVorbis.ts）。
  */
 
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { toBlobURL } from '@ffmpeg/util';
+import { isPlayableOggVorbis } from '../core/oggVorbis';
 
 /**
  * Vite プラグイン `copyFFmpegCore` がコピーする静的配信パス。
@@ -157,9 +160,17 @@ function scheduleIdleTerminate(): void {
 let _convertQueue: Promise<unknown> = Promise.resolve();
 let _convertSeq = 0;
 
+/** `convertToOgg` が ffmpeg による変換を行うか（素通しできない入力か）。UI の「変換中」表示用。 */
+export function needsOggConversion(
+  input: Uint8Array,
+  inputExtension: string,
+): boolean {
+  return inputExtension.toLowerCase() !== OGG_EXT || !isPlayableOggVorbis(input);
+}
+
 /**
- * 任意の audio バイナリを OGG (Vorbis) に変換する。
- * すでに OGG なら ffmpeg をロードせずそのまま返す。
+ * 任意の audio バイナリを OGG (Vorbis, 1〜2ch) に変換する。
+ * すでに再生可能な Ogg Vorbis なら ffmpeg をロードせずそのまま返す。
  * 並行呼び出しは内部キューで直列化される（呼び出し側の抑止は不要）。
  *
  * @param input          入力バイト列
@@ -171,7 +182,7 @@ export function convertToOgg(
   inputExtension: string,
 ): Promise<Uint8Array> {
   const ext = inputExtension.toLowerCase();
-  if (ext === OGG_EXT) return Promise.resolve(input);
+  if (!needsOggConversion(input, ext)) return Promise.resolve(input);
   if (!SUPPORTED_EXTS.has(ext)) {
     return Promise.reject(new Error(`未対応のファイル形式です: .${ext}`));
   }
@@ -207,11 +218,17 @@ async function convertToOggExclusive(
 
   try {
     await ffmpeg.writeFile(inputName, input);
-    // -c:a libvorbis: Ogg Vorbis エンコーダ
+    // -vn: 音声以外（MP3 のジャケット画像等）を捨てる。ogg 出力に映像ストリームを作らせない
+    // -af aformat=…: 1〜2ch に制限（3ch 以上は stereo へダウンミックス。mono はそのまま）。
+    //   Minecraft 1.16 は 3ch 以上を再生できない
+    // -c:a libvorbis: Ogg Vorbis エンコーダ（Minecraft は Opus を再生できない）
     // -q:a 6: 品質 6 (約 192kbps 相当・Minecraft の効果音には十分)
     const code = await ffmpeg.exec([
       '-i',
       inputName,
+      '-vn',
+      '-af',
+      'aformat=channel_layouts=mono|stereo',
       '-c:a',
       'libvorbis',
       '-q:a',
@@ -225,7 +242,12 @@ async function convertToOggExclusive(
     if (typeof out === 'string') {
       throw new Error('ffmpeg が文字列を返しました（バイナリ期待）');
     }
-    return new Uint8Array(out);
+    const bytes = new Uint8Array(out);
+    // 最終防衛線: 再生できない ogg を state に入れない（同梱すると SeedQueue がクラッシュさせる）
+    if (!isPlayableOggVorbis(bytes)) {
+      throw new Error('変換結果が Minecraft で再生できる Ogg Vorbis（1〜2ch）になりませんでした');
+    }
+    return bytes;
   } finally {
     // 中間ファイルの掃除（失敗してもエラーは握り潰す）
     await ffmpeg.deleteFile(inputName).catch(() => undefined);

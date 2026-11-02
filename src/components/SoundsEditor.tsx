@@ -13,15 +13,20 @@
  *    「1 回だけ鳴らしたい」需要はこれで満たす。
  *
  * 音声形式:
- *  - 受け付けは `audio/*`。OGG はそのまま使い、それ以外（MP3/WAV/AAC/M4A/FLAC/OPUS/WEBM）は
- *    self-host した `ffmpeg.wasm` で Ogg Vorbis に変換する（`src/audio/convert.ts`）。
+ *  - 受け付けは `audio/*`。再生可能な Ogg Vorbis（1〜2ch）はそのまま使い、それ以外
+ *    （MP3/WAV/AAC/M4A/FLAC/OPUS/WEBM、Opus や 3ch 以上の .ogg）は self-host した
+ *    `ffmpeg.wasm` で Ogg Vorbis に変換する（`src/audio/convert.ts`）。
  *  - 変換中は行単位で「変換中…」表示し、二重操作を抑止。
  *  - FFmpeg ライセンス表記は AboutModal と README に明記。
  */
 
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { convertToOgg, isSupportedAudioExt } from '../audio/convert';
+import {
+  convertToOgg,
+  isSupportedAudioExt,
+  needsOggConversion,
+} from '../audio/convert';
 import { errMsg } from '../core/errors';
 import {
   BUILTIN_SOUND_KEYS,
@@ -133,10 +138,11 @@ function EventRow({
       return;
     }
     let oggBytes: Uint8Array;
-    if (ext === 'ogg') {
+    if (!needsOggConversion(inputBytes, ext)) {
       oggBytes = inputBytes;
     } else {
-      // 非 OGG → ffmpeg.wasm で Ogg Vorbis に変換。初回は core 資材のダウンロードが入る。
+      // 非 OGG・再生できない OGG（Opus / 3ch 以上 / 壊れている）→ ffmpeg.wasm で Ogg Vorbis に変換。
+      // 初回は core 資材のダウンロードが入る。
       setConverting(true);
       try {
         oggBytes = await convertToOgg(inputBytes, ext);

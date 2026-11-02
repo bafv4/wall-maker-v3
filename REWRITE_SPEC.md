@@ -416,7 +416,10 @@ mod 既定では 3 イベントとも空なので、既定の「すべてリセ�
 builtin（`seedqueue:reset_instance`）を指定する。`off`（空）もフォールバックが働くため単独では無音にならない。
 
 **壊れた音声ファイルはクラッシュする**（`SoundSystemMixin#crashBrokenSeedQueueSoundFiles`）：`seedqueue` 名前空間の
-サウンドで音声の読込に失敗すると SeedQueue は意図的に例外を投げる。ogg は Minecraft 1.16 が再生できる Vorbis で出力すること。
+サウンドで音声の読込に失敗すると SeedQueue は意図的に例外を投げる。Minecraft 1.16 が再生できるのは
+**Ogg Vorbis・1〜2ch のみ**（拡張子 `.ogg` でも Opus や 3ch 以上は不可）。本アプリはアップロード時に
+識別ヘッダを検査し（`src/core/oggVorbis.ts`）、再生できる Vorbis 以外は ffmpeg.wasm で Vorbis・最大 2ch に変換する。
+書き出し直前にも検査し、再生できない custom 音声があれば中止する（検査導入前に保存された編集内容への対策）。
 
 > `parsePack` は既存パックの読込互換のため、`seedqueue:custom/<event>` / `seedqueue:<event>` / `<event>` / `<event>.ogg` を
 > 受け付ける（参照先の ogg がパック内にあれば custom。`<event>.ogg` は v3.1.0 以前の誤った出力で作られたパック向け）。

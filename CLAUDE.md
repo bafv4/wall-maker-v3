@@ -111,6 +111,8 @@ export async function getPackWriter(): Promise<PackWriter> {
   **サウンド名は名前空間付き・拡張子なし**（`.ogg` を書くと MC が `.ogg.ogg` を探して黙って無音になる）。
   custom を `sounds/` 直下に置かない（内蔵の `reset_instance.ogg` 等を上書きし builtin の参照先が変わる）。
   `reset_all`/`reset_column`/`reset_row` は音が無いと各インスタンスの `reset_instance` を連打するフォールバックがある。
+  `seedqueue` 名前空間の音声が読めないと SeedQueue はゲームをクラッシュさせる。**Ogg Vorbis・1〜2ch 以外を同梱しない**
+  （Opus の `.ogg` も不可。アップロード時に `core/oggVorbis.ts` で検査し、それ以外は変換する）。
 
 > フォーマットを変更したら、代表パターンを出力して **Minecraft 実機で読み込み検証**する（自動比較テストは行わない）。
 > 現行アプリの出力は不具合があり ground truth に使えないため、フィクスチャ比較はしない。

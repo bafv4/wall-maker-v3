@@ -287,7 +287,7 @@
     "specOff": "off: writes {\"replace\": true, \"sounds\": []} to silence the event.",
     "specBuiltin": "Built-in reset / lock: references the sound bundled with SeedQueue, e.g. {\"replace\": true, \"sounds\": [\"seedqueue:reset_instance\"]} (no OGG is included).",
     "specCustom": "custom: places assets/seedqueue/sounds/custom/<event>.ogg and overrides (built-in sound files are left untouched).",
-    "specFormat": "Audio formats: OGG is passed through. MP3/WAV/FLAC/AAC/M4A/OPUS/WEBM are converted to Ogg Vorbis (q:6) via self-hosted ffmpeg.wasm. Core assets (a few MB) are downloaded on first conversion.",
+    "specFormat": "Audio formats: playable Ogg Vorbis (1–2 ch) is passed through. Anything else (MP3/WAV/FLAC/AAC/M4A/OPUS/WEBM, or OGG using Opus or 3+ channels) is converted to Ogg Vorbis (q:6, up to 2 ch) via self-hosted ffmpeg.wasm. Core assets (a few MB) are downloaded on first conversion.",
     "unsupported": "{{filename}}: unsupported audio format (supported: ogg / mp3 / wav / flac / aac / m4a / opus / webm)",
     "convertSuccess": "Converted {{filename}} to OGG",
     "convertFailed": "Failed to convert {{filename}}: {{error}}",
@@ -358,6 +358,7 @@
     "saveTargetPersistFailed": "Could not remember the save target (saving still works this session)",
     "restoreMissing": "{{count}} item(s) could not be restored ({{fields}}). Please add them again.",
     "restoreUnresolved": "{{count}} item(s) could not be loaded ({{fields}}). Reloading the app may restore them.",
-    "unresolvedBinaries": "Cannot export: some data is not loaded ({{fields}}). Reload the app, or set those items again."
+    "unresolvedBinaries": "Cannot export: some data is not loaded ({{fields}}). Reload the app, or set those items again.",
+    "unplayableSounds": "Cannot export: some sounds can't be played by Minecraft ({{events}}) and would crash SeedQueue. Please choose them again."
   }
 }
