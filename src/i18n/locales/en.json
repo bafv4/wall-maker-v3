@@ -313,8 +313,8 @@
       "reset_row": "There is no dedicated sound by default; the reset sound plays once per instance that was reset. Choose \"Built-in reset\" to play it only once.",
       "schedule_join": "Reserve a not-yet-ready instance to enter automatically as soon as it becomes ready.",
       "schedule_all": "Reserve to enter the first instance that becomes ready.",
-      "scheduled_join_warning": "A warning related to a scheduled join (e.g. the target instance isn't ready yet).",
-      "bypass_wall": "Enter a prepared instance directly, skipping the wall screen."
+      "scheduled_join_warning": "Plays once when a scheduled instance reaches 95% world generation (a heads-up just before the automatic join).",
+      "bypass_wall": "Plays when you enter a locked, ready instance directly instead of returning to the wall screen (when SeedQueue's Bypass Wall option is on)."
     }
   },
   "about": {
