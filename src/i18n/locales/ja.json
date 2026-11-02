@@ -264,7 +264,11 @@
     "modeOptions": {
       "default": "デフォルト",
       "off": "無音にする",
-      "custom": "カスタム音源"
+      "custom": "カスタム音源",
+      "builtin": {
+        "reset_instance": "内蔵リセット音",
+        "lock_instance": "内蔵ロック音"
+      }
     },
     "outputMode": "出力モード",
     "perEventLabel": "個別に設定",
@@ -273,15 +277,17 @@
     "resetUnifiedTitle": "リセット系を一括設定",
     "resetUnifiedDescription": "reset_instance / reset_all / reset_column / reset_row を 1 行に集約します。",
     "unifiedRowLabel": "リセット系（一括）",
+    "unifiedRowInfo": "「内蔵リセット音」を選ぶと、すべて/列/行リセットでもリセット音が 1 回だけ鳴ります（デフォルトはリセットしたインスタンスの数だけ連続で鳴ります）。",
     "builtinBadge": "既定音あり",
     "converting": "OGG に変換中…",
     "customDefault": "custom.ogg",
     "replace": "差替",
     "specMemo": "仕様メモ（クリックで展開）",
     "specDefault": "default: sounds.json に何も書きません（MOD 既定にフォールバック）。既定音がある lock_instance / reset_instance はそのまま鳴ります。",
-    "specOff": "off: {\"replace\": true, \"sounds\": []} を出力して無音にします。",
-    "specCustom": "custom: assets/seedqueue/sounds/<event>.ogg を配置して上書きします。",
-    "specFormat": "音声形式: OGG はそのまま、MP3/WAV/FLAC/AAC/M4A/OPUS/WEBM は ffmpeg.wasm（self-host）で Ogg Vorbis (q:6) に変換します。初回変換時のみ ffmpeg core 資材のダウンロードが入ります（数 MB）。",
+    "specOff": "off: {\"replace\": true, \"sounds\": []} を出力して無音にします。すべて/列/行リセットは空だとインスタンスごとのリセット音が鳴ってしまうため、短い無音 ogg（sounds/custom/silent.ogg）を割り当てます（リセット音も無音のときは不要なので割り当てません）。",
+    "specBuiltin": "内蔵リセット音 / 内蔵ロック音: SeedQueue 本体に入っている音を {\"replace\": true, \"sounds\": [\"seedqueue:reset_instance\"]} のように参照します（ogg は同梱しません）。",
+    "specCustom": "custom: assets/seedqueue/sounds/custom/<event>.ogg を配置して上書きします（内蔵音のファイルは上書きしません）。",
+    "specFormat": "音声形式: 再生可能な Ogg Vorbis（1〜2ch）はそのまま、それ以外（MP3/WAV/FLAC/AAC/M4A/OPUS/WEBM、Opus や 3ch 以上の OGG）は ffmpeg.wasm（self-host）で Ogg Vorbis (q:6・最大 2ch) に変換します。初回変換時のみ ffmpeg core 資材のダウンロードが入ります（数 MB）。",
     "unsupported": "{{filename}}: 未対応の音声形式です（対応: ogg / mp3 / wav / flac / aac / m4a / opus / webm）",
     "convertSuccess": "{{filename}} を OGG に変換しました",
     "convertFailed": "{{filename}} の変換に失敗しました: {{error}}",
@@ -302,10 +308,13 @@
       "bypass_wall": "バイパス"
     },
     "eventInfo": {
+      "reset_all": "デフォルトでは専用の音は無く、リセットしたインスタンスの数だけリセット音が連続で鳴ります。1 回だけ鳴らすには「内蔵リセット音」を選んでください。",
+      "reset_column": "デフォルトでは専用の音は無く、リセットしたインスタンスの数だけリセット音が連続で鳴ります。1 回だけ鳴らすには「内蔵リセット音」を選んでください。",
+      "reset_row": "デフォルトでは専用の音は無く、リセットしたインスタンスの数だけリセット音が連続で鳴ります。1 回だけ鳴らすには「内蔵リセット音」を選んでください。",
       "schedule_join": "準備中のインスタンスに「準備でき次第、自動で入室する」を予約する操作です。",
       "schedule_all": "「最初に準備できたインスタンスに入る」をまとめて予約する操作です。",
-      "scheduled_join_warning": "予約はしたが対象がまだ準備できていない等、スケジュールに関する注意喚起です。",
-      "bypass_wall": "Wall 画面を表示せず、準備済みのインスタンスへ直接入室する動作です。"
+      "scheduled_join_warning": "予約したインスタンスのワールド生成が 95% に達したときに 1 回鳴ります（自動入室の直前の予告）。",
+      "bypass_wall": "Wall 画面に戻る代わりに、ロック済みで準備完了のインスタンスへ直接入室するときに鳴ります（SeedQueue の Bypass Wall 設定が有効な場合）。"
     }
   },
   "about": {
@@ -349,6 +358,9 @@
     "saveTargetPersistFailed": "保存先の記憶に失敗しました（このセッション中は通常どおり保存できます）",
     "restoreMissing": "復元できなかったデータが {{count}} 件あります（{{fields}}）。もう一度追加してください",
     "restoreUnresolved": "読み込めなかったデータが {{count}} 件あります（{{fields}}）。アプリを再読み込みすると復元される場合があります",
-    "unresolvedBinaries": "未ロードのデータがあるため書き出せません（{{fields}}）。アプリを再読み込みするか、該当データを設定し直してください"
+    "unresolvedBinaries": "未ロードのデータがあるため書き出せません（{{fields}}）。アプリを再読み込みするか、該当データを設定し直してください",
+    "unplayableSounds": "Minecraft で再生できない音声があるため書き出せません（{{events}}）。SeedQueue がクラッシュする原因になるので、音声を選び直してください",
+    "importSoundUnplayable": "Minecraft で再生できない音声（Opus・3ch 以上・破損など）のため、既定に戻しました（{{events}}）。音声を選び直してください",
+    "importSoundUnresolved": "本アプリで扱えない形式のサウンド設定があったため、既定に戻しました（{{events}}）"
   }
 }

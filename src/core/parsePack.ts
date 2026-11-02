@@ -14,9 +14,12 @@
  *    保持しないため、何 px を想定したパックかは呼び出し側が決定する。
  *    `background.png` のサイズが妥当な推定値になるため、`detectBackgroundResolution`
  *    で取り出して UI 側のデフォルト値に使う運用を想定。
- *  - sounds: `sounds.json` 不在のイベントは `mode: 'default'`、`replace=true, sounds=[]` は `off`、
- *    `sounds=["seedqueue:<event>"]`（`<event>` / 旧出力の `<event>.ogg` も可）は
- *    対応 ogg を読み込んで `custom` に。
+ *  - sounds: `sounds.json` 不在のイベントは `mode: 'default'`、`replace=true` で空は `off`、
+ *    無音 ogg（`seedqueue:custom/silent`）も `off`。参照先の ogg がパック内にあれば `custom`
+ *    （現行の `seedqueue:custom/<event>`、v3.4.0 以前の `seedqueue:<event>`、`<event>` /
+ *    `<event>.ogg` も可）。パック内に無く `seedqueue:reset_instance` / `seedqueue:lock_instance` を
+ *    指していれば mod 内蔵音（`builtin`）。`replace` 省略・オブジェクト形式の要素も読む。
+ *    表せない／再生できない参照は default に倒し、`onSoundIssue` で通知する（`parseSoundEvent`）。
  *  - lock 画像: 1 枚目=`lock.png`、以降 `lock-1.png` `lock-2.png` …。
  *  - 不正/欠損ファイルは安全側にフォールバックし、致命的でない限り例外を投げない。
  *    `custom_layout.json` が欠損または parse 不能なときだけ throw する（SeedQueue パックではない）。
@@ -35,7 +38,9 @@ import { parseEditorMeta, readEditorMetaResolution } from './editorMeta';
 import { parseLockMcmeta } from './lockWeights';
 import { errMsg } from './errors';
 import { getDefaultPresetLayout } from './layoutPresets';
+import { isPlayableOggVorbis } from './oggVorbis';
 import {
+  BUILTIN_SOUND_KEYS,
   SOUND_EVENT_KEYS,
   createDefaultWallState,
   type AreaCell,
@@ -48,7 +53,14 @@ import {
   type VisibleArea,
   type WallState,
 } from './state';
-import { PACK_FORMAT, PACK_PATHS, type VirtualPack } from './types';
+import {
+  CUSTOM_SOUND_DIR,
+  PACK_FORMAT,
+  PACK_PATHS,
+  SEEDQUEUE_NAMESPACE,
+  SILENT_SOUND_FILE,
+  type VirtualPack,
+} from './types';
 
 // ===========================================================================
 // オプション
@@ -61,6 +73,23 @@ export interface ParsePackOptions {
    * `detectBackgroundResolution` で得た値をデフォルトに使うのが推奨。
    */
   resolution: Resolution;
+  /**
+   * sounds.json のイベントを本アプリの設定で表せず、既定（default）に倒したときの通知。
+   * インポート自体は継続する（非致命）。呼び出し側でユーザに知らせる用途。
+   */
+  onSoundIssue?: (issue: SoundImportIssue) => void;
+}
+
+/**
+ * サウンド読込で既定に倒したイベントと理由。
+ *  - `unresolved` : 参照先がパック内にも mod 内蔵音にも無い／他名前空間の音・
+ *                   サウンドイベント参照（`type: "event"`）など、本アプリで表せない
+ *  - `unplayable` : 参照先の ogg が Minecraft で再生できない（Opus・3ch 以上・破損）。
+ *                   SeedQueue はこれでゲームをクラッシュさせるため取り込まない
+ */
+export interface SoundImportIssue {
+  event: SoundEventKey;
+  kind: 'unresolved' | 'unplayable';
 }
 
 // ===========================================================================
@@ -217,7 +246,7 @@ export async function parsePack(
   const lockImages = await parseLockImages(pack);
 
   // 9) sounds
-  const sounds = parseSounds(pack);
+  const sounds = parseSounds(pack, options.onSoundIssue);
 
   // 10) pack_format の警告（非致命）
   warnPackFormatMismatch(pack);
@@ -584,31 +613,113 @@ async function isFullyTransparentImage(bytes: Uint8Array): Promise<boolean> {
 // ===========================================================================
 
 /**
- * `sounds.json` のサウンド名を `assets/seedqueue/sounds/` 配下のファイル名に解決する。
- *
- * MC はサウンド名を `assets/<ns>/sounds/` 相対のパスと解釈し `.ogg` を自動付加するため、
- * **出力してよい正しい形式は `seedqueue:<event>`（名前空間付き・拡張子なし）だけ**。
- * 読込側は壊れたパックも拾えるよう、次の 3 形式を受け付ける（寛容側に倒す）:
- *  - `seedqueue:<event>` … mod 本体と同じ正しい形式
- *  - `<event>`           … 名前空間省略。MC は `minecraft:` 扱いにするので出力しては**いけない**が、
- *                          このパック内の ogg を指す意図と解釈して読む
- *  - `<event>.ogg`       … v3.1.0 以前の壊れた出力で作られた既存パックとの後方互換
- *
- * 解決できないときは null。
+ * `sounds` 配列の 1 要素からサウンド名を取り出す。MC は文字列と
+ * オブジェクト形式（`{ "name": "...", "volume": ..., "weight": ... }`）の両方を受ける。
+ * `type: "event"` は他のサウンドイベントへの参照でファイルを指さないため対象外（null）。
+ * volume / pitch / weight 等の付帯情報は本アプリで表せないので読み捨てる。
  */
-function soundNameToOggFileName(soundName: string): string | null {
-  // 先頭の `<ns>:` を剥がす
-  const colon = soundName.indexOf(':');
-  let name = colon >= 0 ? soundName.slice(colon + 1) : soundName;
-  // 末尾の `.ogg` を剥がす（後方互換）
-  if (name.toLowerCase().endsWith('.ogg')) {
-    name = name.slice(0, -'.ogg'.length);
-  }
-  if (!name) return null;
-  return `${name}.ogg`;
+function soundItemName(item: unknown): string | null {
+  if (typeof item === 'string') return item;
+  if (!isRecord(item) || item.type === 'event') return null;
+  return typeof item.name === 'string' ? item.name : null;
 }
 
-function parseSounds(pack: VirtualPack): WallState['sounds'] {
+/**
+ * サウンド名 1 つを SoundEntry に解決する。
+ *
+ * MC はサウンド名を `assets/<ns>/sounds/` 相対のパスと解釈し `.ogg` を自動付加するため、
+ * **出力してよい正しい形式は `seedqueue:<path>`（名前空間付き・拡張子なし）だけ**。
+ * 読込側は壊れたパックも拾えるよう、次の形式を受け付ける（寛容側に倒す）:
+ *  - `seedqueue:custom/<event>` … 現行の出力（サブフォルダもそのままパスとして解決する）
+ *  - `seedqueue:custom/silent`  … reset_all 等の「無音にする」で buildPack が割り当てる無音 ogg → off
+ *  - `seedqueue:<event>` … mod 本体と同じ形式。v3.4.0 以前の custom 出力もこれ。
+ *                          パック内に無く内蔵ファイル名なら mod 内蔵音（builtin）
+ *  - `<event>`           … 名前空間省略。MC は `minecraft:` 扱いにするので出力しては**いけない**が、
+ *                          このパック内の ogg を指す意図と解釈して読む（内蔵音とは解釈しない）
+ *  - `<event>.ogg`       … v3.1.0 以前の壊れた出力で作られた既存パックとの後方互換
+ * `seedqueue` 以外の名前空間を明示した名前（`minecraft:...` の音など）は表せないので null。
+ *
+ * 戻り値: 解決できた SoundEntry / 参照先が再生できない ogg なら `'unplayable'` / それ以外は null。
+ */
+function resolveSoundName(
+  pack: VirtualPack,
+  soundName: string,
+): SoundEntry | 'unplayable' | null {
+  const colon = soundName.indexOf(':');
+  const namespace = colon >= 0 ? soundName.slice(0, colon) : null;
+  if (namespace !== null && namespace !== SEEDQUEUE_NAMESPACE) return null;
+  let path = colon >= 0 ? soundName.slice(colon + 1) : soundName;
+  // 末尾の `.ogg` を剥がす（後方互換）
+  if (path.toLowerCase().endsWith('.ogg')) {
+    path = path.slice(0, -'.ogg'.length);
+  }
+  if (!path) return null;
+
+  if (path === `${CUSTOM_SOUND_DIR}/${SILENT_SOUND_FILE}`) {
+    return { mode: 'off' };
+  }
+
+  const oggBytes = readBytes(pack, `${PACK_PATHS.sounds}/${path}.ogg`);
+  if (oggBytes) {
+    // SeedQueue は seedqueue 名前空間の音声の読込失敗でゲームをクラッシュさせるため、
+    // 再生できない ogg は取り込まない（再エクスポートで同じクラッシュを再生産しない）。
+    if (!isPlayableOggVorbis(oggBytes)) return 'unplayable';
+    return {
+      mode: 'custom',
+      ogg: { kind: 'inline', bytes: oggBytes, mimeType: 'audio/ogg' },
+      originalFileName: `${path.slice(path.lastIndexOf('/') + 1)}.ogg`,
+    };
+  }
+  // パック内に無い: mod 内蔵ファイルの参照なら builtin。名前空間省略は MC 上
+  // `minecraft:` になり内蔵音を指さないので対象外。
+  if (namespace !== null) {
+    const builtin = BUILTIN_SOUND_KEYS.find((k) => k === path);
+    if (builtin) return { mode: 'builtin', sound: builtin };
+  }
+  return null;
+}
+
+/**
+ * sounds.json の 1 イベントを SoundEntry に解決する。null は「既定（default）のまま」。
+ *
+ * MC 1.16 の読込（`SoundManager`）に合わせる:
+ *  - `replace: true` は下位パックと mod 既定を捨てて置き換える。`sounds` が空（省略含む）なら無音 → off。
+ *  - `replace` なし／false の空は何も足さない → default。
+ *  - `replace` なし／false で音がある場合、MC は既定の音に**追加**する（既定音のある
+ *    lock_instance / reset_instance では既定音と抽選になる）。本アプリは混在を表せないので、
+ *    参照先の音への置き換えとして読む（再エクスポートでは `replace: true` になる）。
+ *  - 複数の音（ランダム再生）も表せないため、先頭から順に最初に解決できたものを採る。
+ */
+function parseSoundEvent(
+  pack: VirtualPack,
+  raw: Record<string, unknown>,
+): SoundEntry | 'unresolved' | 'unplayable' | null {
+  const replace = raw.replace === true;
+  if (raw.sounds !== undefined && !Array.isArray(raw.sounds)) {
+    return 'unresolved';
+  }
+  const items: unknown[] = Array.isArray(raw.sounds) ? raw.sounds : [];
+  if (items.length === 0) {
+    return replace ? { mode: 'off' } : null;
+  }
+  let sawUnplayable = false;
+  for (const item of items) {
+    const name = soundItemName(item);
+    if (!name) continue;
+    const entry = resolveSoundName(pack, name);
+    if (entry === 'unplayable') {
+      sawUnplayable = true;
+    } else if (entry) {
+      return entry;
+    }
+  }
+  return sawUnplayable ? 'unplayable' : 'unresolved';
+}
+
+function parseSounds(
+  pack: VirtualPack,
+  onIssue: ParsePackOptions['onSoundIssue'],
+): WallState['sounds'] {
   const defaults = createDefaultWallState().sounds;
   const text = readString(pack, PACK_PATHS.soundsJson);
   if (!text) return defaults;
@@ -622,52 +733,28 @@ function parseSounds(pack: VirtualPack): WallState['sounds'] {
   if (!isRecord(raw)) return defaults;
 
   const events = { ...defaults.events };
-  let anyOff = true;
-  let anyNonOff = false;
 
   for (const key of SOUND_EVENT_KEYS) {
     const e = raw[key];
     if (!isRecord(e)) continue;
-    const sounds = e.sounds;
-    if (e.replace !== true || !Array.isArray(sounds)) continue;
-
-    if (sounds.length === 0) {
-      events[key] = { mode: 'off' };
-    } else {
-      // 期待する形は ["seedqueue:<event>"] 1 要素。先頭の文字列を採用。
-      const soundName = typeof sounds[0] === 'string' ? sounds[0] : null;
-      if (!soundName) continue;
-      const filename = soundNameToOggFileName(soundName);
-      if (!filename) continue;
-      const oggBytes = readBytes(
-        pack,
-        `${PACK_PATHS.sounds}/${filename}`,
-      );
-      if (!oggBytes) {
-        // ファイルが見つからなければ default に倒す（壊れたパック対策）
-        console.warn(
-          `parsePack: ${key} で参照される ${filename} が見つかりませんでした`,
-        );
-        continue;
-      }
-      events[key] = {
-        mode: 'custom',
-        ogg: { kind: 'inline', bytes: oggBytes, mimeType: 'audio/ogg' },
-        originalFileName: filename,
-      };
-      anyNonOff = true;
+    const parsed = parseSoundEvent(pack, e);
+    if (parsed === null) continue;
+    if (parsed === 'unresolved' || parsed === 'unplayable') {
+      // default に倒す（壊れたパック・表せない構成への対策）
+      console.warn(`parsePack: ${key} のサウンドを読み込めませんでした (${parsed})`);
+      onIssue?.({ event: key, kind: parsed });
+      continue;
     }
+    events[key] = parsed;
   }
 
-  for (const key of SOUND_EVENT_KEYS) {
-    if (events[key].mode !== 'off') anyOff = false;
-  }
+  const allOff = SOUND_EVENT_KEYS.every((key) => events[key].mode === 'off');
 
   // resetUnified は全 reset 系が同じ entry に揃っていれば true、そうでなければ false。
   const resetUnified = areResetEventsUnified(events);
 
   return {
-    globalMode: anyOff && !anyNonOff ? 'off' : 'custom',
+    globalMode: allOff ? 'off' : 'custom',
     resetUnified,
     events,
   };
@@ -693,6 +780,7 @@ function areResetEventsUnified(
  */
 function sameSoundEntry(a: SoundEntry, b: SoundEntry): boolean {
   if (a.mode !== b.mode) return false;
+  if (a.mode === 'builtin' && b.mode === 'builtin') return a.sound === b.sound;
   if (a.mode !== 'custom' || b.mode !== 'custom') return true;
   if (a.ogg.kind !== 'inline' || b.ogg.kind !== 'inline') return false;
   return bytesEqual(a.ogg.bytes, b.ogg.bytes);

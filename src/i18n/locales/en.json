@@ -264,7 +264,11 @@
     "modeOptions": {
       "default": "Default",
       "off": "Silent",
-      "custom": "Custom OGG"
+      "custom": "Custom OGG",
+      "builtin": {
+        "reset_instance": "Built-in reset",
+        "lock_instance": "Built-in lock"
+      }
     },
     "outputMode": "Output mode",
     "perEventLabel": "Per-event configuration",
@@ -273,15 +277,17 @@
     "resetUnifiedTitle": "Group reset events",
     "resetUnifiedDescription": "Consolidate reset_instance / reset_all / reset_column / reset_row into one row.",
     "unifiedRowLabel": "Reset events (grouped)",
+    "unifiedRowInfo": "Choose \"Built-in reset\" to play the reset sound only once for reset all / column / row as well (by default it plays once per instance that was reset).",
     "builtinBadge": "Built-in sound",
     "converting": "Converting to OGG…",
     "customDefault": "custom.ogg",
     "replace": "Replace",
     "specMemo": "Format notes (click to expand)",
     "specDefault": "default: nothing is written to sounds.json (falls back to mod defaults). Events with built-in sounds (lock_instance / reset_instance) still play.",
-    "specOff": "off: writes {\"replace\": true, \"sounds\": []} to silence the event.",
-    "specCustom": "custom: places assets/seedqueue/sounds/<event>.ogg and overrides.",
-    "specFormat": "Audio formats: OGG is passed through. MP3/WAV/FLAC/AAC/M4A/OPUS/WEBM are converted to Ogg Vorbis (q:6) via self-hosted ffmpeg.wasm. Core assets (a few MB) are downloaded on first conversion.",
+    "specOff": "off: writes {\"replace\": true, \"sounds\": []} to silence the event. For reset all / column / row an empty list falls back to the per-instance reset sound, so a short silent OGG (sounds/custom/silent.ogg) is assigned instead (not needed when the reset sound is off too).",
+    "specBuiltin": "Built-in reset / lock: references the sound bundled with SeedQueue, e.g. {\"replace\": true, \"sounds\": [\"seedqueue:reset_instance\"]} (no OGG is included).",
+    "specCustom": "custom: places assets/seedqueue/sounds/custom/<event>.ogg and overrides (built-in sound files are left untouched).",
+    "specFormat": "Audio formats: playable Ogg Vorbis (1–2 ch) is passed through. Anything else (MP3/WAV/FLAC/AAC/M4A/OPUS/WEBM, or OGG using Opus or 3+ channels) is converted to Ogg Vorbis (q:6, up to 2 ch) via self-hosted ffmpeg.wasm. Core assets (a few MB) are downloaded on first conversion.",
     "unsupported": "{{filename}}: unsupported audio format (supported: ogg / mp3 / wav / flac / aac / m4a / opus / webm)",
     "convertSuccess": "Converted {{filename}} to OGG",
     "convertFailed": "Failed to convert {{filename}}: {{error}}",
@@ -302,10 +308,13 @@
       "bypass_wall": "Bypass"
     },
     "eventInfo": {
+      "reset_all": "There is no dedicated sound by default; the reset sound plays once per instance that was reset. Choose \"Built-in reset\" to play it only once.",
+      "reset_column": "There is no dedicated sound by default; the reset sound plays once per instance that was reset. Choose \"Built-in reset\" to play it only once.",
+      "reset_row": "There is no dedicated sound by default; the reset sound plays once per instance that was reset. Choose \"Built-in reset\" to play it only once.",
       "schedule_join": "Reserve a not-yet-ready instance to enter automatically as soon as it becomes ready.",
       "schedule_all": "Reserve to enter the first instance that becomes ready.",
-      "scheduled_join_warning": "A warning related to a scheduled join (e.g. the target instance isn't ready yet).",
-      "bypass_wall": "Enter a prepared instance directly, skipping the wall screen."
+      "scheduled_join_warning": "Plays once when a scheduled instance reaches 95% world generation (a heads-up just before the automatic join).",
+      "bypass_wall": "Plays when you enter a locked, ready instance directly instead of returning to the wall screen (when SeedQueue's Bypass Wall option is on)."
     }
   },
   "about": {
@@ -349,6 +358,9 @@
     "saveTargetPersistFailed": "Could not remember the save target (saving still works this session)",
     "restoreMissing": "{{count}} item(s) could not be restored ({{fields}}). Please add them again.",
     "restoreUnresolved": "{{count}} item(s) could not be loaded ({{fields}}). Reloading the app may restore them.",
-    "unresolvedBinaries": "Cannot export: some data is not loaded ({{fields}}). Reload the app, or set those items again."
+    "unresolvedBinaries": "Cannot export: some data is not loaded ({{fields}}). Reload the app, or set those items again.",
+    "unplayableSounds": "Cannot export: some sounds can't be played by Minecraft ({{events}}) and would crash SeedQueue. Please choose them again.",
+    "importSoundUnplayable": "Some sounds can't be played by Minecraft (Opus, 3+ channels, or corrupted) and were reset to default ({{events}}). Please choose them again.",
+    "importSoundUnresolved": "Some sound settings use a form this app can't represent and were reset to default ({{events}})."
   }
 }

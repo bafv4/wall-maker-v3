@@ -15,7 +15,7 @@
  *   "assets/seedqueue/textures/gui/wall/background.png"  -> Uint8Array
  *   "assets/seedqueue/textures/gui/wall/lock.png"        -> Uint8Array
  *   "assets/seedqueue/sounds.json"                       -> string (JSON)
- *   "assets/seedqueue/sounds/lock_instance.ogg"          -> Uint8Array
+ *   "assets/seedqueue/sounds/custom/lock_instance.ogg"   -> Uint8Array
  */
 export type VirtualPack = Map<string, Uint8Array | string>;
 
@@ -75,6 +75,21 @@ export const PACK_PATHS = {
   texturesGuiWall: 'assets/seedqueue/textures/gui/wall',
   sounds: 'assets/seedqueue/sounds',
 } as const;
+
+/**
+ * カスタム音の配置先（`PACK_PATHS.sounds` 配下のサブフォルダ）。サウンド名は
+ * `seedqueue:custom/<event>`。直下の `<event>.ogg` に置くと mod 内蔵の
+ * `reset_instance.ogg` / `lock_instance.ogg` を上書きし、内蔵音の参照（builtin）まで
+ * カスタム音に化けるため分ける。
+ */
+export const CUSTOM_SOUND_DIR = 'custom' as const;
+
+/**
+ * 無音 ogg（core/silentOgg.ts）のファイル名（拡張子なし・`CUSTOM_SOUND_DIR` 配下）。
+ * サウンド名は `seedqueue:custom/silent`。reset_all / reset_column / reset_row の
+ * 「無音にする」専用（空配列ではフォールバックの reset_instance が鳴るため。第6.6章）。
+ */
+export const SILENT_SOUND_FILE = 'silent' as const;
 
 /** lock 画像の無効化プレースホルダのサイズ（透明 PNG, 第6.5章）。 */
 export const PLACEHOLDER_LOCK_SIZE = 128 as const;

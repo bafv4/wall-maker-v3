@@ -32,6 +32,9 @@
  *    1 回だけ回収し、復元できなかったデータをトーストで知らせる。
  *  - 書き出し系は事前に `collectUnresolvedBinaryFields` を通し、未ロードのフィールドがあれば
  *    「どれが未ロードか」を示して中止する（欠けたパックを黙って書き出さない）。
+ *  - 同様に、Minecraft で再生できない custom 音声（Opus 等）があれば中止する
+ *    （SeedQueue がゲームをクラッシュさせるため。`core/oggVorbis.ts`）。
+ * インポートで表せなかったサウンドは既定に戻し、`parsePack` の `onSoundIssue` で集めて知らせる。
  */
 
 import {
@@ -64,8 +67,17 @@ import {
   buildAndZipInWorker,
   buildPackInWorker,
 } from '../core/exportWorkerClient';
-import { detectBackgroundResolution, parsePack } from '../core/parsePack';
-import type { Resolution, WallState } from '../core/state';
+import { isPlayableOggVorbis } from '../core/oggVorbis';
+import {
+  detectBackgroundResolution,
+  parsePack,
+  type SoundImportIssue,
+} from '../core/parsePack';
+import {
+  SOUND_EVENT_KEYS,
+  type Resolution,
+  type WallState,
+} from '../core/state';
 import type { PackReadSource, VirtualPack } from '../core/types';
 import {
   takeBinaryRestoreReport,
@@ -149,6 +161,27 @@ function summarizeFields(
     labels.push(t(`binaryField.${kind}`));
   }
   return count > 0 ? { count, fields: labels.join(' / ') } : null;
+}
+
+/** インポートで既定に戻したサウンドを、理由ごとに 1 トーストで知らせる。 */
+function notifySoundImportIssues(
+  issues: readonly SoundImportIssue[],
+  t: TFunction,
+): void {
+  for (const kind of ['unplayable', 'unresolved'] as const) {
+    const events = issues
+      .filter((i) => i.kind === kind)
+      .map((i) => t(`sound.events.${i.event}`));
+    if (events.length === 0) continue;
+    toast.error(
+      t(
+        kind === 'unplayable'
+          ? 'toast.importSoundUnplayable'
+          : 'toast.importSoundUnresolved',
+        { events: events.join(' / ') },
+      ),
+    );
+  }
 }
 
 export function FileOperationsProvider({ children }: { children: ReactNode }) {
@@ -258,6 +291,29 @@ export function FileOperationsProvider({ children }: { children: ReactNode }) {
     return false;
   };
 
+  // ---- 書き出し前ガード: Minecraft で再生できない音声を同梱しない ----
+  // SeedQueue は seedqueue 名前空間の音声の読込失敗でゲームをクラッシュさせる。
+  // アップロード時に検査・変換しているが、検査導入前に保存された編集内容には
+  // Opus 等の .ogg がそのまま残りうるため、書き出し直前にも確かめる。
+  const ensureSoundsPlayable = (wall: WallState): boolean => {
+    if (wall.sounds.globalMode === 'off') return true; // custom は書き出されない
+    const events = SOUND_EVENT_KEYS.filter((key) => {
+      const e = wall.sounds.events[key];
+      return (
+        e.mode === 'custom' &&
+        e.ogg.kind === 'inline' &&
+        !isPlayableOggVorbis(e.ogg.bytes)
+      );
+    });
+    if (events.length === 0) return true;
+    toast.error(
+      t('toast.unplayableSounds', {
+        events: events.map((k) => t(`sound.events.${k}`)).join(' / '),
+      }),
+    );
+    return false;
+  };
+
   // ---- Import 共通: source を受け取って読込→解像度推定→ダイアログ表示 ----
   const startImport = useCallback(
     async (source: PackReadSource, displayName: string) => {
@@ -300,13 +356,18 @@ export function FileOperationsProvider({ children }: { children: ReactNode }) {
     setImportState({ kind: 'parsing', payload });
     setBusy(true);
     try {
-      const wall = await parsePack(payload.pack, { resolution });
+      const soundIssues: SoundImportIssue[] = [];
+      const wall = await parsePack(payload.pack, {
+        resolution,
+        onSoundIssue: (issue) => soundIssues.push(issue),
+      });
       const stem = payload.displayName.replace(/\.zip$/i, '').trim();
       if (stem) wall.packInfo.name = stem;
       replaceWallState(wall);
       selectBackgroundLayer(null);
       setSourceFolder(payload.sourceFolder); // フォルダ起点なら覚える、.zip 起点なら null
       toast.success(t('toast.importSuccess', { filename: payload.displayName }));
+      notifySoundImportIssues(soundIssues, t);
       setImportState({ kind: 'idle' });
     } catch (e) {
       console.error('parsePack failed', e);
@@ -369,7 +430,7 @@ export function FileOperationsProvider({ children }: { children: ReactNode }) {
     setBusy(true);
     try {
       const wall = useWallStore.getState().wall;
-      if (!ensureBinariesLoaded(wall)) return; // finally で busy は戻る
+      if (!ensureBinariesLoaded(wall) || !ensureSoundsPlayable(wall)) return; // finally で busy は戻る
       const zipBytes = await buildAndZipInWorker(wall);
       const dest = await saveZipBytes(zipBytes, packName);
       if (dest == null) return; // ユーザキャンセル
@@ -387,7 +448,7 @@ export function FileOperationsProvider({ children }: { children: ReactNode }) {
     setBusy(true);
     try {
       const wall = useWallStore.getState().wall;
-      if (!ensureBinariesLoaded(wall)) return; // finally で busy は戻る
+      if (!ensureBinariesLoaded(wall) || !ensureSoundsPlayable(wall)) return; // finally で busy は戻る
       // フォルダ保存は zip 不要なので buildPack のみワーカで走らせる
       const pack = await buildPackInWorker(wall);
       const { saveAsFolder } = await import('../adapters/desktop');
@@ -407,7 +468,7 @@ export function FileOperationsProvider({ children }: { children: ReactNode }) {
     setBusy(true);
     try {
       const wall = useWallStore.getState().wall;
-      if (!ensureBinariesLoaded(wall)) return; // finally で busy は戻る
+      if (!ensureBinariesLoaded(wall) || !ensureSoundsPlayable(wall)) return; // finally で busy は戻る
       const pack = await buildPackInWorker(wall);
       const { overwriteFolder } = await import('../adapters/desktop');
       const dest = await overwriteFolder(pack, root);

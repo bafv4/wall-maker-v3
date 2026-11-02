@@ -8,20 +8,30 @@
  *  - resetUnified=true: UI 上で reset_instance/reset_all/reset_column/reset_row を 1 行に集約。
  *      切替時は reset_instance の値を他 3 イベントに伝播する。
  *  - custom 選択時のみ ogg ファイルが必要。
+ *  - builtin（内蔵リセット音 / 内蔵ロック音）は mod 内蔵の ogg を参照するだけでファイル不要。
+ *    reset_all 等はデフォルトだとインスタンスごとにリセット音を連打するため、
+ *    「1 回だけ鳴らしたい」需要はこれで満たす。
  *
  * 音声形式:
- *  - 受け付けは `audio/*`。OGG はそのまま使い、それ以外（MP3/WAV/AAC/M4A/FLAC/OPUS/WEBM）は
- *    self-host した `ffmpeg.wasm` で Ogg Vorbis に変換する（`src/audio/convert.ts`）。
+ *  - 受け付けは `audio/*`。再生可能な Ogg Vorbis（1〜2ch）はそのまま使い、それ以外
+ *    （MP3/WAV/AAC/M4A/FLAC/OPUS/WEBM、Opus や 3ch 以上の .ogg）は self-host した
+ *    `ffmpeg.wasm` で Ogg Vorbis に変換する（`src/audio/convert.ts`）。
  *  - 変換中は行単位で「変換中…」表示し、二重操作を抑止。
  *  - FFmpeg ライセンス表記は AboutModal と README に明記。
  */
 
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { convertToOgg, isSupportedAudioExt } from '../audio/convert';
+import {
+  convertToOgg,
+  isSupportedAudioExt,
+  needsOggConversion,
+} from '../audio/convert';
 import { errMsg } from '../core/errors';
 import {
+  BUILTIN_SOUND_KEYS,
   SOUND_EVENT_KEYS,
+  type BuiltinSoundKey,
   type SoundEntry,
   type SoundEventKey,
 } from '../core/state';
@@ -29,7 +39,19 @@ import { useWallStore } from '../store/useWallStore';
 import { InfoTooltip, Select, Switch, toast } from './ui';
 import { cn } from './ui/cn';
 
-const MODE_VALUES = ['default', 'off', 'custom'] as const;
+/** ドロップダウンの値。builtin は内蔵音ごとに 1 項目へ展開する。 */
+type ModeValue = 'default' | 'off' | 'custom' | `builtin:${BuiltinSoundKey}`;
+
+const MODE_VALUES: readonly ModeValue[] = [
+  'default',
+  'off',
+  ...BUILTIN_SOUND_KEYS.map((k) => `builtin:${k}` as const),
+  'custom',
+];
+
+function toModeValue(entry: SoundEntry): ModeValue {
+  return entry.mode === 'builtin' ? `builtin:${entry.sound}` : entry.mode;
+}
 
 /** SeedQueue 既定で内蔵音が割り当てられているイベント（第6.6章）。 */
 const HAS_BUILTIN: Record<SoundEventKey, boolean> = {
@@ -85,9 +107,12 @@ function EventRow({
   info,
 }: EventRowProps) {
   const { t } = useTranslation();
+  // i18next はキーの `:` を名前空間区切りとして扱うため、builtin のラベルは別キーで引く
   const modeOptions = MODE_VALUES.map((value) => ({
     value,
-    label: t(`sound.modeOptions.${value}`),
+    label: value.startsWith('builtin:')
+      ? t(`sound.modeOptions.builtin.${value.slice('builtin:'.length)}`)
+      : t(`sound.modeOptions.${value}`),
   }));
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [converting, setConverting] = useState(false);
@@ -113,10 +138,11 @@ function EventRow({
       return;
     }
     let oggBytes: Uint8Array;
-    if (ext === 'ogg') {
+    if (!needsOggConversion(inputBytes, ext)) {
       oggBytes = inputBytes;
     } else {
-      // 非 OGG → ffmpeg.wasm で Ogg Vorbis に変換。初回は core 資材のダウンロードが入る。
+      // 非 OGG・再生できない OGG（Opus / 3ch 以上 / 壊れている）→ ffmpeg.wasm で Ogg Vorbis に変換。
+      // 初回は core 資材のダウンロードが入る。
       setConverting(true);
       try {
         oggBytes = await convertToOgg(inputBytes, ext);
@@ -143,13 +169,17 @@ function EventRow({
   };
 
   const handleModeChange = (value: string) => {
-    const mode = value as SoundEntry['mode'];
-    if (mode === 'custom') {
+    if (value === 'custom') {
       // custom には ogg が必須。state は変えずにファイルピッカを開く。
       promptFile();
       return;
     }
-    onChange({ mode });
+    if (value === 'default' || value === 'off') {
+      onChange({ mode: value });
+      return;
+    }
+    const sound = BUILTIN_SOUND_KEYS.find((k) => value === `builtin:${k}`);
+    if (sound) onChange({ mode: 'builtin', sound });
   };
 
   const rowDisabled = disabled || converting;
@@ -174,7 +204,7 @@ function EventRow({
 
       <div className="w-44">
         <Select
-          value={entry.mode}
+          value={toModeValue(entry)}
           onValueChange={handleModeChange}
           disabled={rowDisabled}
           options={modeOptions}
@@ -323,6 +353,7 @@ export function SoundsEditor() {
               <EventRow
                 key="__unified_reset__"
                 label={t('sound.unifiedRowLabel')}
+                info={t('sound.unifiedRowInfo')}
                 hasBuiltin
                 entry={sounds.events.reset_instance}
                 onChange={handleUnifiedChange}
@@ -354,6 +385,7 @@ export function SoundsEditor() {
         <ul className="mt-2 list-disc space-y-1 pl-4">
           <li>{t('sound.specDefault')}</li>
           <li>{t('sound.specOff')}</li>
+          <li>{t('sound.specBuiltin')}</li>
           <li>{t('sound.specCustom')}</li>
           <li>{t('sound.specFormat')}</li>
         </ul>

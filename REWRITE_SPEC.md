@@ -403,11 +403,34 @@ MC はサウンド名を `assets/<ns>/sounds/` 相対のパスとして解釈し
 名前に拡張子を書くと `assets/seedqueue/sounds/<event>.ogg.ogg` を探しに行き**黙って無音になる**。
 
 - **default（内蔵音を使う）**：そのイベントを `sounds.json` に書かない（MOD 既定にフォールバック）。
-- **off（無音）**：`{ "replace": true, "sounds": [] }`。
-- **custom（独自音）**：`assets/seedqueue/sounds/<event>.ogg` を配置し `{ "replace": true, "sounds": ["seedqueue:<event>"] }`。
+- **off（無音）**：`{ "replace": true, "sounds": [] }`。ただし reset_all / reset_column / reset_row は下記フォールバックのため、
+  `reset_instance` が鳴る設定のときは短い無音 ogg（`assets/seedqueue/sounds/custom/silent.ogg`）を
+  `{ "replace": true, "sounds": ["seedqueue:custom/silent"] }` で割り当てる（`reset_instance` も off なら空で足りる）。
+- **builtin（mod 内蔵音を指定）**：`{ "replace": true, "sounds": ["seedqueue:reset_instance"] }`（または `lock_instance`）。
+  ogg は同梱せず、mod jar 内の `assets/seedqueue/sounds/<sound>.ogg` を参照する。
+- **custom（独自音）**：`assets/seedqueue/sounds/custom/<event>.ogg` を配置し `{ "replace": true, "sounds": ["seedqueue:custom/<event>"] }`。
+  直下（`sounds/<event>.ogg`）に置くと mod 内蔵の `reset_instance.ogg` / `lock_instance.ogg` を上書きし、
+  builtin や mod 既定の参照先までカスタム音に変わるため `custom/` に分ける（v3.4.0 以前は直下に出力していた）。
 
-> `parsePack` は既存パックの読込互換のため、`seedqueue:<event>` / `<event>` / `<event>.ogg` の 3 形式を
-> 受け付ける（`<event>.ogg` は v3.1.0 以前の誤った出力で作られたパック向けの後方互換）。
+**reset_all / reset_column / reset_row のフォールバック**（`SeedQueueWallScreen#resetAllInstances` 等）：
+これらの音が鳴らなかった（音が無い）場合、リセットした各インスタンスで `reset_instance` を 1 tick ずつずらして鳴らす。
+mod 既定では 3 イベントとも空なので、既定の「すべてリセット」はリセット音の連打になる。1 回だけ鳴らすには
+builtin（`seedqueue:reset_instance`）を指定する。空（`sounds: []`）もフォールバックが働くため無音にならず、
+無音にするには「鳴った」扱いになる無音ファイルを割り当てる（上記 off。SeedQueue 自身も空ファイルではなく
+短い無音ファイルを使うよう案内している）。無音 ogg は `src/core/silentOgg.ts` に埋め込み（0.1 秒・mono・8kHz の Vorbis）。
+
+**壊れた音声ファイルはクラッシュする**（`SoundSystemMixin#crashBrokenSeedQueueSoundFiles`）：`seedqueue` 名前空間の
+サウンドで音声の読込に失敗すると SeedQueue は意図的に例外を投げる。Minecraft 1.16 が再生できるのは
+**Ogg Vorbis・1〜2ch のみ**（拡張子 `.ogg` でも Opus や 3ch 以上は不可）。本アプリはアップロード時に
+識別ヘッダを検査し（`src/core/oggVorbis.ts`）、再生できる Vorbis 以外は ffmpeg.wasm で Vorbis・最大 2ch に変換する。
+書き出し直前にも検査し、再生できない custom 音声があれば中止する（検査導入前に保存された編集内容への対策）。
+
+> `parsePack` は既存パックの読込互換のため、`seedqueue:custom/<event>` / `seedqueue:<event>` / `<event>` / `<event>.ogg` を
+> 受け付ける（参照先の ogg がパック内にあれば custom。`<event>.ogg` は v3.1.0 以前の誤った出力で作られたパック向け）。
+> パック内に無く `seedqueue:reset_instance` / `seedqueue:lock_instance` を指すものは builtin、`seedqueue:custom/silent` は off として読む。
+> MC の読込規則に合わせ、`replace` 省略の空は default・`replace: true` の空（`sounds` 省略含む）は off、
+> 要素はオブジェクト形式（`{ "name": ... }`）も読む（`type: "event"` は対象外）。複数要素は先頭から最初に解決できたものを採る。
+> `seedqueue` 以外の名前空間・解決できない参照・再生できない ogg は default に倒し、インポート後にトーストで知らせる。
 
 > 旧アプリは 6 イベントしか扱わず、`reset_instance` を独立イベントとして扱わない・`play_instance`/`schedule_*`/
 > `open_wall`/`bypass_wall`/`scheduled_join_warning` を欠いていた。新実装は 13 イベントを正として UI を設計する
