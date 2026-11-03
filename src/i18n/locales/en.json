@@ -13,6 +13,7 @@
     "listLabel": "Sections"
   },
     "update": {
+      "title": "Update available",
       "available": "A new version v{{version}} is available (current v{{current}})",
       "download": "Download {{name}}",
       "downloading": "Downloading…",

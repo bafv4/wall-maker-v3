@@ -33,7 +33,28 @@ export type DialogSpec =
       kind: 'crop';
       /** 現在の切り抜き範囲（画像の自然 px）。null なら画像全体。 */
       crop: AreaCell | null;
+    })
+  | (DialogBase & {
+      kind: 'update';
+      version: string;
+      currentVersion: string;
+      releaseUrl: string;
+      /** 対応アセットが無いリリースでは null（リリースページへのリンクだけ出す）。 */
+      assetName: string | null;
+      assetSize: number | null;
     });
+
+/** 更新のダウンロード／適用の進み具合。 */
+export type UpdateDownloadState =
+  | { kind: 'idle' }
+  | { kind: 'downloading'; percent: number | null }
+  | { kind: 'done'; path: string }
+  /** ワンクリック更新: ダウンロード〜差し替え中 */
+  | { kind: 'applying'; percent: number | null }
+  /** 差し替え済み。永続化を書き切って再起動中 */
+  | { kind: 'restarting' }
+  /** 差し替え済みだが再起動に失敗（手動で起動し直せば新版になる） */
+  | { kind: 'applied' };
 
 /**
  * URL に載せるには大きい値（画像など）。開いた直後に 1 回だけイベントで渡す。
@@ -47,6 +68,8 @@ export interface DialogPayload {
 export interface DialogState {
   busy?: boolean;
   exporting?: boolean;
+  /** 更新ダイアログ: 進み具合と、ワンクリック更新を出すか。 */
+  update?: { download: UpdateDownloadState; autoApply: boolean };
 }
 
 /**

@@ -12,6 +12,7 @@ import { getDialogBridge, type DialogBridge } from '../../adapters';
 import { setLanguage } from '../../i18n';
 import { AboutContent } from '../AboutModal';
 import { CropEditor } from '../CropModal';
+import { UpdateContent } from '../DesktopUpdateNotice';
 import { ImportResolutionForm } from '../ImportResolutionDialog';
 import { ConfirmBody } from '../ui/ConfirmDialog';
 import { CloseIcon } from '../ui/icons';
@@ -105,6 +106,8 @@ export function DialogWindowApp({ spec, id }: { spec: DialogSpec; id: string }) 
         >
           {spec.title}
         </h2>
+        {/* 更新の適用中は閉じさせない（見えないまま再起動が走る） */}
+        {!(spec.kind === 'update' && state.busy) && (
         <button
           type="button"
           onClick={dismiss}
@@ -114,6 +117,7 @@ export function DialogWindowApp({ spec, id }: { spec: DialogSpec; id: string }) 
         >
           <CloseIcon />
         </button>
+        )}
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-5">
         <div ref={contentRef}>
@@ -153,6 +157,14 @@ export function DialogWindowApp({ spec, id }: { spec: DialogSpec; id: string }) 
             onExportCurrent={() => send({ type: 'action', name: 'exportCurrent' })}
             onCancel={dismiss}
             onConfirm={(resolution) => send({ type: 'result', value: resolution })}
+          />
+        )}
+        {spec.kind === 'update' && state.update && (
+          <UpdateContent
+            spec={spec}
+            download={state.update.download}
+            autoApply={state.update.autoApply}
+            onAction={(name) => send({ type: 'action', name })}
           />
         )}
         </div>

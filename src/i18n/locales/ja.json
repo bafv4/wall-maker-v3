@@ -13,6 +13,7 @@
     "listLabel": "編集する項目"
   },
     "update": {
+      "title": "アップデート",
       "available": "新しいバージョン v{{version}} が公開されています（現在 v{{current}}）",
       "download": "{{name}} をダウンロード",
       "downloading": "ダウンロード中…",

@@ -67,8 +67,9 @@ export function useDialogWindow({
     };
   }, [open]);
 
-  const { busy, exporting } = state;
+  // update は呼び出し側で useMemo しておく（参照が変わるたびに送る）
+  const { busy, exporting, update } = state;
   useEffect(() => {
-    handleRef.current?.update({ busy, exporting });
-  }, [busy, exporting]);
+    handleRef.current?.update({ busy, exporting, update });
+  }, [busy, exporting, update]);
 }
