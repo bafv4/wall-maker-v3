@@ -72,10 +72,6 @@
     }
   },
   "header": {
-    "import": "Import (.zip)",
-    "importing": "Loading…",
-    "reset": "Reset",
-    "export": "Export (.zip)",
     "exporting": "Working…",
     "aboutTooltip": "About / Licenses",
     "releases": "Latest release",
@@ -85,6 +81,7 @@
     "import": {
       "title": "Import",
       "description": "Load a .zip resource pack or an already-extracted resource pack folder. A resolution selector will open during import.",
+      "descriptionWeb": "Load a .zip resource pack. A resolution selector will open during import.",
       "openZip": "Open .zip",
       "openFolder": "Open folder",
       "loading": "Loading…"
@@ -105,7 +102,9 @@
     "export": {
       "title": "Export (.zip)",
       "description": "Save a single .zip file. Useful for sharing / distribution.",
+      "descriptionWeb": "Download the resource pack as a single .zip file.",
       "button": "Export as .zip…",
+      "buttonWeb": "Download .zip",
       "processing": "Working…",
       "dialogTitle": "Export as .zip"
     },
@@ -113,7 +112,12 @@
       "title": "Reset",
       "description": "Reset pack info, layout, background, lock images and sounds to their defaults, and forget the overwrite target.",
       "button": "Reset",
+      "descriptionWeb": "Reset pack info, layout, background, lock images and sounds to their defaults.",
       "confirm": "Reset all edits (pack info, layout, background, lock images and sounds) to their defaults? You can undo this until you close the app."
+    },
+    "embed": {
+      "label": "Include background editing data",
+      "hint": "Saves the background layer setup (original images, shape positions, colors, gradients) in a wall-maker/ folder so importing the .zip / folder restores each layer. If this is off, importing the exported pack brings the background back as a single flattened image. Minecraft ignores it, but original images increase the file size."
     },
     "about": {
       "title": "About / Licenses",
@@ -153,9 +157,7 @@
     "iconAria": "Choose resource pack icon",
     "iconImageRequired": "Please pick an image file",
     "iconDefaultName": "pack.png",
-    "iconClear": "Clear",
-    "embedEditorData": "Include background editing data",
-    "embedEditorDataHint": "Saves the background layer setup (original images, shape positions, colors, gradients) in a wall-maker/ folder so importing the .zip / folder restores each layer. If this is off, importing the exported pack brings the background back as a single flattened image. Minecraft ignores it, but original images increase the file size."
+    "iconClear": "Clear"
   },
   "layoutEditor": {
     "presetTitle": "Layout preset",

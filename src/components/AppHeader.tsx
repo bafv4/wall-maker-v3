@@ -1,13 +1,8 @@
 /**
- * AppHeader — メイン領域上端のバー。タイトル＋Import/Export（Web 用）。
+ * AppHeader — メイン領域上端のバー（Web 用）。タイトルとリリースへのリンク。
  *
- * リセットはエクスポートの隣で押し間違えないよう、左端のレール（`AppRail`）の下端に置く。
- * Desktop ではこのコンポーネントは表示せず、ファイル操作は「ファイル」タブ
- * （`FileEditor`）に集約される（App.tsx で isTauri() 判定）。
- *
- * 状態とハンドラはすべて `useFileOperations()` 越しに取得する。Provider が
- * Import 用の hidden `<input>` と解像度選択ダイアログをまとめてマウントしている
- * ため、本コンポーネントはボタンを並べるだけで済む。
+ * インポート / エクスポート / リセットは Web・Desktop とも「ファイル」タブ（`FileEditor`）に
+ * 集約している。Desktop ではこのコンポーネントは表示しない（App.tsx で isTauri() 判定）。
  *
  * タイトル部分をクリックすると AboutModal が開き、FFmpeg ライセンス表記等を表示する。
  * タイトルの右隣には GitHub の最新リリースページ（/releases/latest）への外部リンクを置く。
@@ -15,9 +10,7 @@
 
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useFileOperations } from '../hooks/useFileOperations';
 import { AboutModal } from './AboutModal';
-import { Button } from './ui';
 
 /** GitHub の最新リリースページ。タグを固定しないよう /releases/latest を使う。 */
 const LATEST_RELEASE_URL =
@@ -25,14 +18,12 @@ const LATEST_RELEASE_URL =
 
 export function AppHeader({ className }: { className?: string }) {
   const { t } = useTranslation();
-  const { busy, importPhase, openImport, doExportZip } = useFileOperations();
   const [aboutOpen, setAboutOpen] = useState(false);
 
   return (
     <header className={className}>
-      {/* 高さは罫線込みで 48px（左のエディタパネル見出しと揃える）。
-          狭いメイン幅ではボタン群が 2 行目に折り返す（横にはみ出さない）。 */}
-      <div className="flex min-h-12 flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-border px-5 py-1">
+      {/* 高さは罫線込みで 48px（左のエディタパネル見出しと揃える） */}
+      <div className="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-2 border-b border-border px-5 py-1">
         <div className="flex items-center gap-3">
           <button
             type="button"
@@ -71,24 +62,6 @@ export function AppHeader({ className }: { className?: string }) {
               />
             </svg>
           </a>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={busy}
-            onClick={openImport}
-          >
-            {importPhase === 'loading-zip'
-              ? t('header.importing')
-              : t('header.import')}
-          </Button>
-          <Button size="sm" disabled={busy} onClick={doExportZip}>
-            {busy && importPhase === 'idle'
-              ? t('header.exporting')
-              : t('header.export')}
-          </Button>
         </div>
       </div>
 

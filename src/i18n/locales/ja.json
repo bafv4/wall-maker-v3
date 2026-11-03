@@ -72,10 +72,6 @@
     }
   },
   "header": {
-    "import": "インポート（.zip）",
-    "importing": "読込中…",
-    "reset": "リセット",
-    "export": "エクスポート（.zip）",
     "exporting": "処理中…",
     "aboutTooltip": "About / ライセンス情報",
     "releases": "最新リリース",
@@ -85,6 +81,7 @@
     "import": {
       "title": "インポート",
       "description": ".zip ファイル または 展開済みのリソースパックフォルダから読み込みます。読込時に解像度を選択するダイアログが開きます。",
+      "descriptionWeb": ".zip のリソースパックを読み込みます。読込時に解像度を選択するダイアログが開きます。",
       "openZip": ".zip を開く",
       "openFolder": "フォルダを開く",
       "loading": "読込中…"
@@ -105,7 +102,9 @@
     "export": {
       "title": "エクスポート（.zip）",
       "description": "1 ファイルの .zip として保存します。共有・配布用。",
+      "descriptionWeb": "リソースパックを 1 ファイルの .zip としてダウンロードします。",
       "button": ".zip エクスポート…",
+      "buttonWeb": ".zip をダウンロード",
       "processing": "処理中…",
       "dialogTitle": ".zip としてエクスポート"
     },
@@ -113,7 +112,12 @@
       "title": "リセット",
       "description": "パック情報・レイアウト・背景・Lock 画像・サウンドをすべて初期状態に戻し、上書き保存先の記憶も解除します。",
       "button": "リセット",
+      "descriptionWeb": "パック情報・レイアウト・背景・Lock 画像・サウンドをすべて初期状態に戻します。",
       "confirm": "編集内容（パック情報・レイアウト・背景・Lock 画像・サウンド）をすべて初期状態に戻します。アプリを閉じるまでは「元に戻す」で戻せます。"
+    },
+    "embed": {
+      "label": "背景の編集データを同梱する",
+      "hint": "背景レイヤの構成（元画像・図形の位置・色・グラデーション）を wall-maker/ フォルダに保存し、.zip / フォルダの読み込み時にレイヤごと復元します。オフのまま書き出したパックを読み込むと、背景は合成済みの 1 枚の画像として戻ります。Minecraft には影響しませんが、元画像の分だけファイルサイズが増えます。"
     },
     "about": {
       "title": "About / ライセンス",
@@ -153,9 +157,7 @@
     "iconAria": "リソースパックアイコンを選択",
     "iconImageRequired": "画像ファイルを選択してください",
     "iconDefaultName": "pack.png",
-    "iconClear": "クリア",
-    "embedEditorData": "背景の編集データを同梱する",
-    "embedEditorDataHint": "背景レイヤの構成（元画像・図形の位置・色・グラデーション）を wall-maker/ フォルダに保存し、.zip / フォルダの読み込み時にレイヤごと復元します。オフのまま書き出したパックを読み込むと、背景は合成済みの 1 枚の画像として戻ります。Minecraft には影響しませんが、元画像の分だけファイルサイズが増えます。"
+    "iconClear": "クリア"
   },
   "layoutEditor": {
     "presetTitle": "レイアウトプリセット",

@@ -1,7 +1,9 @@
 /**
  * App — シェル。サイドバー＋メイン領域の構成。
- * サイドバー: 左端のレール（編集項目の切替。Desktop は先頭に「ファイル」）＋エディタパネル
- * メイン: 上端のバー（Web のみ。タイトルと Import/Export）＋ WallPreview
+ * サイドバー: 左端のレール（編集項目の切替。先頭は「ファイル」）＋エディタパネル
+ * メイン: 上端のバー（Web のみ。タイトルとリリースへのリンク）＋ WallPreview
+ *
+ * インポート / エクスポート / リセットは Web・Desktop とも「ファイル」タブに集約する。
  *
  * レスポンシブ:
  *  - md (>=768px): 3 列グリッド（レール / エディタ / メイン）の固定高さレイアウト。
@@ -87,13 +89,13 @@ function TabFallback() {
 }
 
 const EDITOR_TABS: readonly EditorTab[] = [
+  'file',
   'info',
   'layout',
   'background',
   'lock',
   'sound',
 ];
-const DESKTOP_EDITOR_TABS: readonly EditorTab[] = ['file', ...EDITOR_TABS];
 
 const PREVIEW_TARGETS: readonly PreviewTarget[] = [
   'all',
@@ -181,10 +183,9 @@ function App() {
           className="grid min-h-0 flex-1 auto-rows-max grid-cols-1 overflow-y-auto md:grid-cols-[84px_clamp(280px,30vw,420px)_minmax(0,1fr)] md:grid-rows-[auto_minmax(0,1fr)] md:overflow-hidden"
         >
           <AppRail
-            tabs={desktop ? DESKTOP_EDITOR_TABS : EDITOR_TABS}
+            tabs={EDITOR_TABS}
             value={tab}
             onValueChange={setTab}
-            showReset={!desktop}
             className="md:row-span-2"
           />
 
@@ -204,11 +205,10 @@ function App() {
               {/* TabsContent は非アクティブなタブを描画しないので、
                   Suspense はパネル領域にひとつあれば足りる。 */}
               <Suspense fallback={<TabFallback />}>
-                {desktop && (
-                  <TabsContent value="file">
-                    <FileEditor />
-                  </TabsContent>
-                )}
+                {/* 高さをパネルいっぱいにして、リセットを下端に寄せられるようにする */}
+                <TabsContent value="file" className="flex min-h-full flex-col">
+                  <FileEditor />
+                </TabsContent>
                 <TabsContent value="info">
                   <PackInfoEditor />
                 </TabsContent>

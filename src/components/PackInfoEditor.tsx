@@ -6,14 +6,14 @@
  * icon バイトは IndexedDB 永続化（Phase 3 persistAdapter 経由）。
  */
 
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MAX_DIMENSION, toSafeInt } from '../core/coords';
 import { normalizeToPngBytes } from '../core/pngNormalize';
 import { useObjectUrl } from '../hooks/useObjectUrl';
 import { useWallStore } from '../store/useWallStore';
 import { presetValueOf, useResolutionPresets } from './resolutionPresets';
-import { Button, Input, Select, Switch, toast } from './ui';
+import { Button, Input, Select, toast } from './ui';
 import { cn } from './ui/cn';
 
 // ---------------------------------------------------------------------------
@@ -252,7 +252,6 @@ function IconDropZone({
 
 export function PackInfoEditor() {
   const { t } = useTranslation();
-  const embedId = useId();
   const packInfo = useWallStore((s) => s.wall.packInfo);
   const setPackInfo = useWallStore((s) => s.setPackInfo);
 
@@ -306,26 +305,6 @@ export function PackInfoEditor() {
             }}
           />
         </div>
-      </section>
-
-      <section className="space-y-1.5 rounded-lg bg-panel p-3">
-        <div className="flex items-center justify-between gap-3">
-          <label
-            htmlFor={embedId}
-            className="cursor-pointer text-sm font-medium text-fg"
-          >
-            {t('packInfo.embedEditorData')}
-          </label>
-          <Switch
-            id={embedId}
-            checked={packInfo.embedEditorData ?? false}
-            onChange={(b) => setPackInfo({ embedEditorData: b })}
-            aria-describedby={`${embedId}-desc`}
-          />
-        </div>
-        <p id={`${embedId}-desc`} className="text-xs text-fg-subtle">
-          {t('packInfo.embedEditorDataHint')}
-        </p>
       </section>
 
       <ResolutionSection />

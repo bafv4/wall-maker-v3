@@ -3,12 +3,11 @@
  *
  * md 以上は縦 1 列のレール（アイコン＋ラベル）、狭幅では横 1 行のバーになる。
  * 項目は App の `Tabs` と同じ値（file/info/layout/…）を切り替えるタブで、本文は
- * 右隣のエディタパネルに出る。Web のみ下端にリセットを置く（Desktop はファイルタブに集約）。
+ * 右隣のエディタパネルに出る。リセットなどのファイル操作は先頭の「ファイル」タブにある。
  */
 
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useFileOperations } from '../hooks/useFileOperations';
 import { cn } from './ui';
 import { handleTabListKeyDown } from './ui/tabListKeys';
 
@@ -83,8 +82,6 @@ export interface AppRailProps {
   tabs: readonly EditorTab[];
   value: EditorTab;
   onValueChange: (next: EditorTab) => void;
-  /** Web のみ true。下端にリセットを出す。 */
-  showReset: boolean;
   className?: string;
 }
 
@@ -92,7 +89,6 @@ export function AppRail({
   tabs,
   value,
   onValueChange,
-  showReset,
   className,
 }: AppRailProps) {
   const { t } = useTranslation();
@@ -142,34 +138,7 @@ export function AppRail({
           );
         })}
       </div>
-      {showReset && <RailResetButton />}
     </nav>
   );
 }
 
-/**
- * リセット。エクスポート（メイン右上）から離して置く。
- * Import/Export と同じく busy 中は押せなくする。エクスポート中にリセットされると
- * worker が古い state のままパックを作り切り、空のエディタに対して成功トーストが出てしまう。
- */
-function RailResetButton() {
-  const { t } = useTranslation();
-  const { busy, doReset } = useFileOperations();
-  return (
-    <button
-      type="button"
-      disabled={busy}
-      onClick={doReset}
-      className={cn(
-        itemClass,
-        'text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 md:mt-auto dark:text-red-400 dark:hover:bg-red-950/40',
-      )}
-    >
-      <RailIcon>
-        <path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3" />
-        <path d="M4.5 4.5v3.75h3.75" />
-      </RailIcon>
-      <span className="text-center">{t('header.reset')}</span>
-    </button>
-  );
-}
