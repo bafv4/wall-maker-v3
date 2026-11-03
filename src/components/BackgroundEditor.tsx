@@ -321,7 +321,8 @@ function ImageEditor({
             {t('background.image.none')}
           </div>
         )}
-        <div className="flex-1 space-y-2">
+        {/* 他のボタン列（レイヤ追加など）と同じ gap-2 で並べる */}
+        <div className="flex flex-1 flex-wrap gap-2">
           <input
             ref={fileInputRef}
             type="file"
