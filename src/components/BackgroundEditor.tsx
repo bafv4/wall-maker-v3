@@ -466,52 +466,52 @@ function ImageEditor({
       />
 
       {layer.fit === 'manual' && (
-        <div className="rounded-md bg-violet-50 p-3">
+        <div className="rounded-md bg-violet-50 p-3 dark:bg-violet-500/10">
           <div className="mb-2 flex items-center justify-between">
-            <span className="text-xs font-medium text-violet-800">
+            <span className="text-xs font-medium text-violet-800 dark:text-violet-200">
               {t('background.image.manualTitle')}
             </span>
-            <span className="text-xs text-violet-600">
+            <span className="text-xs text-violet-600 dark:text-violet-300">
               {t('background.image.manualHint')}
             </span>
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <label className="text-xs text-violet-700">
+            <label className="text-xs text-violet-700 dark:text-violet-300">
               {t('areaEditor.x')}
               <input
                 type="number"
                 value={layer.transform?.x ?? 0}
                 onChange={handleTransformField('x')}
-                className="mt-0.5 h-8 w-full rounded border border-violet-300 px-1.5 text-xs"
+                className="mt-0.5 h-8 w-full rounded border border-violet-300 bg-surface px-1.5 text-xs text-fg dark:border-violet-500/40"
               />
             </label>
-            <label className="text-xs text-violet-700">
+            <label className="text-xs text-violet-700 dark:text-violet-300">
               {t('areaEditor.y')}
               <input
                 type="number"
                 value={layer.transform?.y ?? 0}
                 onChange={handleTransformField('y')}
-                className="mt-0.5 h-8 w-full rounded border border-violet-300 px-1.5 text-xs"
+                className="mt-0.5 h-8 w-full rounded border border-violet-300 bg-surface px-1.5 text-xs text-fg dark:border-violet-500/40"
               />
             </label>
-            <label className="text-xs text-violet-700">
+            <label className="text-xs text-violet-700 dark:text-violet-300">
               {t('areaEditor.width')}
               <input
                 type="number"
                 min={1}
                 value={layer.transform?.width ?? resolution.width}
                 onChange={handleTransformField('width')}
-                className="mt-0.5 h-8 w-full rounded border border-violet-300 px-1.5 text-xs"
+                className="mt-0.5 h-8 w-full rounded border border-violet-300 bg-surface px-1.5 text-xs text-fg dark:border-violet-500/40"
               />
             </label>
-            <label className="text-xs text-violet-700">
+            <label className="text-xs text-violet-700 dark:text-violet-300">
               {t('areaEditor.height')}
               <input
                 type="number"
                 min={1}
                 value={layer.transform?.height ?? resolution.height}
                 onChange={handleTransformField('height')}
-                className="mt-0.5 h-8 w-full rounded border border-violet-300 px-1.5 text-xs"
+                className="mt-0.5 h-8 w-full rounded border border-violet-300 bg-surface px-1.5 text-xs text-fg dark:border-violet-500/40"
               />
             </label>
           </div>
@@ -662,7 +662,7 @@ function GradientEditor({
                 type="button"
                 disabled={layer.stops.length <= 2}
                 onClick={() => handleRemoveStop(i)}
-                className="cursor-pointer text-xs text-red-600 disabled:cursor-not-allowed disabled:opacity-30"
+                className="cursor-pointer text-xs text-red-600 disabled:cursor-not-allowed disabled:opacity-30 dark:text-red-400"
                 aria-label={t('background.delete')}
               >
                 ×
@@ -883,10 +883,14 @@ function ShapeEditor({
 // ---------------------------------------------------------------------------
 
 const TYPE_COLOR: Record<BackgroundLayer['type'], string> = {
-  color: 'bg-emerald-100 text-emerald-700 border-emerald-300',
-  image: 'bg-violet-100 text-violet-700 border-violet-300',
-  gradient: 'bg-amber-100 text-amber-700 border-amber-300',
-  shape: 'bg-sky-100 text-sky-700 border-sky-300',
+  color:
+    'bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-emerald-500/40',
+  image:
+    'bg-violet-100 text-violet-700 border-violet-300 dark:bg-violet-500/15 dark:text-violet-300 dark:border-violet-500/40',
+  gradient:
+    'bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-500/15 dark:text-amber-300 dark:border-amber-500/40',
+  shape:
+    'bg-sky-100 text-sky-700 border-sky-300 dark:bg-sky-500/15 dark:text-sky-300 dark:border-sky-500/40',
 };
 
 /**
@@ -1027,7 +1031,7 @@ function LayerListItem({
       <button
         type="button"
         onClick={onDelete}
-        className="h-7 w-7 flex-shrink-0 cursor-pointer rounded text-xs text-red-600 hover:bg-red-50"
+        className="h-7 w-7 flex-shrink-0 cursor-pointer rounded text-xs text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/15"
         title={t('background.delete')}
         aria-label={t('background.delete')}
       >

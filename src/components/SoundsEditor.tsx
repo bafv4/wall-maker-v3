@@ -182,7 +182,9 @@ function EventRow({
     <li
       className={cn(
         'flex flex-wrap items-center gap-2 rounded-md border bg-surface p-2 text-sm',
-        highlight ? 'border-blue-300 bg-accent-soft' : 'border-border',
+        highlight
+          ? 'border-blue-300 bg-accent-soft dark:border-blue-700'
+          : 'border-border',
         rowDisabled && 'opacity-60',
       )}
     >
@@ -233,7 +235,7 @@ function EventRow({
               type="button"
               onClick={promptFile}
               disabled={rowDisabled}
-              className="text-xs text-blue-600 underline hover:text-blue-800 disabled:opacity-40"
+              className="text-xs text-blue-600 underline hover:text-blue-800 disabled:opacity-40 dark:text-blue-400 dark:hover:text-blue-300"
             >
               {t('sound.replace')}
             </button>

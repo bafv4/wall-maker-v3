@@ -286,7 +286,7 @@ function AreaEditorImpl({
           )}
         </div>
         {gridWarning && (
-          <p className="mb-2 rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-700">
+          <p className="mb-2 rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300">
             {gridWarning}
           </p>
         )}

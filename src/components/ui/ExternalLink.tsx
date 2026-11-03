@@ -23,7 +23,10 @@ export function ExternalLink({ href, children, className }: ExternalLinkProps) {
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className={className ?? 'text-blue-600 underline hover:text-blue-800'}
+      className={
+        className ??
+        'text-blue-600 underline hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300'
+      }
       onClick={(e) => {
         e.preventDefault();
         void openExternalUrl(href).catch((err: unknown) => {
