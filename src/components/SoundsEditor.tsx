@@ -31,7 +31,6 @@ import { errMsg } from '../core/errors';
 import {
   BUILTIN_SOUND_KEYS,
   SOUND_EVENT_KEYS,
-  type BuiltinSoundKey,
   type SoundEntry,
   type SoundEventKey,
 } from '../core/state';
@@ -39,18 +38,23 @@ import { useWallStore } from '../store/useWallStore';
 import { InfoTooltip, Select, Switch, toast } from './ui';
 import { cn } from './ui/cn';
 
-/** ドロップダウンの値。builtin は内蔵音ごとに 1 項目へ展開する。 */
-type ModeValue = 'default' | 'off' | 'custom' | `builtin:${BuiltinSoundKey}`;
-
-const MODE_VALUES: readonly ModeValue[] = [
-  'default',
-  'off',
-  ...BUILTIN_SOUND_KEYS.map((k) => `builtin:${k}` as const),
-  'custom',
+/**
+ * ドロップダウンの選択肢。builtin は内蔵音ごとに 1 項目へ展開する。
+ * value は `sound.modeOptions.` 以下の i18n キーを兼ねる（builtin は `builtin.<内蔵音>`）。
+ * custom は ogg が必須なので entry を持たず、選んだ時点では state を変えずにファイルピッカを開く。
+ */
+const MODE_OPTIONS: readonly { value: string; entry: SoundEntry | null }[] = [
+  { value: 'default', entry: { mode: 'default' } },
+  { value: 'off', entry: { mode: 'off' } },
+  ...BUILTIN_SOUND_KEYS.map((sound) => ({
+    value: `builtin.${sound}`,
+    entry: { mode: 'builtin' as const, sound },
+  })),
+  { value: 'custom', entry: null },
 ];
 
-function toModeValue(entry: SoundEntry): ModeValue {
-  return entry.mode === 'builtin' ? `builtin:${entry.sound}` : entry.mode;
+function toModeValue(entry: SoundEntry): string {
+  return entry.mode === 'builtin' ? `builtin.${entry.sound}` : entry.mode;
 }
 
 /** SeedQueue 既定で内蔵音が割り当てられているイベント（第6.6章）。 */
@@ -107,12 +111,9 @@ function EventRow({
   info,
 }: EventRowProps) {
   const { t } = useTranslation();
-  // i18next はキーの `:` を名前空間区切りとして扱うため、builtin のラベルは別キーで引く
-  const modeOptions = MODE_VALUES.map((value) => ({
+  const modeOptions = MODE_OPTIONS.map(({ value }) => ({
     value,
-    label: value.startsWith('builtin:')
-      ? t(`sound.modeOptions.builtin.${value.slice('builtin:'.length)}`)
-      : t(`sound.modeOptions.${value}`),
+    label: t(`sound.modeOptions.${value}`),
   }));
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [converting, setConverting] = useState(false);
@@ -169,17 +170,10 @@ function EventRow({
   };
 
   const handleModeChange = (value: string) => {
-    if (value === 'custom') {
-      // custom には ogg が必須。state は変えずにファイルピッカを開く。
-      promptFile();
-      return;
-    }
-    if (value === 'default' || value === 'off') {
-      onChange({ mode: value });
-      return;
-    }
-    const sound = BUILTIN_SOUND_KEYS.find((k) => value === `builtin:${k}`);
-    if (sound) onChange({ mode: 'builtin', sound });
+    const option = MODE_OPTIONS.find((o) => o.value === value);
+    if (!option) return;
+    if (option.entry) onChange(option.entry);
+    else promptFile(); // custom
   };
 
   const rowDisabled = disabled || converting;
