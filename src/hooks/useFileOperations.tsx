@@ -39,6 +39,7 @@
  * 取り消し（`store/history.ts`）との関係:
  *  - インポートは履歴を捨てる（取り消せない）。取り消せると、フォルダから開いた直後に
  *    前の内容へ戻して「上書き保存」したとき、開いたパックを前の内容で消してしまうため。
+ *    代わりにダイアログから現在の内容を先にエクスポートできるようにしている。
  *  - リセットは取り消せる。保存先の記憶は解除したままなので、戻した内容が意図せず
  *    どこかへ上書きされることはない。
  */
@@ -546,6 +547,9 @@ export function FileOperationsProvider({ children }: { children: ReactNode }) {
         suggested={dialogSuggested}
         current={currentResolution}
         busy={importState.kind === 'parsing'}
+        // ダイアログ表示中の busy は「先にエクスポート」の実行中だけ
+        exporting={busy && importState.kind === 'pick-resolution'}
+        onExportCurrent={() => void doExportZip()}
         onCancel={handleCancelImport}
         onConfirm={handleConfirmImport}
       />

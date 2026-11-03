@@ -122,7 +122,8 @@
   "importDialog": {
     "title": "Import — Select resolution",
     "fileLine": "Loading <0>{{filename}}</0>.",
-    "warning": "Current edits will be overwritten. Select a resolution to continue.",
+    "warning": "Your current edits will be replaced by the imported pack, and this can't be undone. To keep them, export them first.",
+    "exportFirst": "Export current pack (.zip)",
     "suggestedDetected": "The resource pack's background.png is {{width}} × {{height}} (shown as the suggested default). Change it if the resource pack was made for a different resolution.",
     "suggestedMissing": "No background.png was found, so the resolution could not be estimated. Please specify one.",
     "confirm": "Import",
