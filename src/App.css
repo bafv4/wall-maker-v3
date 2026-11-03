@@ -102,6 +102,20 @@ html, body, #root {
   margin: 0;
 }
 
+/* アプリの UI なので文字の選択はさせない（ドラッグ操作で文字が反転するのを防ぐ）。
+   入力欄だけは編集・コピーのために選択できるようにする。 */
+body {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+input,
+textarea,
+[contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 /* ===================================================================
    アプリ独自スクロールバー
    OS 既定ではなくアプリで一貫した見た目にする。色はセマンティックトークン
