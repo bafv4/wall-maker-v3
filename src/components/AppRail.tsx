@@ -10,6 +10,7 @@ import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useFileOperations } from '../hooks/useFileOperations';
 import { cn } from './ui';
+import { handleTabListKeyDown } from './ui/tabListKeys';
 
 export type EditorTab = 'file' | 'info' | 'layout' | 'background' | 'lock' | 'sound';
 
@@ -113,7 +114,11 @@ export function AppRail({
           className="h-8 w-8 rounded-md"
         />
       </div>
-      <div role="tablist" className="flex gap-1 md:flex-col">
+      <div
+        role="tablist"
+        onKeyDown={handleTabListKeyDown}
+        className="flex gap-1 md:flex-col"
+      >
         {tabs.map((tab) => {
           const active = tab === value;
           return (
@@ -122,6 +127,7 @@ export function AppRail({
               type="button"
               role="tab"
               aria-selected={active}
+              tabIndex={active ? 0 : -1}
               onClick={() => onValueChange(tab)}
               className={cn(
                 itemClass,

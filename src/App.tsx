@@ -127,7 +127,7 @@ function PreviewTargetTabs({
         {info && <InfoTooltip text={info} />}
       </span>
       <Tabs value={value} onValueChange={(v) => onChange(v as PreviewTarget)}>
-        <TabsList className="h-8">
+        <TabsList className="h-8" aria-label={label}>
           {PREVIEW_TARGETS.map((mode) => (
             <TabsTrigger key={mode} value={mode} className="h-6 px-2.5 text-xs">
               {t(`${optionKey}.${mode}`)}

@@ -5,6 +5,7 @@ import {
   type ReactNode,
 } from 'react';
 import { cn } from './cn';
+import { handleTabListKeyDown } from './tabListKeys';
 
 interface TabsContextValue {
   value: string;
@@ -41,13 +42,18 @@ export function Tabs({ value, onValueChange, children, className }: TabsProps) {
 export function TabsList({
   children,
   className,
+  'aria-label': ariaLabel,
 }: {
   children: ReactNode;
   className?: string;
+  /** 見出しが別の場所にあるときの読み上げ名。 */
+  'aria-label'?: string;
 }) {
   return (
     <div
       role="tablist"
+      aria-label={ariaLabel}
+      onKeyDown={handleTabListKeyDown}
       className={cn(
         'inline-flex h-10 items-center gap-1 rounded-md bg-muted p-1',
         className,
@@ -78,6 +84,8 @@ export function TabsTrigger({
       type="button"
       role="tab"
       aria-selected={active}
+      // Tab キーでは選択中のタブにだけ止める（移動は矢印キー。tabListKeys.ts）
+      tabIndex={active ? 0 : -1}
       disabled={disabled}
       onClick={() => tabs.onValueChange(value)}
       className={cn(
