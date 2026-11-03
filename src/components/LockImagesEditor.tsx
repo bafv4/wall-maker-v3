@@ -105,16 +105,16 @@ function LockImageRow({
             {filename}
           </code>
           {index === 0 && (
-            <span className="rounded bg-blue-600 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-white">
+            <span className="rounded bg-blue-600 px-1.5 py-0.5 text-xs font-semibold uppercase text-white">
               {t('lock.required')}
             </span>
           )}
         </div>
-        <p className="mt-0.5 truncate text-[11px] text-fg-subtle">
+        <p className="mt-0.5 truncate text-xs text-fg-subtle">
           {image.originalFileName ?? t('lock.noName')} · {sizeKb}
         </p>
         <div className="mt-1 flex items-center gap-2">
-          <label className="text-[11px] text-fg-muted" htmlFor={weightInputId}>
+          <label className="text-xs text-fg-muted" htmlFor={weightInputId}>
             {t('lock.weight.label')}
           </label>
           <Input
@@ -130,7 +130,7 @@ function LockImageRow({
             className="h-6 w-20 text-xs"
             title={t('lock.weight.hint')}
           />
-          <span className="text-[11px] text-fg-subtle">
+          <span className="text-xs text-fg-subtle">
             {image.weight === undefined
               ? t('lock.weight.inherited', { value: defaultWeight })
               : t('lock.weight.effective', {
@@ -261,7 +261,7 @@ export function LockImagesEditor() {
           </label>
           <span
             id={`${enabledId}-desc`}
-            className="block text-[11px] text-fg-subtle"
+            className="block text-xs text-fg-subtle"
           >
             {t('lock.description')}
           </span>
@@ -336,7 +336,7 @@ export function LockImagesEditor() {
               className="h-7 w-24 text-sm"
             />
           </div>
-          <p className="mt-1 text-[11px] text-fg-subtle">
+          <p className="mt-1 text-xs text-fg-subtle">
             {t('lock.weight.defaultDescription')}
           </p>
         </div>

@@ -81,7 +81,10 @@
 }
 
 :root {
-  font-family: Inter, "Helvetica Neue", system-ui, sans-serif;
+  /* OS の UI 書体を使う（Web フォントは読み込まない）。和文は Windows=Yu Gothic UI、
+     macOS=ヒラギノ角ゴ。system-ui だけだと Windows の一部環境で和文が MS UI Gothic に落ちる。 */
+  font-family: system-ui, -apple-system, "Segoe UI", "Hiragino Sans",
+    "Hiragino Kaku Gothic ProN", "Yu Gothic UI", Meiryo, sans-serif;
   /* 14px → 16px に。rem ベースの Tailwind ユーティリティが全体的に一回り大きくなる。 */
   font-size: 16px;
   line-height: 1.5;

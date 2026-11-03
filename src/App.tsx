@@ -195,7 +195,7 @@ function App() {
           >
             {/* 取り消し / やり直しはどのタブの編集にも効くので、パネル見出しに常に置く */}
             <div className="flex h-12 flex-shrink-0 items-center justify-between gap-2 border-b border-border pr-2 pl-4">
-              <h2 className="text-sm font-semibold text-fg">
+              <h2 className="text-base font-semibold text-fg">
                 {t(`tab.${tab}`)}
               </h2>
               <HistoryControls />
@@ -237,7 +237,7 @@ function App() {
           <main className="flex flex-col p-5 md:col-start-3 md:row-start-2 md:min-h-0 md:overflow-y-auto">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               {/* 操作説明は常設の段落にせず、見出し横のⓘにしまう（キャンバスに高さを回す） */}
-              <h2 className="flex items-center gap-1.5 text-sm font-semibold text-fg">
+              <h2 className="flex items-center gap-1.5 text-base font-semibold text-fg">
                 {t('preview.title')}
                 <InfoTooltip text={t('preview.hint')} />
               </h2>

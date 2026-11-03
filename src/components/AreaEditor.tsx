@@ -202,7 +202,12 @@ function AreaEditorImpl({
       onFocusCapture={onSelect}
     >
       <header className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-semibold" style={{ color }}>
+        <h3 className="flex items-center gap-2 text-sm font-semibold text-fg">
+          <span
+            aria-hidden
+            className="size-2.5 flex-shrink-0 rounded-full"
+            style={{ background: color }}
+          />
           {title}
         </h3>
         <div className="flex items-center gap-3">

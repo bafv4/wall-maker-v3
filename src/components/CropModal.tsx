@@ -347,7 +347,7 @@ export function CropModal({ layer, onClose, onApply }: CropModalProps) {
           </div>
 
           {natural && (
-            <p className="text-[11px] text-fg-subtle">
+            <p className="text-xs text-fg-subtle">
               {t('cropModal.imageSize', { width: natural.w, height: natural.h })}
             </p>
           )}

@@ -81,7 +81,7 @@ export function AboutModal({ open, onClose }: AboutModalProps) {
               components={[<ExternalLink href={SEEDQUEUE_REPO} />]}
             />
           </p>
-          <p className="text-[11px] text-fg-subtle">
+          <p className="text-xs text-fg-subtle">
             <Trans
               i18nKey="about.appLicenseLine"
               components={[<ExternalLink href={GPL3_URL} />]}
@@ -118,7 +118,7 @@ export function AboutModal({ open, onClose }: AboutModalProps) {
               </ExternalLink>
             </li>
           </ul>
-          <p className="text-[11px] text-fg-subtle">{t('about.ffmpegNote')}</p>
+          <p className="text-xs text-fg-subtle">{t('about.ffmpegNote')}</p>
         </section>
 
         <section className="space-y-1">

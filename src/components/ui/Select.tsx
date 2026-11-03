@@ -387,7 +387,7 @@ export const Select = forwardRef<HTMLDivElement, SelectProps>(function Select(
                     <span className="flex flex-1 items-center gap-2 truncate">
                       <span className="truncate">{o.label}</span>
                       {o.hint && (
-                        <span className="text-[11px] text-fg-subtle">
+                        <span className="text-xs text-fg-subtle">
                           {o.hint}
                         </span>
                       )}

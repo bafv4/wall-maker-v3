@@ -49,7 +49,7 @@ function SaveTargetBanner({ path }: { path: string | null }) {
   if (!path) return null;
   return (
     <div className="rounded-lg border border-blue-200 border-l-4 border-l-blue-500 bg-accent-soft px-4 py-2.5 dark:border-blue-900 dark:border-l-blue-500">
-      <div className="text-[11px] font-semibold uppercase tracking-wide text-accent-soft-fg">
+      <div className="text-xs font-semibold text-accent-soft-fg">
         {t('fileEditor.save.currentTargetLabel')}
       </div>
       <code className="mt-0.5 block break-all text-xs text-fg">

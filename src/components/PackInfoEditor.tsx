@@ -121,7 +121,7 @@ function ResolutionSection() {
           </div>
         </div>
       )}
-      <p className="text-[11px] text-fg-subtle">
+      <p className="text-xs text-fg-subtle">
         {t('resolution.current', {
           width: resolution.width,
           height: resolution.height,
@@ -226,7 +226,7 @@ function IconDropZone({
                 d="M3 16.5l4.5-4.5 3 3 6-6 4.5 4.5M3 4.5h18v15H3v-15z"
               />
             </svg>
-            <span className="text-[11px] leading-tight whitespace-pre-line">
+            <span className="text-xs leading-tight whitespace-pre-line">
               {t('packInfo.iconDropHint')}
             </span>
           </div>
@@ -323,7 +323,7 @@ export function PackInfoEditor() {
             aria-describedby={`${embedId}-desc`}
           />
         </div>
-        <p id={`${embedId}-desc`} className="text-[11px] text-fg-subtle">
+        <p id={`${embedId}-desc`} className="text-xs text-fg-subtle">
           {t('packInfo.embedEditorDataHint')}
         </p>
       </section>

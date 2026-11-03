@@ -256,7 +256,7 @@ function ImageAdjustBox({
           onChange={(v) => onChange({ ...current, [key]: v })}
         />
       ))}
-      <p className="text-[11px] text-fg-subtle">
+      <p className="text-xs text-fg-subtle">
         {t('background.image.adjust.hint')}
       </p>
     </div>
@@ -427,7 +427,7 @@ function ImageEditor({
             className="h-20 w-20 rounded border border-border-strong bg-surface object-cover"
           />
         ) : (
-          <div className="flex h-20 w-20 items-center justify-center rounded border border-dashed border-border-strong text-[10px] text-fg-subtle">
+          <div className="flex h-20 w-20 items-center justify-center rounded border border-dashed border-border-strong text-xs text-fg-subtle">
             {t('background.image.none')}
           </div>
         )}
@@ -471,7 +471,7 @@ function ImageEditor({
             <span className="text-xs font-medium text-violet-800">
               {t('background.image.manualTitle')}
             </span>
-            <span className="text-[11px] text-violet-600">
+            <span className="text-xs text-violet-600">
               {t('background.image.manualHint')}
             </span>
           </div>
@@ -765,7 +765,7 @@ function FitToAreaBox({ onFit }: { onFit: (transform: AreaCell) => void }) {
           {t('background.shape.fitApply')}
         </Button>
       </div>
-      <p className="text-[11px] text-fg-subtle">
+      <p className="text-xs text-fg-subtle">
         {t('background.shape.fitHint')}
       </p>
     </div>
@@ -829,7 +829,7 @@ function ShapeEditor({
           <span className="text-xs font-medium text-fg-muted">
             {t('background.shape.boundsTitle')}
           </span>
-          <span className="text-[11px] text-fg-subtle">
+          <span className="text-xs text-fg-subtle">
             {t('background.image.manualHint')}
           </span>
         </div>
@@ -1013,7 +1013,7 @@ function LayerListItem({
       >
         <span
           className={cn(
-            'flex-shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-semibold',
+            'flex-shrink-0 rounded border px-1.5 py-0.5 text-xs font-semibold',
             TYPE_COLOR[layer.type],
           )}
         >
@@ -1270,18 +1270,18 @@ export function BackgroundEditor() {
               {t('background.addShape')}
             </Button>
           </div>
-          <p className="text-[11px] text-fg-subtle">
+          <p className="text-xs text-fg-subtle">
             {t('background.drawOrderHint')}
           </p>
         </section>
 
         {/* 中段: レイヤ一覧（多いときは一覧の中でスクロール） */}
         <section className="flex flex-col gap-2">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-fg-subtle">
+          <h3 className="text-sm font-semibold text-fg">
             {t('background.layerListTitle', { count: layers.length })}
           </h3>
           {layers.length > 0 && (
-            <p className="text-[11px] text-fg-subtle">
+            <p className="text-xs text-fg-subtle">
               {t('background.visibilityHint')}
             </p>
           )}
@@ -1332,7 +1332,7 @@ export function BackgroundEditor() {
 
         {/* 下段: 選択中レイヤのエディタ */}
         <section className="flex flex-col gap-2 border-t border-border pt-3">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-fg-subtle">
+          <h3 className="text-sm font-semibold text-fg">
             {editorTitle}
           </h3>
           {selectedLayer ? (

@@ -190,7 +190,7 @@ function EventRow({
         <span className="font-medium text-fg">{label}</span>
         {info && <InfoTooltip text={info} />}
         {hasBuiltin && (
-          <span className="rounded bg-muted px-1 py-0.5 text-[10px] text-fg-subtle">
+          <span className="rounded bg-muted px-1 py-0.5 text-xs text-fg-subtle">
             {t('sound.builtinBadge')}
           </span>
         )}
@@ -219,21 +219,21 @@ function EventRow({
       />
 
       {converting ? (
-        <div className="flex items-center gap-1 text-[10px] text-fg-subtle">
+        <div className="flex items-center gap-1 text-xs text-fg-subtle">
           <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-border-strong border-t-blue-500" />
           {t('sound.converting')}
         </div>
       ) : (
         entry.mode === 'custom' && (
           <div className="flex items-center gap-1">
-            <code className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-fg-muted">
+            <code className="rounded bg-muted px-1.5 py-0.5 text-xs text-fg-muted">
               {entry.originalFileName ?? t('sound.customDefault')}
             </code>
             <button
               type="button"
               onClick={promptFile}
               disabled={rowDisabled}
-              className="text-[10px] text-blue-600 underline hover:text-blue-800 disabled:opacity-40"
+              className="text-xs text-blue-600 underline hover:text-blue-800 disabled:opacity-40"
             >
               {t('sound.replace')}
             </button>
@@ -316,7 +316,7 @@ export function SoundsEditor() {
           })}
         </div>
         {eventDisabled && (
-          <p className="mt-2 text-[11px] text-amber-700 dark:text-amber-500">
+          <p className="mt-2 text-xs text-amber-700 dark:text-amber-500">
             {t('sound.allOffNote')}
           </p>
         )}
@@ -332,7 +332,7 @@ export function SoundsEditor() {
           </label>
           <span
             id={`${resetUnifiedId}-desc`}
-            className="block text-[11px] text-fg-subtle"
+            className="block text-xs text-fg-subtle"
           >
             {t('sound.resetUnifiedDescription')}
           </span>
