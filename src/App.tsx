@@ -236,8 +236,10 @@ function App() {
           {/* メイン: プレビュー */}
           <main className="flex flex-col p-5 md:col-start-3 md:row-start-2 md:min-h-0 md:overflow-y-auto">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-sm font-semibold text-fg">
+              {/* 操作説明は常設の段落にせず、見出し横のⓘにしまう（キャンバスに高さを回す） */}
+              <h2 className="flex items-center gap-1.5 text-sm font-semibold text-fg">
                 {t('preview.title')}
+                <InfoTooltip text={t('preview.hint')} />
               </h2>
               {/* 狭幅では各グループ内でもラベルが切替の上に折り返す（横にはみ出さない） */}
               <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -263,7 +265,6 @@ function App() {
               snapMode={snapMode}
               backgroundEditing={tab === 'background'}
             />
-            <p className="mt-3 text-xs text-fg-subtle">{t('preview.hint')}</p>
           </main>
         </Tabs>
       </div>

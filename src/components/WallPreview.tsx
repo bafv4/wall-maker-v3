@@ -21,6 +21,12 @@
  *    `boxMode` で枠を隠している側には吸着しない（見えない線に吸い付かないように）。
  *    複数選択の移動では**選択全体の外接矩形**の辺・中央で判定する（指示線も同じ基準）。
  *  - ドラッグ中は `x,y / w×h` のオーバーレイ表示。
+ *  - エリアは SeedQueue と同じ計算（core/instanceLayout.ts）でインスタンス 1 枚ずつのタイルに
+ *    分けて描く。番号は SeedQueue の並び順（行優先）。padding の溝は背景が透けて見える。
+ *    locked のタイルには 1 枚目の Lock 画像を SeedQueue と同じ規則（左上・高さ合わせ）で重ねる。
+ *  - キーボード: エリア / レイヤ枠は Tab でフォーカスでき、矢印で 1px、Shift+矢印で 10px 動かす
+ *    （選択中の複数エリアはまとめて動く）。
+ *  - 表示サイズは使える幅と高さの両方に収める（md 以上。狭幅は幅基準で縦に伸びる）。
  *
  * 不変条件: 全 state mutation は store アクション経由（座標は store 側で `floorArea`/`floorCell`）。
  */
@@ -29,10 +35,12 @@ import {
   memo,
   useCallback,
   useEffect,
+  useId,
   useLayoutEffect,
   useMemo,
   useRef,
   useState,
+  type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -43,15 +51,18 @@ import {
   floorCell,
   realToPreview,
 } from '../core/coords';
+import { instanceCells } from '../core/instanceLayout';
 import { renderBackgroundToCanvas } from '../core/renderBackground';
 import type {
   AreaCell,
   BackgroundLayer,
+  LockImage,
   MainArea,
   Resolution,
   VisibleArea,
   WallState,
 } from '../core/state';
+import { useObjectUrl } from '../hooks/useObjectUrl';
 import {
   DEFAULT_AREA_SELECTION,
   useWallStore,
@@ -155,8 +166,39 @@ interface DragState {
 }
 
 const HANDLE_LIST: Handle[] = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
+
+/**
+ * 枠の色と、その上に白文字のラベルを載せる一段濃い色（白文字で 4.5:1 以上）。
+ * 枠の色のまま白文字にすると、オレンジ・緑は 3.3〜3.6:1 しか出ない。
+ */
+const AREA_COLORS = {
+  main: { line: '#2563eb', ink: '#1d4ed8' },
+  locked: { line: '#ea580c', ink: '#c2410c' },
+  preparing: { line: '#16a34a', ink: '#15803d' },
+  layer: { line: '#9333ea', ink: '#7e22ce' },
+} as const;
 const SNAP_PX_PREVIEW = 6;
 const MIN_SIZE = 1;
+
+/**
+ * タイルとして描くインスタンス数の上限。rows×columns は最大 1024×1024 まで入力できるが、
+ * 実用は数十枚まで。超えたらタイルを描かず枠だけにする（SVG 要素数で描画が詰まらないように）。
+ */
+const MAX_DRAWN_TILES = 400;
+/** タイル番号を出す最小の短辺（プレビュー px）。これより小さいと数字が潰れる。 */
+const MIN_NUMBERED_TILE = 16;
+/** 矢印キーで動かす量（実 px）。Shift 併用時は大きい方。 */
+const NUDGE_STEP = 1;
+const NUDGE_STEP_LARGE = 10;
+/** 矢印キーで動かした後、座標オーバーレイを出しておく時間。 */
+const NUDGE_OVERLAY_MS = 900;
+
+const NUDGE_KEYS: Record<string, readonly [number, number]> = {
+  ArrowLeft: [-1, 0],
+  ArrowRight: [1, 0],
+  ArrowUp: [0, -1],
+  ArrowDown: [0, 1],
+};
 
 const handleClass: Record<Handle, string> = {
   nw: 'left-0 top-0 -translate-x-1/2 -translate-y-1/2 cursor-nwse-resize',
@@ -263,6 +305,71 @@ const BackgroundCanvas = memo(function BackgroundCanvas({
 });
 
 // ---------------------------------------------------------------------------
+// Lock 画像（locked のタイルに重ねる）
+// ---------------------------------------------------------------------------
+
+/** 縦に並んだアニメーションのフレーム（1 枚なら frames=1）を含む画像の寸法。 */
+interface LockSprite {
+  url: string;
+  /** 1 フレームの 幅 / 高さ。 */
+  aspect: number;
+  frames: number;
+}
+
+/**
+ * `.mcmeta` の animation から 1 フレームの高さを決める。Minecraft は width/height の指定が
+ * 無ければ短辺の正方形フレームとして切る。animation が無ければ画像全体で 1 フレーム。
+ */
+function frameHeightOf(image: LockImage, w: number, h: number): number {
+  const anim = image.mcmetaExtra?.animation;
+  if (!anim || typeof anim !== 'object') return h;
+  const a = anim as { width?: unknown; height?: unknown };
+  if (typeof a.height === 'number' && a.height > 0) return a.height;
+  if (typeof a.width === 'number' && a.width > 0) return a.width;
+  return Math.min(w, h);
+}
+
+/**
+ * プレビューに出す Lock 画像。SeedQueue は複数枚から抽選するが、プレビューは 1 枚目
+ * （`lock.png`）で代表させる。Lock が無効（透明の lock.png）、または画像 0 枚
+ * （mod 内蔵の画像）のときは null。
+ */
+function useLockSprite(): LockSprite | null {
+  const lockImages = useWallStore((s) => s.wall.lockImages);
+  const first = lockImages.enabled ? lockImages.images[0] : undefined;
+  const url = useObjectUrl(first?.source);
+  const [loaded, setLoaded] = useState<{
+    url: string;
+    w: number;
+    h: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!url) return;
+    let alive = true;
+    const img = new Image();
+    img.onload = () => {
+      if (alive) setLoaded({ url, w: img.naturalWidth, h: img.naturalHeight });
+    };
+    img.src = url;
+    return () => {
+      alive = false;
+    };
+  }, [url]);
+
+  return useMemo(() => {
+    if (!first || !url || loaded?.url !== url) return null;
+    if (loaded.w <= 0 || loaded.h <= 0) return null;
+    const frameH = frameHeightOf(first, loaded.w, loaded.h);
+    return {
+      url,
+      aspect: loaded.w / frameH,
+      frames: Math.max(1, loaded.h / frameH),
+    };
+  }, [first, url, loaded]);
+}
+
+// ---------------------------------------------------------------------------
 // 既存セルからハンドル方向の delta を当てて新セルを計算
 // ---------------------------------------------------------------------------
 
@@ -337,14 +444,23 @@ function rememberDragResult(
 // プレビューサイズ
 // ---------------------------------------------------------------------------
 
-function fitAspect(containerWidth: number, res: Resolution): Resolution {
+/**
+ * 幅いっぱいに取り、それが高さに収まらなければ高さに合わせる。高さは md 以上で
+ * 列の高さに縛られたときだけ効く（狭幅では入れ物が中身の高さに伸びるので、常に幅基準になる）。
+ */
+function fitAspect(
+  containerWidth: number,
+  containerHeight: number,
+  res: Resolution,
+): Resolution {
   if (containerWidth <= 0 || res.width <= 0 || res.height <= 0) {
     return { width: 0, height: 0 };
   }
-  return {
-    width: containerWidth,
-    height: containerWidth / (res.width / res.height),
-  };
+  const aspect = res.width / res.height;
+  const byWidth = { width: containerWidth, height: containerWidth / aspect };
+  // clientHeight は整数に丸められるので 1px の誤差は幅基準のままにする（狭幅で縮み続けないように）
+  if (containerHeight <= 0 || byWidth.height <= containerHeight + 1) return byWidth;
+  return { width: containerHeight * aspect, height: containerHeight };
 }
 
 // ---------------------------------------------------------------------------
@@ -355,68 +471,97 @@ interface AreaBoxProps {
   area: MainArea | VisibleArea;
   refId: AreaRef;
   color: string;
+  /** ラベルの地色（白文字が読める濃さ）。 */
+  ink: string;
   label: string;
   resolution: Resolution;
   preview: Resolution;
   selected: boolean;
   /** 選択がこの 1 件だけか。リサイズハンドルは selected && soleSelection のときだけ出す。 */
   soleSelection: boolean;
+  /** タイルに重ねる Lock 画像（locked エリアのみ）。 */
+  lock?: LockSprite | null;
+  /** キーボード操作の説明要素の id。 */
+  describedBy: string;
   onPointerDownArea: (
     e: ReactPointerEvent<HTMLDivElement>,
     refId: AreaRef,
     mode: Mode,
   ) => void;
+  onFocusArea: (refId: AreaRef) => void;
+  onNudge: (e: ReactKeyboardEvent<HTMLDivElement>, refId: AreaRef) => void;
+}
+
+interface TileRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** インスタンスのタイル（エリア左上を原点としたプレビュー px）。描かないときは null。 */
+function useAreaTiles(
+  area: MainArea | VisibleArea,
+  resolution: Resolution,
+  preview: Resolution,
+): TileRect[] | null {
+  return useMemo(() => {
+    if (preview.width <= 0 || resolution.width <= 0) return null;
+    const cells = instanceCells(area);
+    if (!cells || cells.length > MAX_DRAWN_TILES) return null;
+    const sx = preview.width / resolution.width;
+    const sy = preview.height / resolution.height;
+    return cells
+      .filter((c) => c.width > 0 && c.height > 0)
+      .map((c) => ({
+        x: (c.x - area.x) * sx,
+        y: (c.y - area.y) * sy,
+        w: c.width * sx,
+        h: c.height * sy,
+      }));
+  }, [area, resolution, preview]);
 }
 
 function AreaBox({
   area,
   refId,
   color,
+  ink,
   label,
   resolution,
   preview,
   selected,
   soleSelection,
+  lock,
+  describedBy,
   onPointerDownArea,
+  onFocusArea,
+  onNudge,
 }: AreaBoxProps) {
+  const { t } = useTranslation();
   // グループリサイズは非対応なので、ハンドルは単独選択のときだけ表示する
   const showHandles = selected && soleSelection;
   const pv = useMemo(
     () => realToPreview(area, { real: resolution, preview }),
     [area, resolution, preview],
   );
-
-  const showGrid = area.useGrid !== false;
-  const gridLines = useMemo(() => {
-    if (!showGrid || pv.width <= 0 || pv.height <= 0) return null;
-    const lines: React.ReactElement[] = [];
-    for (let c = 1; c < area.columns; c++) {
-      const xx = (pv.width * c) / area.columns;
-      lines.push(
-        <div
-          key={`v${c}`}
-          className="absolute top-0 bottom-0 border-l border-dashed opacity-50"
-          style={{ left: xx, borderColor: color }}
-        />,
-      );
-    }
-    for (let r = 1; r < area.rows; r++) {
-      const yy = (pv.height * r) / area.rows;
-      lines.push(
-        <div
-          key={`h${r}`}
-          className="absolute left-0 right-0 border-t border-dashed opacity-50"
-          style={{ top: yy, borderColor: color }}
-        />,
-      );
-    }
-    return lines;
-  }, [showGrid, pv.width, pv.height, area.rows, area.columns, color]);
+  const tiles = useAreaTiles(area, resolution, preview);
 
   return (
     <div
+      role="button"
+      tabIndex={0}
+      aria-pressed={selected}
+      aria-label={t('preview.areaAria', {
+        name: label,
+        x: area.x,
+        y: area.y,
+        width: area.width,
+        height: area.height,
+      })}
+      aria-describedby={describedBy}
       className={cn(
-        'absolute border-2',
+        'absolute border-2 focus:outline-none focus-visible:outline-solid focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-white',
         selected ? 'shadow-md' : 'opacity-90 hover:opacity-100',
       )}
       style={{
@@ -425,7 +570,8 @@ function AreaBox({
         width: pv.width,
         height: pv.height,
         borderColor: color,
-        background: `${color}1a`,
+        // タイルを描くときは塗らない（padding の溝と余りに背景が透けて見えるように）
+        background: tiles ? undefined : `${color}1a`,
         cursor: 'move',
         touchAction: 'none',
       }}
@@ -434,14 +580,84 @@ function AreaBox({
         // 選択の更新（トグル/単独化）とドラッグ開始は親がまとめて判断する
         onPointerDownArea(e, refId, { type: 'move' });
       }}
+      onFocus={(e) => {
+        // クリックでのフォーカスは pointerdown 側で選択済み（Ctrl+クリックで外した直後に
+        // 選び直さないよう、キーボードで来たときだけ選ぶ）
+        if (e.currentTarget.matches(':focus-visible')) onFocusArea(refId);
+      }}
+      onKeyDown={(e) => onNudge(e, refId)}
     >
+      {tiles && (
+        <svg
+          className="pointer-events-none absolute inset-0 overflow-visible"
+          width="100%"
+          height="100%"
+          aria-hidden
+        >
+          {tiles.map((c, i) => {
+            // 番号は右下。左上はエリア名のラベルと Lock 画像（SeedQueue が左上に描く）が使う
+            const fontSize = Math.min(20, Math.min(c.w, c.h) * 0.34);
+            const inset = Math.max(3, fontSize * 0.3);
+            const lockWidth = lock ? Math.min(c.w, c.h * lock.aspect) : 0;
+            return (
+              <g key={i}>
+                <rect
+                  x={c.x + 0.5}
+                  y={c.y + 0.5}
+                  width={Math.max(0, c.w - 1)}
+                  height={Math.max(0, c.h - 1)}
+                  fill={color}
+                  fillOpacity={selected ? 0.3 : 0.2}
+                  stroke={color}
+                  strokeOpacity={0.75}
+                />
+                {lock && (
+                  // SeedQueue の drawLock と同じ: 左上に置き、高さをタイルに合わせて
+                  // アスペクト比を保つ。幅がはみ出す分は右を切る。アニメは 1 フレーム目。
+                  <svg
+                    x={c.x}
+                    y={c.y}
+                    width={lockWidth}
+                    height={c.h}
+                    overflow="hidden"
+                  >
+                    <image
+                      href={lock.url}
+                      width={c.h * lock.aspect}
+                      height={c.h * lock.frames}
+                      preserveAspectRatio="none"
+                      style={{ imageRendering: 'pixelated' }}
+                    />
+                  </svg>
+                )}
+                {Math.min(c.w, c.h) >= MIN_NUMBERED_TILE && (
+                  <text
+                    x={c.x + c.w - inset}
+                    y={c.y + c.h - inset}
+                    textAnchor="end"
+                    dominantBaseline="text-after-edge"
+                    fontSize={fontSize}
+                    fontWeight={600}
+                    fill="#fff"
+                    stroke="rgb(0 0 0 / 0.55)"
+                    strokeWidth={Math.max(2, fontSize * 0.14)}
+                    paintOrder="stroke"
+                    style={{ fontVariantNumeric: 'tabular-nums' }}
+                  >
+                    {i + 1}
+                  </text>
+                )}
+              </g>
+            );
+          })}
+        </svg>
+      )}
       <div
-        className="pointer-events-none absolute left-1 top-1 rounded bg-white/85 px-1.5 py-0.5 text-[10px] font-medium"
-        style={{ color }}
+        className="pointer-events-none absolute left-1 top-1 rounded px-1.5 py-0.5 text-xs font-semibold text-white shadow-sm"
+        style={{ background: ink }}
       >
         {label}
       </div>
-      {gridLines}
       {showHandles &&
         HANDLE_LIST.map((h) => (
           <div
@@ -473,11 +689,13 @@ interface LayerBoxProps {
   label: string;
   resolution: Resolution;
   preview: Resolution;
+  describedBy: string;
   onPointerDownLayer: (
     e: ReactPointerEvent<HTMLDivElement>,
     layerId: string,
     mode: Mode,
   ) => void;
+  onNudge: (e: ReactKeyboardEvent<HTMLDivElement>, refId: AreaRef) => void;
 }
 
 function LayerBox({
@@ -486,14 +704,28 @@ function LayerBox({
   label,
   resolution,
   preview,
+  describedBy,
   onPointerDownLayer,
+  onNudge,
 }: LayerBoxProps) {
+  const { t } = useTranslation();
   const pv = realToPreview(transform, { real: resolution, preview });
-  const color = '#9333ea';
+  const color = AREA_COLORS.layer.line;
 
   return (
     <div
-      className="absolute border-2 border-dashed"
+      role="group"
+      tabIndex={0}
+      aria-label={t('preview.areaAria', {
+        name: label,
+        x: transform.x,
+        y: transform.y,
+        width: transform.width,
+        height: transform.height,
+      })}
+      aria-describedby={describedBy}
+      className="absolute border-2 border-dashed focus:outline-none focus-visible:outline-solid focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-white"
+      onKeyDown={(e) => onNudge(e, { kind: 'layer', layerId })}
       style={{
         left: pv.x,
         top: pv.y,
@@ -509,9 +741,10 @@ function LayerBox({
         onPointerDownLayer(e, layerId, { type: 'move' });
       }}
     >
+      {/* エリア名は左上に出るので、レイヤ名は左下に置いて重ならないようにする */}
       <div
-        className="pointer-events-none absolute left-1 top-1 rounded bg-white/85 px-1.5 py-0.5 text-[10px] font-medium"
-        style={{ color }}
+        className="pointer-events-none absolute bottom-1 left-1 rounded px-1.5 py-0.5 text-xs font-semibold text-white shadow-sm"
+        style={{ background: AREA_COLORS.layer.ink }}
       >
         {label}
       </div>
@@ -597,6 +830,9 @@ export function WallPreview({
 
   const containerRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<DragState | null>(null);
+  const keyboardHelpId = useId();
+  const captionRef = useRef<HTMLParagraphElement>(null);
+  const lockSprite = useLockSprite();
 
   const [preview, setPreview] = useState<Resolution>({ width: 0, height: 0 });
 
@@ -642,7 +878,15 @@ export function WallPreview({
   useLayoutEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    const measure = () => setPreview(fitAspect(el.clientWidth, resolution));
+    // 縮尺の注記はキャンバスの直下に置くので、その分を高さから引く
+    const measure = () =>
+      setPreview(
+        fitAspect(
+          el.clientWidth,
+          el.clientHeight - (captionRef.current?.offsetHeight ?? 0),
+          resolution,
+        ),
+      );
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
@@ -1033,6 +1277,74 @@ export function WallPreview({
     }
   }, [selectAreas]);
 
+  // ---- キーボード（フォーカスで選択、矢印キーで移動） ----
+
+  const nudgeTimerRef = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(nudgeTimerRef.current), []);
+
+  const onFocusArea = useCallback(
+    (refId: AreaRef) => {
+      if (refId.kind === 'layer') return;
+      if (!selectedKeys.has(areaRefKey(refId))) selectAreas([refId]);
+    },
+    [selectedKeys, selectAreas],
+  );
+
+  const onNudge = useCallback(
+    (e: ReactKeyboardEvent<HTMLDivElement>, refId: AreaRef) => {
+      const dir = NUDGE_KEYS[e.key];
+      if (!dir || e.ctrlKey || e.metaKey || e.altKey || dragRef.current) return;
+      e.preventDefault();
+      const step = e.shiftKey ? NUDGE_STEP_LARGE : NUDGE_STEP;
+      // 選択中のエリアならまとめて動かす（ドラッグと同じ）。レイヤは単独。
+      const refs: AreaRef[] =
+        refId.kind !== 'layer' && selectedKeys.has(areaRefKey(refId))
+          ? [...selectedRefs]
+          : [refId];
+      const items = refs.flatMap((ref) => {
+        const cell = getStartCell(ref);
+        return cell ? [{ ref, cell }] : [];
+      });
+      if (items.length === 0) return;
+      // ドラッグと同じく、移動量を座標の範囲内に収めて相対位置を崩さない
+      const xs = items.map((i) => i.cell.x);
+      const ys = items.map((i) => i.cell.y);
+      const dx = Math.max(
+        MIN_COORDINATE - Math.min(...xs),
+        Math.min(dir[0] * step, MAX_DIMENSION - Math.max(...xs)),
+      );
+      const dy = Math.max(
+        MIN_COORDINATE - Math.min(...ys),
+        Math.min(dir[1] * step, MAX_DIMENSION - Math.max(...ys)),
+      );
+      if (dx === 0 && dy === 0) return;
+      const moved = items.map(({ ref, cell }) => ({
+        ref,
+        cell: { ...cell, x: cell.x + dx, y: cell.y + dy },
+      }));
+      const layerItem = moved.find((m) => m.ref.kind === 'layer');
+      if (layerItem) {
+        dispatchCell(layerItem.ref, layerItem.cell);
+      } else {
+        moveAreas(
+          moved.flatMap(({ ref, cell }): AreaMove[] =>
+            ref.kind === 'layer' ? [] : [{ ...ref, x: cell.x, y: cell.y }],
+          ),
+        );
+      }
+      setDragOverlay({
+        cell: boundingBox(moved.map((m) => m.cell)),
+        hitX: null,
+        hitY: null,
+      });
+      window.clearTimeout(nudgeTimerRef.current);
+      nudgeTimerRef.current = window.setTimeout(() => {
+        if (!dragRef.current) setDragOverlay(null);
+      }, NUDGE_OVERLAY_MS);
+    },
+    [selectedKeys, selectedRefs, getStartCell, dispatchCell, moveAreas],
+  );
+
   // ---- 描画用補助 ----
 
   const visiblePreparing = layout.preparing
@@ -1062,127 +1374,147 @@ export function WallPreview({
     return (dragOverlay.hitY / resolution.height) * preview.height;
   }, [dragOverlay, resolution.height, preview.height]);
 
+  const areaBoxCommon = {
+    resolution,
+    preview,
+    soleSelection,
+    describedBy: keyboardHelpId,
+    onPointerDownArea,
+    onFocusArea,
+    onNudge,
+  };
+
   return (
-    <div ref={containerRef} className="w-full">
+    <div className="flex w-full flex-col md:min-h-0 md:flex-1">
+      {/* 寸法を測る入れ物。md 以上では列の残り高さいっぱいに広がり、キャンバスはその中に収まる */}
       <div
-        className="relative overflow-hidden rounded-md border border-border-strong bg-muted select-none"
-        style={{ width: preview.width, height: preview.height }}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
-        onPointerDown={(e) => {
-          // 空クリックで main の単独選択に戻す（Ctrl/⌘ 中はトグル操作の
-          // 空振りとして選択を維持する。Shift はスナップ無効用なので対象外）
-          if (e.target === e.currentTarget && !e.ctrlKey && !e.metaKey) {
-            selectAreas(DEFAULT_AREA_SELECTION);
-          }
-        }}
+        ref={containerRef}
+        className="flex w-full flex-col items-center md:min-h-48 md:flex-1"
       >
-        <BackgroundCanvas
-          background={background}
-          resolution={resolution}
-          preview={preview}
-        />
-
-        {showAreas && (
-          <>
-            <AreaBox
-              area={layout.main}
-              refId={MAIN_REF}
-              color="#2563eb"
-              label="main"
-              resolution={resolution}
-              preview={preview}
-              selected={selectedKeys.has(MAIN_KEY)}
-              soleSelection={soleSelection}
-              onPointerDownArea={onPointerDownArea}
-            />
-            {layout.locked.show && (
-              <AreaBox
-                area={layout.locked}
-                refId={LOCKED_REF}
-                color="#ea580c"
-                label="locked"
-                resolution={resolution}
-                preview={preview}
-                selected={selectedKeys.has(LOCKED_KEY)}
-                soleSelection={soleSelection}
-                onPointerDownArea={onPointerDownArea}
-              />
-            )}
-            {visiblePreparing.map(({ p, index }) => {
-              const ref: AreaRef = { kind: 'preparing', index };
-              return (
-                <AreaBox
-                  key={index}
-                  area={p}
-                  refId={ref}
-                  color="#16a34a"
-                  label={`preparing #${index + 1}`}
-                  resolution={resolution}
-                  preview={preview}
-                  selected={selectedKeys.has(areaRefKey(ref))}
-                  soleSelection={soleSelection}
-                  onPointerDownArea={onPointerDownArea}
-                />
-              );
-            })}
-          </>
-        )}
-
-        {/* レイヤ操作枠（image の fit=manual / shape）。レイヤ選択中は操作対象なので
-            エリアより手前に置く（main が全面を覆う既定レイアウトでも掴めるように）。 */}
-        {showLayerBox && selectedLayer && (
-          <LayerBox
-            layerId={selectedLayer.id}
-            transform={selectedLayer.cell}
-            label={`${selectedLayer.type} layer`}
+        <div
+          className="relative overflow-hidden rounded-md border border-border-strong bg-muted select-none"
+          style={{ width: preview.width, height: preview.height }}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
+          onPointerDown={(e) => {
+            // 空クリックで main の単独選択に戻す（Ctrl/⌘ 中はトグル操作の
+            // 空振りとして選択を維持する。Shift はスナップ無効用なので対象外）
+            if (e.target === e.currentTarget && !e.ctrlKey && !e.metaKey) {
+              selectAreas(DEFAULT_AREA_SELECTION);
+            }
+          }}
+        >
+          <BackgroundCanvas
+            background={background}
             resolution={resolution}
             preview={preview}
-            onPointerDownLayer={onPointerDownLayer}
           />
-        )}
 
-        {/* スナップヒット線 */}
-        {hitLineX !== null && (
-          <div
-            className="pointer-events-none absolute top-0 bottom-0 border-l border-pink-500"
-            style={{ left: hitLineX }}
-          />
-        )}
-        {hitLineY !== null && (
-          <div
-            className="pointer-events-none absolute left-0 right-0 border-t border-pink-500"
-            style={{ top: hitLineY }}
-          />
-        )}
+          {showAreas && (
+            <>
+              <AreaBox
+                {...areaBoxCommon}
+                area={layout.main}
+                refId={MAIN_REF}
+                color={AREA_COLORS.main.line}
+                ink={AREA_COLORS.main.ink}
+                label="main"
+                selected={selectedKeys.has(MAIN_KEY)}
+              />
+              {layout.locked.show && (
+                <AreaBox
+                  {...areaBoxCommon}
+                  area={layout.locked}
+                  refId={LOCKED_REF}
+                  color={AREA_COLORS.locked.line}
+                  ink={AREA_COLORS.locked.ink}
+                  label="locked"
+                  selected={selectedKeys.has(LOCKED_KEY)}
+                  lock={lockSprite}
+                />
+              )}
+              {visiblePreparing.map(({ p, index }) => {
+                const ref: AreaRef = { kind: 'preparing', index };
+                return (
+                  <AreaBox
+                    {...areaBoxCommon}
+                    key={index}
+                    area={p}
+                    refId={ref}
+                    color={AREA_COLORS.preparing.line}
+                    ink={AREA_COLORS.preparing.ink}
+                    label={`preparing #${index + 1}`}
+                    selected={selectedKeys.has(areaRefKey(ref))}
+                  />
+                );
+              })}
+            </>
+          )}
 
-        {/* ドラッグ中の px オーバーレイ */}
-        {dragOverlay && overlayPv && (
-          <div
-            className="pointer-events-none absolute z-10 rounded bg-slate-900/85 px-1.5 py-0.5 text-[10px] font-mono text-white shadow"
-            style={{
-              left: Math.max(0, Math.min(overlayPv.x, preview.width - 130)),
-              top: Math.max(0, overlayPv.y - 22),
-            }}
-          >
-            {Math.floor(dragOverlay.cell.x)}, {Math.floor(dragOverlay.cell.y)}{' '}
-            / {Math.floor(dragOverlay.cell.width)}×
-            {Math.floor(dragOverlay.cell.height)}
-          </div>
-        )}
+          {/* レイヤ操作枠（image の fit=manual / shape）。レイヤ選択中は操作対象なので
+              エリアより手前に置く（main が全面を覆う既定レイアウトでも掴めるように）。 */}
+          {showLayerBox && selectedLayer && (
+            <LayerBox
+              layerId={selectedLayer.id}
+              transform={selectedLayer.cell}
+              label={t(`background.type.${selectedLayer.type}`)}
+              resolution={resolution}
+              preview={preview}
+              describedBy={keyboardHelpId}
+              onPointerDownLayer={onPointerDownLayer}
+              onNudge={onNudge}
+            />
+          )}
+
+          {/* スナップヒット線 */}
+          {hitLineX !== null && (
+            <div
+              className="pointer-events-none absolute top-0 bottom-0 border-l border-pink-500"
+              style={{ left: hitLineX }}
+            />
+          )}
+          {hitLineY !== null && (
+            <div
+              className="pointer-events-none absolute left-0 right-0 border-t border-pink-500"
+              style={{ top: hitLineY }}
+            />
+          )}
+
+          {/* ドラッグ中の px オーバーレイ */}
+          {dragOverlay && overlayPv && (
+            <div
+              className="pointer-events-none absolute z-10 rounded bg-slate-900/85 px-1.5 py-0.5 text-xs font-mono text-white shadow"
+              style={{
+                left: Math.max(0, Math.min(overlayPv.x, preview.width - 130)),
+                top: Math.max(0, overlayPv.y - 22),
+              }}
+            >
+              {Math.floor(dragOverlay.cell.x)}, {Math.floor(dragOverlay.cell.y)}{' '}
+              / {Math.floor(dragOverlay.cell.width)}×
+              {Math.floor(dragOverlay.cell.height)}
+            </div>
+          )}
+        </div>
+        <p
+          ref={captionRef}
+          className="w-full pt-2 text-xs text-fg-subtle"
+          style={{ maxWidth: preview.width || undefined }}
+        >
+          {t('preview.scale', {
+            realWidth: resolution.width,
+            realHeight: resolution.height,
+            previewWidth: Math.round(preview.width),
+            previewHeight: Math.round(preview.height),
+          })}{' '}
+          ·{' '}
+          <span className="text-fg-subtle opacity-80">
+            {t('preview.snapHint')}
+          </span>
+        </p>
       </div>
-      <p className="mt-2 text-[11px] text-fg-subtle">
-        {t('preview.scale', {
-          realWidth: resolution.width,
-          realHeight: resolution.height,
-          previewWidth: Math.round(preview.width),
-          previewHeight: Math.round(preview.height),
-        })}{' '}
-        ·{' '}
-        <span className="text-fg-subtle opacity-80">
-          {t('preview.snapHint')}
-        </span>
+      <p id={keyboardHelpId} className="sr-only">
+        {t('preview.keyboardHelp')}
       </p>
     </div>
   );

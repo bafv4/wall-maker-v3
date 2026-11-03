@@ -32,7 +32,9 @@
     },
   "preview": {
     "title": "Preview",
-    "hint": "Click an area to select; Ctrl/⌘+click for multi-select. Drag to move (a multi-selection moves together, snapping against the selection's bounding box); use corner / edge handles to resize. All values are stored as integers.",
+    "hint": "Click an area to select it; Ctrl/⌘+click to select several. Drag to move, drag a corner or edge handle to resize. Tab to an area and use the arrow keys to move it 1px (Shift+arrow: 10px). A multi-selection moves together and snaps by its bounding box. Tile numbers are the order SeedQueue places instances in. All values are stored as whole pixels.",
+    "areaAria": "{{name}} (x {{x}}, y {{y}}, {{width}}×{{height}})",
+    "keyboardHelp": "Arrow keys move by 1px, Shift+arrow keys by 10px.",
     "scale": "Real {{realWidth}}×{{realHeight}} / preview {{previewWidth}}×{{previewHeight}}",
     "snapHint": "Hold Shift to disable snapping",
     "boxes": "Boxes",
