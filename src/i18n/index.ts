@@ -28,6 +28,12 @@ export type SupportedLanguage = (typeof SUPPORTED_LANGUAGES)[number];
 /** ユーザが UI で明示的に選んだ言語を記録するキー（OS 自動適用より優先）。 */
 const EXPLICIT_LANG_KEY = 'wm.langExplicit';
 
+// <html lang> を表示言語に合わせる。読み上げの言語と、和文の字形（漢字の地域差）の選択に効く。
+// init 中の初回の言語決定でも発火するよう、init より前に登録する。
+i18n.on('languageChanged', (lng) => {
+  document.documentElement.lang = i18n.resolvedLanguage ?? lng;
+});
+
 void i18n
   .use(LanguageDetector)
   .use(initReactI18next)
