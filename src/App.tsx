@@ -17,7 +17,7 @@
  * CropModal）や `@ffmpeg/ffmpeg` ラッパ（SoundsEditor → audio/convert）まで初回に載る。
  */
 
-import { Suspense, lazy, useEffect, useRef, useState } from 'react';
+import { Suspense, lazy, useDeferredValue, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { isTauri } from './adapters';
 import { AppHeader } from './components/AppHeader';
@@ -42,32 +42,51 @@ import './App.css';
 // 各エディタは名前付き export なので default に詰め替えてから lazy に渡す。
 // 目当ての分割は BackgroundEditor（+ CropModal + react-colorful）と
 // SoundsEditor（+ audio/convert → @ffmpeg/*）だが、扱いを揃えて全タブを遅延させる。
-const BackgroundEditor = lazy(() =>
+const loadBackgroundEditor = () =>
   import('./components/BackgroundEditor').then((m) => ({
     default: m.BackgroundEditor,
-  })),
-);
-const FileEditor = lazy(() =>
-  import('./components/FileEditor').then((m) => ({ default: m.FileEditor })),
-);
-const LayoutEditor = lazy(() =>
-  import('./components/LayoutEditor').then((m) => ({ default: m.LayoutEditor })),
-);
-const LockImagesEditor = lazy(() =>
+  }));
+const loadFileEditor = () =>
+  import('./components/FileEditor').then((m) => ({ default: m.FileEditor }));
+const loadLayoutEditor = () =>
+  import('./components/LayoutEditor').then((m) => ({ default: m.LayoutEditor }));
+const loadLockImagesEditor = () =>
   import('./components/LockImagesEditor').then((m) => ({
     default: m.LockImagesEditor,
-  })),
-);
-const PackInfoEditor = lazy(() =>
+  }));
+const loadPackInfoEditor = () =>
   import('./components/PackInfoEditor').then((m) => ({
     default: m.PackInfoEditor,
-  })),
-);
-const SoundsEditor = lazy(() =>
+  }));
+const loadSoundsEditor = () =>
   import('./components/SoundsEditor').then((m) => ({
     default: m.SoundsEditor,
-  })),
-);
+  }));
+const BackgroundEditor = lazy(loadBackgroundEditor);
+const FileEditor = lazy(loadFileEditor);
+const LayoutEditor = lazy(loadLayoutEditor);
+const LockImagesEditor = lazy(loadLockImagesEditor);
+const PackInfoEditor = lazy(loadPackInfoEditor);
+const SoundsEditor = lazy(loadSoundsEditor);
+
+/**
+ * 初回表示が落ち着いたら残りのタブのチャンクを先に取っておく。初期チャンクは軽いまま、
+ * タブを切り替えた瞬間に「読込中…」でパネルが空になるのを避ける（import はキャッシュされる）。
+ */
+function prefetchEditors() {
+  for (const load of [
+    loadFileEditor,
+    loadPackInfoEditor,
+    loadLayoutEditor,
+    loadBackgroundEditor,
+    loadLockImagesEditor,
+    loadSoundsEditor,
+  ]) {
+    void load().catch(() => {
+      // 先読みに失敗しても、タブを開いたときに lazy が取り直す
+    });
+  }
+}
 // 更新通知バナー（Desktop のみ描画。Web の初期チャンクに入れない）
 const DesktopUpdateNotice = lazy(() =>
   import('./components/DesktopUpdateNotice').then((m) => ({
@@ -198,6 +217,10 @@ function App() {
   const desktop = isTauri();
 
   const [tab, setTabState] = useState<EditorTab>(loadEditorTab);
+  // レールの選択は押した瞬間に切り替え、パネルだけ遅れて追従させる。パネルのチャンク解決を
+  // 待つ間は前のタブを出したままにする（先読み済みでも lazy は 1 拍 suspend するので、
+  // そのままだと切り替えのたびに「読込中…」が一瞬出る）
+  const panelTab = useDeferredValue(tab);
   const setTab = (next: EditorTab) => {
     setTabState(next);
     try {
@@ -243,6 +266,15 @@ function App() {
   }, [collapsed, setCollapsed]);
 
   useEffect(() => {
+    if (typeof requestIdleCallback === 'function') {
+      const id = requestIdleCallback(prefetchEditors, { timeout: 2000 });
+      return () => cancelIdleCallback(id);
+    }
+    const id = window.setTimeout(prefetchEditors, 1000);
+    return () => window.clearTimeout(id);
+  }, []);
+
+  useEffect(() => {
     const unsub = useWallStore.persist.onFinishHydration(() => setHydrated(true));
     if (useWallStore.persist.hasHydrated()) setHydrated(true);
     return unsub;
@@ -269,7 +301,7 @@ function App() {
         )}
 
         <Tabs
-          value={tab}
+          value={panelTab}
           onValueChange={(v) => setTab(v as EditorTab)}
           // 狭幅の暗黙行は max-content。auto のままだとスクロールコンテナ（横スクロールのナビ）の
           // 最小高さが 0 扱いになり、全体が画面より高いときにナビが潰れる。
