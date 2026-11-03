@@ -62,7 +62,7 @@ import {
 import { CropModal } from './CropModal';
 import { Button, Select, Switch, toast } from './ui';
 import { cn } from './ui/cn';
-import { CloseIcon } from './ui/icons';
+import { ChevronLeftIcon, CloseIcon } from './ui/icons';
 
 // ---------------------------------------------------------------------------
 // 共通: 画像ファイルの取り込み
@@ -947,7 +947,7 @@ interface LayerListItemProps {
   /** 一覧での位置（0 = 一番上 = 最も手前）。 */
   index: number;
   total: number;
-  selected: boolean;
+  /** 編集画面を開く。 */
   onSelect: () => void;
   onVisibleChange: (next: boolean) => void;
   onDelete: () => void;
@@ -957,7 +957,6 @@ function LayerListItem({
   layer,
   index,
   total,
-  selected,
   onSelect,
   onVisibleChange,
   onDelete,
@@ -974,7 +973,7 @@ function LayerListItem({
     data: { name, total } satisfies LayerDragData,
   });
 
-  // 選択は「種別＋見出し」のボタンで行う。行全体を role=button にすると、中の Switch や
+  // 編集画面を開くのは「種別＋見出し」のボタン。行全体を role=button にすると、中の Switch や
   // 並び替え・削除が入れ子の操作になり、支援技術から個別に扱えなくなるため。
   return (
     <li
@@ -982,11 +981,7 @@ function LayerListItem({
       className={cn(
         'group flex items-center gap-2 rounded-md border bg-surface p-2 transition-colors',
         isDragging && 'relative z-10 shadow-lg',
-        selected
-          ? // ring-blue-100 はダーク面（neutral-900）で白く浮くため、
-            // ダークのみ半透明ブルーのハローに切り替える。
-            'border-blue-400 ring-2 ring-blue-100 dark:border-blue-500 dark:ring-blue-500/30'
-          : 'border-border hover:border-border-strong hover:bg-muted',
+        'border-border hover:border-border-strong hover:bg-muted',
       )}
       title={headline}
     >
@@ -1012,7 +1007,8 @@ function LayerListItem({
       </span>
       <button
         type="button"
-        aria-pressed={selected}
+        data-layer-open={layer.id}
+        aria-label={t('background.openLayer', { name })}
         onClick={onSelect}
         className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 self-stretch rounded text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
       >
@@ -1231,150 +1227,196 @@ export function BackgroundEditor() {
     } as BackgroundLayerPatch);
   };
 
-  // Editor 部分の見出し
-  const editorTitle = selectedLayer
-    ? t('background.editLayer', {
-        type: t(`background.type.${selectedLayer.type}`),
-      })
-    : t('background.selectLayer');
+  // 一覧 ⇄ 編集の切り替えでフォーカスを運ぶ。編集画面に入ったら「戻る」へ、一覧に戻ったら
+  // 開いていた行（削除した場合は追加ボタン）へ。画面ごと入れ替わるので、そのままだと
+  // フォーカスが body に落ちてキーボード操作の位置を見失う。
+  const backButtonRef = useRef<HTMLButtonElement>(null);
+  const addColorRef = useRef<HTMLButtonElement>(null);
+  const lastOpenedRef = useRef<string | null>(null);
+  const editingId = selectedLayer?.id ?? null;
+  useEffect(() => {
+    if (editingId) {
+      lastOpenedRef.current = editingId;
+      backButtonRef.current?.focus();
+      return;
+    }
+    const prev = lastOpenedRef.current;
+    if (!prev) return;
+    lastOpenedRef.current = null;
+    const row = document.querySelector<HTMLElement>(
+      `[data-layer-open="${CSS.escape(prev)}"]`,
+    );
+    (row ?? addColorRef.current)?.focus();
+  }, [editingId]);
 
   return (
     <>
-      {/* パネル全体が 1 本のスクロールに乗る。一覧と編集欄で高さを取り合わせると、
-          背の低いウィンドウ（Desktop 既定の 800×600 など）で一覧が 0 まで潰れるため。 */}
-      <div className="flex flex-col gap-3">
-        {/* 上段: 追加ボタン群 */}
-        <section className="space-y-2">
-          <div className="flex flex-wrap gap-2">
-            <Button size="sm" onClick={handleAddColor}>
-              {t('background.addColor')}
-            </Button>
-            <input
-              ref={addImageInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) void handleAddImage(f);
-                if (addImageInputRef.current)
-                  addImageInputRef.current.value = '';
-              }}
-            />
+      {selectedLayer ? (
+        // 編集画面: 一覧と入れ替わる（サイドバーの見出し・取り消しはそのまま）
+        <div className="flex flex-col gap-3">
+          <div>
             <Button
+              ref={backButtonRef}
               size="sm"
-              disabled={addingImage}
-              onClick={() => addImageInputRef.current?.click()}
+              variant="ghost"
+              onClick={() => selectBackgroundLayer(null)}
+              className="-ml-2 gap-1 pl-1.5"
             >
-              {t('background.addImage')}
-            </Button>
-            <Button size="sm" onClick={handleAddGradient}>
-              {t('background.addGradient')}
-            </Button>
-            <Button size="sm" onClick={handleAddShape}>
-              {t('background.addShape')}
+              <ChevronLeftIcon />
+              {t('background.back')}
             </Button>
           </div>
-          <p className="text-xs text-fg-subtle">
-            {t('background.drawOrderHint')}
-          </p>
-        </section>
 
-        {/* 中段: レイヤ一覧（多いときは一覧の中でスクロール） */}
-        <section className="flex flex-col gap-2">
-          <h3 className="text-sm font-semibold text-fg">
-            {t('background.layerListTitle', { count: layers.length })}
-          </h3>
-          {layers.length > 0 && (
-            <p className="text-xs text-fg-subtle">
-              {t('background.visibilityHint')}
-            </p>
-          )}
-          {layers.length === 0 ? (
-            <p className="rounded border border-dashed border-border-strong p-3 text-xs text-fg-subtle">
-              {t('background.layerListEmpty')}
-            </p>
-          ) : (
-            <DragDropProvider
-              modifiers={DND_MODIFIERS}
-              plugins={dndPlugins}
-              onDragEnd={(event) => {
-                if (event.canceled) return;
-                const { source } = event.operation;
-                if (!isSortable(source) || source.initialIndex === source.index)
-                  return;
-                const ids = listedLayers.map((l) => l.id);
-                const [moved] = ids.splice(source.initialIndex, 1);
-                ids.splice(source.index, 0, moved);
-                refocusHandleRef.current = moved;
-                reorderBackgroundLayers(ids.reverse());
-              }}
+          <div className="flex items-center gap-2">
+            <span
+              className={cn(
+                'flex-shrink-0 rounded border px-1.5 py-0.5 text-xs font-semibold',
+                TYPE_COLOR[selectedLayer.type],
+              )}
             >
-              <ul className="flex max-h-[min(40vh,20rem)] flex-col gap-2 overflow-y-auto pr-1">
-                {listedLayers.map((layer, i) => (
-                  <LayerListItem
-                    key={layer.id}
-                    layer={layer}
-                    index={i}
-                    total={listedLayers.length}
-                    selected={selectedLayerId === layer.id}
-                    onSelect={() =>
-                      selectBackgroundLayer(
-                        selectedLayerId === layer.id ? null : layer.id,
-                      )
-                    }
-                    onVisibleChange={(b) => handleVisibleChange(layer, b)}
-                    onDelete={() => {
-                      removeBackgroundLayer(layer.id);
-                      notifyUndoable(t('history.deleted.layer'));
-                    }}
-                  />
-                ))}
-              </ul>
-            </DragDropProvider>
-          )}
-        </section>
+              {t(`background.type.${selectedLayer.type}`)}
+            </span>
+            <h3 className="min-w-0 flex-1 truncate text-sm font-semibold text-fg">
+              {layerHeadline(selectedLayer, t)}
+            </h3>
+            <Switch
+              checked={selectedLayer.visible}
+              onChange={(b) => handleVisibleChange(selectedLayer, b)}
+              aria-label={t('background.layerVisible', {
+                name: t(`background.type.${selectedLayer.type}`),
+              })}
+            />
+            <button
+              type="button"
+              onClick={() => {
+                removeBackgroundLayer(selectedLayer.id);
+                notifyUndoable(t('history.deleted.layer'));
+              }}
+              className="flex h-7 w-7 flex-shrink-0 cursor-pointer items-center justify-center rounded text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/15"
+              title={t('background.delete')}
+              aria-label={t('background.delete')}
+            >
+              <CloseIcon className="size-3.5" />
+            </button>
+          </div>
 
-        {/* 下段: 選択中レイヤのエディタ */}
-        <section className="flex flex-col gap-2 border-t border-border pt-3">
-          <h3 className="text-sm font-semibold text-fg">
-            {editorTitle}
-          </h3>
-          {selectedLayer ? (
-            <div className="rounded-md border border-border bg-panel p-3">
-              {selectedLayer.type === 'color' && (
-                <ColorEditor
-                  layer={selectedLayer}
-                  onUpdate={(p) => updateBackgroundLayer(selectedLayer.id, p)}
-                />
-              )}
-              {selectedLayer.type === 'image' && (
-                <ImageEditor
-                  layer={selectedLayer}
-                  onUpdate={(p) => updateBackgroundLayer(selectedLayer.id, p)}
-                  onOpenCrop={() => setCropTargetId(selectedLayer.id)}
-                />
-              )}
-              {selectedLayer.type === 'gradient' && (
-                <GradientEditor
-                  layer={selectedLayer}
-                  onUpdate={(p) => updateBackgroundLayer(selectedLayer.id, p)}
-                />
-              )}
-              {selectedLayer.type === 'shape' && (
-                <ShapeEditor
-                  layer={selectedLayer}
-                  onUpdate={(p) => updateBackgroundLayer(selectedLayer.id, p)}
-                />
-              )}
+          <div className="border-t border-border pt-3">
+            {selectedLayer.type === 'color' && (
+              <ColorEditor
+                layer={selectedLayer}
+                onUpdate={(p) => updateBackgroundLayer(selectedLayer.id, p)}
+              />
+            )}
+            {selectedLayer.type === 'image' && (
+              <ImageEditor
+                layer={selectedLayer}
+                onUpdate={(p) => updateBackgroundLayer(selectedLayer.id, p)}
+                onOpenCrop={() => setCropTargetId(selectedLayer.id)}
+              />
+            )}
+            {selectedLayer.type === 'gradient' && (
+              <GradientEditor
+                layer={selectedLayer}
+                onUpdate={(p) => updateBackgroundLayer(selectedLayer.id, p)}
+              />
+            )}
+            {selectedLayer.type === 'shape' && (
+              <ShapeEditor
+                layer={selectedLayer}
+                onUpdate={(p) => updateBackgroundLayer(selectedLayer.id, p)}
+              />
+            )}
+          </div>
+        </div>
+      ) : (
+        // 一覧画面: 追加ボタン＋レイヤ一覧。行を選ぶと編集画面に切り替わる
+        <div className="flex flex-col gap-3">
+          <section className="space-y-2">
+            <div className="flex flex-wrap gap-2">
+              <Button ref={addColorRef} size="sm" onClick={handleAddColor}>
+                {t('background.addColor')}
+              </Button>
+              <input
+                ref={addImageInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) void handleAddImage(f);
+                  if (addImageInputRef.current)
+                    addImageInputRef.current.value = '';
+                }}
+              />
+              <Button
+                size="sm"
+                disabled={addingImage}
+                onClick={() => addImageInputRef.current?.click()}
+              >
+                {t('background.addImage')}
+              </Button>
+              <Button size="sm" onClick={handleAddGradient}>
+                {t('background.addGradient')}
+              </Button>
+              <Button size="sm" onClick={handleAddShape}>
+                {t('background.addShape')}
+              </Button>
             </div>
-          ) : (
-            <p className="rounded border border-dashed border-border-strong p-3 text-xs text-fg-subtle">
-              {t('background.selectPrompt')}
+            <p className="text-xs text-fg-subtle">
+              {t('background.drawOrderHint')}
             </p>
-          )}
-        </section>
-      </div>
+          </section>
+
+          <section className="flex flex-col gap-2">
+            <h3 className="text-sm font-semibold text-fg">
+              {t('background.layerListTitle', { count: layers.length })}
+            </h3>
+            {layers.length > 0 && (
+              <p className="text-xs text-fg-subtle">
+                {t('background.visibilityHint')}
+              </p>
+            )}
+            {layers.length === 0 ? (
+              <p className="rounded border border-dashed border-border-strong p-3 text-xs text-fg-subtle">
+                {t('background.layerListEmpty')}
+              </p>
+            ) : (
+              <DragDropProvider
+                modifiers={DND_MODIFIERS}
+                plugins={dndPlugins}
+                onDragEnd={(event) => {
+                  if (event.canceled) return;
+                  const { source } = event.operation;
+                  if (!isSortable(source) || source.initialIndex === source.index)
+                    return;
+                  const ids = listedLayers.map((l) => l.id);
+                  const [moved] = ids.splice(source.initialIndex, 1);
+                  ids.splice(source.index, 0, moved);
+                  refocusHandleRef.current = moved;
+                  reorderBackgroundLayers(ids.reverse());
+                }}
+              >
+                <ul className="flex flex-col gap-2">
+                  {listedLayers.map((layer, i) => (
+                    <LayerListItem
+                      key={layer.id}
+                      layer={layer}
+                      index={i}
+                      total={listedLayers.length}
+                      onSelect={() => selectBackgroundLayer(layer.id)}
+                      onVisibleChange={(b) => handleVisibleChange(layer, b)}
+                      onDelete={() => {
+                        removeBackgroundLayer(layer.id);
+                        notifyUndoable(t('history.deleted.layer'));
+                      }}
+                    />
+                  ))}
+                </ul>
+              </DragDropProvider>
+            )}
+          </section>
+        </div>
+      )}
 
       {cropTarget && (
         <CropModal

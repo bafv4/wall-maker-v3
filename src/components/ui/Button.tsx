@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes } from 'react';
+import type { ButtonHTMLAttributes, Ref } from 'react';
 import { cn } from './cn';
 
 export type ButtonVariant =
@@ -13,6 +13,8 @@ export type ButtonSize = 'sm' | 'md';
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
   size?: ButtonSize;
+  /** フォーカスを移すときなどに使う（React 19 では ref を props として受け取れる）。 */
+  ref?: Ref<HTMLButtonElement>;
 }
 
 // 中立色（surface/fg/border/muted）はセマンティックトークン経由でライト/ダークが切り替わる

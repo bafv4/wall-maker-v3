@@ -211,8 +211,8 @@
     "layerListEmpty": "No background layers.",
     "visibilityHint": "The left toggle hides a layer in the preview and the exported resource pack — hidden layers are not written to background.png.",
     "editLayer": "Edit {{type}} layer",
-    "selectLayer": "Select a layer",
-    "selectPrompt": "Select a layer from the list above to edit it here.",
+    "back": "Back",
+    "openLayer": "Edit {{name}}",
     "layerVisible": "Show “{{name}}”",
     "dragHandle": "Reorder “{{name}}”",
     "dnd": {

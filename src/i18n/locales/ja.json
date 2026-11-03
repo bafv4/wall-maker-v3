@@ -211,8 +211,8 @@
     "layerListEmpty": "背景レイヤーがありません。",
     "visibilityHint": "左のトグルでの非表示は、プレビューだけでなく書き出すリソースパックからも除外されます（background.png に含まれません）。",
     "editLayer": "{{type}} レイヤーを編集",
-    "selectLayer": "レイヤーを選択",
-    "selectPrompt": "上の一覧からレイヤーを選択すると、ここに編集画面が表示されます。",
+    "back": "戻る",
+    "openLayer": "{{name}} を編集",
     "layerVisible": "「{{name}}」を表示",
     "dragHandle": "「{{name}}」を並び替え",
     "dnd": {
