@@ -71,6 +71,12 @@
       "preparing": "preparing #{{n}} deleted"
     }
   },
+  "window": {
+    "minimize": "Minimize",
+    "maximize": "Maximize",
+    "restore": "Restore down",
+    "close": "Close"
+  },
   "header": {
     "exporting": "Working…",
     "aboutTooltip": "About / Licenses",

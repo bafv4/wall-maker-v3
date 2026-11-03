@@ -71,6 +71,12 @@
       "preparing": "preparing #{{n}} を削除しました"
     }
   },
+  "window": {
+    "minimize": "最小化",
+    "maximize": "最大化",
+    "restore": "元に戻す（縮小）",
+    "close": "閉じる"
+  },
   "header": {
     "exporting": "処理中…",
     "aboutTooltip": "About / ライセンス情報",

@@ -195,7 +195,11 @@ function App() {
             className="flex flex-col border-b border-border bg-surface md:row-span-2 md:min-h-0 md:border-r md:border-b-0"
           >
             {/* 取り消し / やり直しはどのタブの編集にも効くので、パネル見出しに常に置く */}
-            <div className="flex h-12 flex-shrink-0 items-center justify-between gap-2 border-b border-border pr-2 pl-4">
+            {/* Desktop ではここもウィンドウを掴んで動かせる（OS のタイトルバーが無いため） */}
+            <div
+              data-tauri-drag-region
+              className="flex h-12 flex-shrink-0 items-center justify-between gap-2 border-b border-border pr-2 pl-4"
+            >
               <h2 className="text-base font-semibold text-fg">
                 {t(`tab.${tab}`)}
               </h2>

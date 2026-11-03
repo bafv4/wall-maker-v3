@@ -8,6 +8,7 @@
 
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+import { isMacDesktop } from '../adapters';
 import { cn } from './ui';
 import { handleTabListKeyDown } from './ui/tabListKeys';
 
@@ -102,14 +103,23 @@ export function AppRail({
         className,
       )}
     >
-      {/* ブランドマーク。狭幅では上のヘッダにタイトルがあるので出さない */}
-      <div className="hidden h-12 flex-shrink-0 items-center justify-center md:flex">
-        <img
-          src={`${import.meta.env.BASE_URL}icon.svg`}
-          alt=""
-          className="h-8 w-8 rounded-md"
+      {/* ブランドマーク。狭幅では上のヘッダにタイトルがあるので出さない。
+          macOS の Desktop 版はここに OS の信号機ボタンが重なるので、マークを出さず
+          ウィンドウを掴んで動かせる空き地にする。 */}
+      {isMacDesktop() ? (
+        <div
+          data-tauri-drag-region
+          className="hidden h-12 flex-shrink-0 md:block"
         />
-      </div>
+      ) : (
+        <div className="hidden h-12 flex-shrink-0 items-center justify-center md:flex">
+          <img
+            src={`${import.meta.env.BASE_URL}icon.svg`}
+            alt=""
+            className="h-8 w-8 rounded-md"
+          />
+        </div>
+      )}
       <div
         role="tablist"
         onKeyDown={handleTabListKeyDown}

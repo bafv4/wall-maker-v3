@@ -3,6 +3,11 @@
  *
  * インポート / エクスポート / リセットは「ファイル」タブ（`FileEditor`）に集約している。
  *
+ * Desktop 版では OS のタイトルバーの代わりを兼ねる。空いている所を掴むとウィンドウを動かせ、
+ * ダブルクリックで最大化する（`data-tauri-drag-region`。ボタン・リンクの上では効かない）。
+ * Windows / Linux は右端に最小化・最大化・閉じる（`WindowControls`）を置き、macOS は
+ * OS の信号機ボタンが左上（レールの上端）に重なる。
+ *
  * タイトル部分をクリックすると AboutModal が開き、FFmpeg ライセンス表記等を表示する。
  * タイトルの右隣には GitHub の最新リリースページ（/releases/latest）への外部リンクを置く。
  */
@@ -10,6 +15,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AboutModal } from './AboutModal';
+import { WindowControls } from './WindowControls';
 import { ExternalLink } from './ui';
 
 /** GitHub の最新リリースページ。タグを固定しないよう /releases/latest を使う。 */
@@ -23,12 +29,16 @@ export function AppHeader({ className }: { className?: string }) {
   return (
     <header className={className}>
       {/* 高さは罫線込みで 48px（左のエディタパネル見出しと揃える） */}
-      <div className="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-2 border-b border-border px-5 py-1">
-        <div className="flex items-center gap-3">
+      <div
+        data-tauri-drag-region
+        className="flex h-12 items-center gap-3 border-b border-border px-5"
+      >
+        {/* 1 行に収める（折り返すとウィンドウ操作ボタンが 2 行目に落ちる）。狭いときはタイトルを省略表示 */}
+        <div className="flex min-w-0 items-center gap-3">
           <button
             type="button"
             onClick={() => setAboutOpen(true)}
-            className="cursor-pointer rounded text-left text-base font-semibold text-fg hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            className="min-w-0 cursor-pointer truncate rounded text-left text-base font-semibold text-fg hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
             title={t('header.aboutTooltip')}
           >
             {t('app.title')}
@@ -62,6 +72,8 @@ export function AppHeader({ className }: { className?: string }) {
             </svg>
           </ExternalLink>
         </div>
+        {/* 右端に詰める（右の余白を打ち消し、罫線を除いた高さいっぱいに伸ばす） */}
+        <WindowControls className="-mr-5 ml-auto flex-shrink-0 self-stretch" />
       </div>
 
       <AboutModal open={aboutOpen} onClose={() => setAboutOpen(false)} />

@@ -17,6 +17,7 @@ import type { PackReadResult, PackReadSource } from '../core/types';
 // `desktopSaveTarget`（= `@tauri-apps/*`）が引き込まれることはない。
 import type { SaveTargetRestore } from './desktopSaveTarget';
 import type { AppUpdateInfo, AppUpdateProgress } from './desktopUpdate';
+import type { WindowAction } from './desktopWindow';
 
 export type { AppUpdateInfo, AppUpdateProgress } from './desktopUpdate';
 
@@ -25,6 +26,32 @@ export type { PackReadResult, PackReadSource } from '../core/types';
 /** Tauri webview 内で動作しているかの判定。SSR / Node では false。 */
 export const isTauri = (): boolean =>
   typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+
+/**
+ * macOS の Desktop 版か。ウィンドウ操作ボタンの扱い（OS の信号機ボタンを使う）を分けるのに使う。
+ * 同期で判定したいので、os プラグイン（動的 import が要る）ではなく WKWebView の UA を見る。
+ */
+export const isMacDesktop = (): boolean =>
+  isTauri() && /Macintosh|Mac OS X/.test(navigator.userAgent);
+
+/**
+ * ウィンドウ操作（Windows / Linux の Desktop 版で、ヘッダの自前ボタンから呼ぶ）。
+ * Web では何もしない。
+ */
+export async function windowAction(action: WindowAction): Promise<void> {
+  if (!isTauri()) return;
+  const { windowActionDesktop } = await import('./desktopWindow');
+  await windowActionDesktop(action);
+}
+
+/** 最大化状態の監視（Desktop 専用）。Web では何もせず、解除関数だけ返す。 */
+export async function watchWindowMaximized(
+  onChange: (maximized: boolean) => void,
+): Promise<() => void> {
+  if (!isTauri()) return () => {};
+  const { watchMaximizedDesktop } = await import('./desktopWindow');
+  return watchMaximizedDesktop(onChange);
+}
 
 /**
  * 完成済みの zip バイト列を環境固有の出力先に書き出す。
