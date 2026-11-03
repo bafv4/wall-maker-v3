@@ -79,9 +79,7 @@
   },
   "header": {
     "exporting": "処理中…",
-    "aboutTooltip": "About / ライセンス情報",
-    "releases": "最新リリース",
-    "releasesTooltip": "GitHub の最新リリースページを開く"
+    "aboutTooltip": "About / ライセンス情報"
   },
   "fileEditor": {
     "import": {
@@ -378,6 +376,7 @@
     }
   },
   "about": {
+    "latestRelease": "最新リリースを確認（GitHub）",
     "title": "SeedQueue Wall Maker について",
     "appHeading": "SeedQueue Wall Maker",
     "appDescription": "Minecraft Speedrunning 用 <0>SeedQueue</0> mod のリソースパックを GUI で作成・編集するツール。同一コードベースで Web 版（ブラウザ）と Desktop 版（Tauri）を提供します。",

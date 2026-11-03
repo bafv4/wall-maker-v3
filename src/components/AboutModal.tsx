@@ -4,7 +4,7 @@
  * 仕様: REWRITE_SPEC.md 第9章 / CLAUDE.md「FFmpeg ライセンス表記は README とアプリ内 About に必須」。
  *
  * FFmpeg / @ffmpeg/core (GPL v2+) と ffmpeg.wasm (MIT) を MP3/WAV → OGG 変換に使用しており、
- * その表記をユーザに対して可視に保つ。AppHeader（Web）と FileEditor（Desktop）から開く。
+ * その表記をユーザに対して可視に保つ。AppHeader のタイトルから開く。最新リリースへのリンクも置く。
  * 言語切替（ja/en）もここに集約する。
  */
 
@@ -19,6 +19,8 @@ export interface AboutModalProps {
 
 const SEEDQUEUE_REPO = 'https://github.com/contariaa/seedqueue';
 const PROJECT_REPO = 'https://github.com/bafv4/wall-maker-v3';
+/** GitHub の最新リリースページ。タグを固定しないよう /releases/latest を使う。 */
+const LATEST_RELEASE_URL = `${PROJECT_REPO}/releases/latest`;
 const FFMPEG_REPO = 'https://github.com/FFmpeg/FFmpeg';
 const FFMPEG_WASM_REPO = 'https://github.com/ffmpegwasm/ffmpeg.wasm';
 const GPL3_URL = 'https://www.gnu.org/licenses/gpl-3.0.html';
@@ -75,6 +77,11 @@ export function AboutModal({ open, onClose }: AboutModalProps) {
               {`v${__APP_VERSION__}`}
             </span>
           </h3>
+          <p className="text-xs">
+            <ExternalLink href={LATEST_RELEASE_URL}>
+              {t('about.latestRelease')}
+            </ExternalLink>
+          </p>
           <p className="text-xs text-fg-muted">
             <Trans
               i18nKey="about.appDescription"

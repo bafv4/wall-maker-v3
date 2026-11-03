@@ -79,9 +79,7 @@
   },
   "header": {
     "exporting": "Working…",
-    "aboutTooltip": "About / Licenses",
-    "releases": "Latest release",
-    "releasesTooltip": "Open the latest release page on GitHub"
+    "aboutTooltip": "About / Licenses"
   },
   "fileEditor": {
     "import": {
@@ -378,6 +376,7 @@
     }
   },
   "about": {
+    "latestRelease": "Check the latest release (GitHub)",
     "title": "About SeedQueue Wall Maker",
     "appHeading": "SeedQueue Wall Maker",
     "appDescription": "A GUI for creating and editing resource packs for the <0>SeedQueue</0> Minecraft Speedrunning mod. Same codebase ships a Web build (browser) and a Desktop build (Tauri).",
