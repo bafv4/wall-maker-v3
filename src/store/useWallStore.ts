@@ -7,7 +7,8 @@
  * 不変条件:
  *  - 幾何（x/y/width/height/rows/columns/padding）は `floorArea`/`floorCell`（coords.ts）が
  *    一箇所で担保する：整数化・非有限値の排除・width/height >= 1・rows/columns >= 1・padding >= 0。
- *    layout / 背景レイヤの transform に触るアクションは必ずどちらかを通すこと。
+ *    layout に触るアクションは必ずどちらかを、背景レイヤ（transform・角丸）に触るアクションは
+ *    `floorLayerNumbers` を通すこと。
  *  - 解像度変更は `scaleStateForResolution` を必ず通す（背景レイヤと layout を同時にスケール、第8章 #9）。
  *  - import は浅いマージせず WallState を丸ごと差し替える（第8章 #6）。
  *  - hydrate 時は `normalizeWallStateNumbers` を通す。旧版で Infinity が混入した state は
@@ -18,8 +19,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import {
   floorArea,
-  floorCell,
-  floorCornerRadius,
+  floorLayerNumbers,
   normalizeWallStateNumbers,
   scaleStateForResolution,
   toSafeInt,
@@ -192,24 +192,16 @@ function applyLayerPatch(
       // layer.type === 'color' は narrowing 済
       return { ...(layer as ColorLayer), ...patch };
     }
+    // image / shape の幾何（transform・角丸）は wall 座標系なので、エリアと同じ不変条件へ
+    // 揃える（UI 側の入力は "1e999" → Infinity などを通しうる）。
     case 'image': {
-      const merged: ImageLayer = { ...(layer as ImageLayer), ...patch };
-      // transform は wall 座標系の幾何なので、エリアと同じ不変条件へ揃える
-      // （UI 側の `Math.floor(Number(v) || 0)` は "1e999" → Infinity を通してしまう）。
-      return merged.transform
-        ? { ...merged, transform: floorCell(merged.transform) }
-        : merged;
+      return floorLayerNumbers({ ...(layer as ImageLayer), ...patch });
     }
     case 'gradient': {
       return { ...(layer as GradientLayer), ...patch };
     }
     case 'shape': {
-      const merged: ShapeLayer = { ...(layer as ShapeLayer), ...patch };
-      const normalized = { ...merged, transform: floorCell(merged.transform) };
-      if (normalized.cornerRadius !== undefined) {
-        normalized.cornerRadius = floorCornerRadius(normalized.cornerRadius);
-      }
-      return normalized;
+      return floorLayerNumbers({ ...(layer as ShapeLayer), ...patch });
     }
   }
 }

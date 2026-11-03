@@ -14,7 +14,7 @@
  * 呼び出し側は従来どおり `background.png` を 1 枚の image レイヤとして復元する。
  */
 
-import { floorCell, floorCornerRadius, scaleBackgroundLayer } from './coords';
+import { floorLayerNumbers, scaleBackgroundLayer } from './coords';
 import type {
   AreaCell,
   BackgroundLayer,
@@ -266,14 +266,14 @@ function parseMetaLayer(raw: unknown, pack: VirtualPack): BackgroundLayer | null
         type: 'shape',
         shape: raw.shape,
         color: raw.color,
-        transform: floorCell(transform),
+        transform,
         opacity,
         visible,
       };
       if (isFiniteNumber(raw.cornerRadius) && raw.cornerRadius > 0) {
-        layer.cornerRadius = floorCornerRadius(raw.cornerRadius);
+        layer.cornerRadius = raw.cornerRadius;
       }
-      return layer;
+      return floorLayerNumbers(layer);
     }
     case 'image': {
       if (typeof raw.file !== 'string' || !isImageFit(raw.fit)) return null;
@@ -291,12 +291,12 @@ function parseMetaLayer(raw: unknown, pack: VirtualPack): BackgroundLayer | null
         opacity,
         visible,
       };
-      if (transform) layer.transform = floorCell(transform);
+      if (transform) layer.transform = transform;
       if (crop) layer.crop = crop;
       if (typeof raw.originalFileName === 'string') {
         layer.originalFileName = raw.originalFileName;
       }
-      return layer;
+      return floorLayerNumbers(layer);
     }
     default:
       return null;

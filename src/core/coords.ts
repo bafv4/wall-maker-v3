@@ -159,9 +159,22 @@ export function expandCell(cell: AreaCell, padding: number): AreaCell {
   });
 }
 
-/** 図形の角丸半径を 0 以上の整数にする。非有限は 0（角丸なし）に倒す。 */
-export function floorCornerRadius(radius: number): number {
-  return toSafeInt(radius, 0, 0);
+/**
+ * 背景レイヤの幾何（image / shape の transform、shape の角丸半径）を不変条件へ引き戻す。
+ * transform は floorCell と同じ（整数・非有限禁止・最小サイズ 1）、角丸半径は 0 以上の
+ * 整数（非有限は 0＝角丸なし）。store の patch・hydrate・解像度スケール・編集データの
+ * 読込はすべてここを通す（幾何フィールドを足したらここだけ直せばよい）。
+ */
+export function floorLayerNumbers(layer: BackgroundLayer): BackgroundLayer {
+  if (layer.type !== 'image' && layer.type !== 'shape') return layer;
+  // shape の transform は型上必須だが、壊れた永続化 state の hydrate で落ちないよう確かめる
+  const floored = layer.transform
+    ? { ...layer, transform: floorCell(layer.transform) }
+    : { ...layer };
+  if (floored.type === 'shape' && floored.cornerRadius !== undefined) {
+    floored.cornerRadius = toSafeInt(floored.cornerRadius, 0, 0);
+  }
+  return floored;
 }
 
 // ---------------------------------------------------------------------------
@@ -245,29 +258,27 @@ export function scaleBackgroundLayer(
   scaleX: number,
   scaleY: number,
 ): BackgroundLayer {
-  if ((layer.type === 'image' || layer.type === 'shape') && layer.transform) {
-    // floorCell 経由でエリアと同じ不変条件（整数・非有限禁止・最小サイズ 1）を適用する。
-    const transform = floorCell({
-      x: layer.transform.x * scaleX,
-      y: layer.transform.y * scaleY,
-      width: layer.transform.width * scaleX,
-      height: layer.transform.height * scaleY,
-    });
-    if (layer.type === 'shape' && layer.cornerRadius !== undefined) {
-      return {
-        ...layer,
-        transform,
-        // X/Y 非等倍時は相乗平均。padding のように小さい方を採ると、往復
-        // （1920x1080 → 2560x1080 → 1920x1080）で 40 → 40 → 30 と痩せていく。
-        // 半径は描画時に図形の上限で丸めるので、大きめに出てもはみ出さない。
-        cornerRadius: floorCornerRadius(
-          layer.cornerRadius * Math.sqrt(scaleX * scaleY),
-        ),
-      };
-    }
-    return { ...layer, transform };
+  if ((layer.type !== 'image' && layer.type !== 'shape') || !layer.transform) {
+    return layer;
   }
-  return layer;
+  const t = layer.transform;
+  const scaled = {
+    ...layer,
+    transform: {
+      x: t.x * scaleX,
+      y: t.y * scaleY,
+      width: t.width * scaleX,
+      height: t.height * scaleY,
+    },
+  };
+  if (scaled.type === 'shape' && scaled.cornerRadius !== undefined) {
+    // X/Y 非等倍時は相乗平均。padding のように小さい方を採ると、往復
+    // （1920x1080 → 2560x1080 → 1920x1080）で 40 → 40 → 30 と痩せていく。
+    // 半径は描画時に図形の上限で丸めるので、大きめに出てもはみ出さない。
+    scaled.cornerRadius *= Math.sqrt(scaleX * scaleY);
+  }
+  // エリアと同じ不変条件（整数・非有限禁止・最小サイズ 1）を適用する
+  return floorLayerNumbers(scaled);
 }
 
 export function scaleStateForResolution(
@@ -314,15 +325,7 @@ export function normalizeWallStateNumbers(state: WallState): WallState {
       preparing: state.layout.preparing.map((p) => floorArea(p)),
     },
     background: {
-      layers: state.background.layers.map((l) => {
-        const floored =
-          (l.type === 'image' || l.type === 'shape') && l.transform
-            ? { ...l, transform: floorCell(l.transform) }
-            : l;
-        return floored.type === 'shape' && floored.cornerRadius !== undefined
-          ? { ...floored, cornerRadius: floorCornerRadius(floored.cornerRadius) }
-          : floored;
-      }),
+      layers: state.background.layers.map((l) => floorLayerNumbers(l)),
     },
   };
 }
