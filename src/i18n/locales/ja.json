@@ -202,7 +202,8 @@
     "rows": "行数",
     "columns": "列数",
     "padding": "間隔 (px)",
-    "tooManyCells": "インスタンスが多すぎます（行数 × 列数 が 30 を超えています）"
+    "tooManyCells": "インスタンスが多すぎます（行数 × 列数 が 30 を超えています）",
+    "summary": "x {{x}}, y {{y}} · {{width}}×{{height}}"
   },
   "background": {
     "addLayer": "レイヤーを追加",

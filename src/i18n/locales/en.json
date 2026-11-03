@@ -202,7 +202,8 @@
     "rows": "Rows",
     "columns": "Columns",
     "padding": "Gap (px)",
-    "tooManyCells": "Too many instances (rows × columns exceeds 30)"
+    "tooManyCells": "Too many instances (rows × columns exceeds 30)",
+    "summary": "x {{x}}, y {{y}} · {{width}}×{{height}}"
   },
   "background": {
     "addLayer": "Add layer",
