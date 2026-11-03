@@ -202,10 +202,13 @@
     "tooManyCells": "Too many instances (rows × columns exceeds 30)"
   },
   "background": {
-    "addColor": "+ Color",
-    "addImage": "+ Image",
-    "addGradient": "+ Gradient",
-    "addShape": "+ Shape",
+    "addLayer": "Add layer",
+    "addMenu": {
+      "color": "Fill with a single color.",
+      "image": "Load an image file.",
+      "gradient": "Blend two or more colors.",
+      "shape": "Place a rectangle, triangle or ellipse."
+    },
     "drawOrderHint": "Layers higher in the list are drawn in front. Drag the handle on the left to reorder.",
     "layerListTitle": "Layers ({{count}})",
     "layerListEmpty": "No background layers.",

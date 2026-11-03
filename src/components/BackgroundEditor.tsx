@@ -22,7 +22,7 @@
  *    変わらないのに state / IndexedDB だけが肥大するため（JPEG 写真で数倍〜10 倍）。
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { RestrictToVerticalAxis } from '@dnd-kit/abstract/modifiers';
 import {
   Accessibility,
@@ -62,7 +62,7 @@ import {
 import { CropModal } from './CropModal';
 import { Button, Select, Switch, toast } from './ui';
 import { cn } from './ui/cn';
-import { ChevronLeftIcon, CloseIcon } from './ui/icons';
+import { ChevronLeftIcon, CloseIcon, PlusIcon } from './ui/icons';
 
 // ---------------------------------------------------------------------------
 // 共通: 画像ファイルの取り込み
@@ -1039,6 +1039,129 @@ function LayerListItem({
 }
 
 // ---------------------------------------------------------------------------
+// レイヤ追加メニュー
+// ---------------------------------------------------------------------------
+
+type AddLayerKind = 'color' | 'image' | 'gradient' | 'shape';
+const ADD_LAYER_KINDS: readonly AddLayerKind[] = [
+  'color',
+  'image',
+  'gradient',
+  'shape',
+];
+
+interface AddLayerMenuProps {
+  disabled?: boolean;
+  onPick: (kind: AddLayerKind) => void;
+  /** 追加ボタン。親が一覧に戻ったときのフォーカス先にも使う。 */
+  buttonRef: React.RefObject<HTMLButtonElement | null>;
+}
+
+/**
+ * 「レイヤを追加」ボタンと、押すと上に開く 4 種類の選択肢（メニュー）。
+ * キーボード: ↑/↓ で移動、Enter/Space で決定、Esc / 外側クリックで閉じてボタンへ戻る。
+ */
+function AddLayerMenu({ disabled, onPick, buttonRef }: AddLayerMenuProps) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const menuId = useId();
+
+  const close = (refocus: boolean) => {
+    setOpen(false);
+    if (refocus) buttonRef.current?.focus();
+  };
+
+  // 開いたら先頭の選択肢へ。外側を押したら閉じる
+  useEffect(() => {
+    if (!open) return;
+    itemRefs.current[0]?.focus();
+    const onDown = (e: PointerEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('pointerdown', onDown);
+    return () => document.removeEventListener('pointerdown', onDown);
+  }, [open]);
+
+  const onMenuKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const items = itemRefs.current.filter(
+      (el): el is HTMLButtonElement => el != null,
+    );
+    const i = items.indexOf(document.activeElement as HTMLButtonElement);
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const d = e.key === 'ArrowDown' ? 1 : -1;
+      items[(i + d + items.length) % items.length]?.focus();
+    } else if (e.key === 'Home' || e.key === 'End') {
+      e.preventDefault();
+      items[e.key === 'Home' ? 0 : items.length - 1]?.focus();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      close(true);
+    } else if (e.key === 'Tab') {
+      setOpen(false);
+    }
+  };
+
+  return (
+    <div ref={rootRef} className="relative">
+      <Button
+        ref={buttonRef}
+        disabled={disabled}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-controls={open ? menuId : undefined}
+        onClick={() => setOpen((v) => !v)}
+        className="w-full"
+      >
+        <PlusIcon />
+        {t('background.addLayer')}
+      </Button>
+      {open && (
+        <div
+          id={menuId}
+          role="menu"
+          aria-label={t('background.addLayer')}
+          onKeyDown={onMenuKeyDown}
+          // フッターに固定したボタンの上に開く
+          className="absolute right-0 bottom-full left-0 z-30 mb-2 overflow-hidden rounded-lg border border-border bg-surface py-1 shadow-lg"
+        >
+          {ADD_LAYER_KINDS.map((kind, i) => (
+            <button
+              key={kind}
+              ref={(el) => {
+                itemRefs.current[i] = el;
+              }}
+              type="button"
+              role="menuitem"
+              tabIndex={-1}
+              onClick={() => {
+                close(true);
+                onPick(kind);
+              }}
+              className="flex w-full cursor-pointer items-start gap-3 px-3 py-2 text-left hover:bg-muted focus:bg-muted focus:outline-none"
+            >
+              <span
+                className={cn(
+                  'mt-0.5 flex-shrink-0 rounded border px-1.5 py-0.5 text-xs font-semibold',
+                  TYPE_COLOR[kind],
+                )}
+              >
+                {t(`background.type.${kind}`)}
+              </span>
+              <span className="text-xs leading-relaxed text-fg-muted">
+                {t(`background.addMenu.${kind}`)}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // BackgroundEditor 本体
 // ---------------------------------------------------------------------------
 
@@ -1228,10 +1351,10 @@ export function BackgroundEditor() {
   };
 
   // 一覧 ⇄ 編集の切り替えでフォーカスを運ぶ。編集画面に入ったら「戻る」へ、一覧に戻ったら
-  // 開いていた行（削除した場合は追加ボタン）へ。画面ごと入れ替わるので、そのままだと
+  // 開いていた行（削除した場合は「レイヤを追加」）へ。画面ごと入れ替わるので、そのままだと
   // フォーカスが body に落ちてキーボード操作の位置を見失う。
   const backButtonRef = useRef<HTMLButtonElement>(null);
-  const addColorRef = useRef<HTMLButtonElement>(null);
+  const addLayerRef = useRef<HTMLButtonElement>(null);
   const lastOpenedRef = useRef<string | null>(null);
   const editingId = selectedLayer?.id ?? null;
   useEffect(() => {
@@ -1246,7 +1369,7 @@ export function BackgroundEditor() {
     const row = document.querySelector<HTMLElement>(
       `[data-layer-open="${CSS.escape(prev)}"]`,
     );
-    (row ?? addColorRef.current)?.focus();
+    (row ?? addLayerRef.current)?.focus();
   }, [editingId]);
 
   return (
@@ -1329,44 +1452,8 @@ export function BackgroundEditor() {
           </div>
         </div>
       ) : (
-        // 一覧画面: 追加ボタン＋レイヤ一覧。行を選ぶと編集画面に切り替わる
-        <div className="flex flex-col gap-3">
-          <section className="space-y-2">
-            <div className="flex flex-wrap gap-2">
-              <Button ref={addColorRef} size="sm" onClick={handleAddColor}>
-                {t('background.addColor')}
-              </Button>
-              <input
-                ref={addImageInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) void handleAddImage(f);
-                  if (addImageInputRef.current)
-                    addImageInputRef.current.value = '';
-                }}
-              />
-              <Button
-                size="sm"
-                disabled={addingImage}
-                onClick={() => addImageInputRef.current?.click()}
-              >
-                {t('background.addImage')}
-              </Button>
-              <Button size="sm" onClick={handleAddGradient}>
-                {t('background.addGradient')}
-              </Button>
-              <Button size="sm" onClick={handleAddShape}>
-                {t('background.addShape')}
-              </Button>
-            </div>
-            <p className="text-xs text-fg-subtle">
-              {t('background.drawOrderHint')}
-            </p>
-          </section>
-
+        // 一覧画面: レイヤ一覧＋下端に固定した「レイヤを追加」。行を選ぶと編集画面に切り替わる
+        <div className="flex flex-1 flex-col gap-3">
           <section className="flex flex-col gap-2">
             <h3 className="text-sm font-semibold text-fg">
               {t('background.layerListTitle', { count: layers.length })}
@@ -1414,7 +1501,37 @@ export function BackgroundEditor() {
                 </ul>
               </DragDropProvider>
             )}
+            <p className="text-xs text-fg-subtle">
+              {t('background.drawOrderHint')}
+            </p>
           </section>
+
+          {/* 追加はパネル下端に固定（一覧が長くてもスクロールせずに押せる）。
+              パネルの余白まで広げ、区切り線と地の色で一覧と分ける */}
+          <div className="sticky -bottom-4 z-10 -mx-4 -mb-4 mt-auto border-t border-border bg-surface px-4 py-3">
+            <input
+              ref={addImageInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void handleAddImage(f);
+                if (addImageInputRef.current)
+                  addImageInputRef.current.value = '';
+              }}
+            />
+            <AddLayerMenu
+              buttonRef={addLayerRef}
+              disabled={addingImage}
+              onPick={(kind) => {
+                if (kind === 'color') handleAddColor();
+                else if (kind === 'image') addImageInputRef.current?.click();
+                else if (kind === 'gradient') handleAddGradient();
+                else handleAddShape();
+              }}
+            />
+          </div>
         </div>
       )}
 

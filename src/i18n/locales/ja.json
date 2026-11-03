@@ -202,10 +202,13 @@
     "tooManyCells": "インスタンスが多すぎます（行数 × 列数 が 30 を超えています）"
   },
   "background": {
-    "addColor": "+ 色",
-    "addImage": "+ 画像",
-    "addGradient": "+ グラデーション",
-    "addShape": "+ 図形",
+    "addLayer": "レイヤーを追加",
+    "addMenu": {
+      "color": "一色で塗りつぶします。",
+      "image": "画像ファイルを読み込んで敷きます。",
+      "gradient": "2 色以上を滑らかにつなぎます。",
+      "shape": "四角形・三角形・円を置きます。"
+    },
     "drawOrderHint": "一覧の上にあるレイヤーほど手前に描画されます。左端のつまみをドラッグして並び替えられます。",
     "layerListTitle": "レイヤー一覧 ({{count}})",
     "layerListEmpty": "背景レイヤーがありません。",

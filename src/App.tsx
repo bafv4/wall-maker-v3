@@ -233,7 +233,8 @@ function App() {
                 <TabsContent value="layout">
                   <LayoutEditor />
                 </TabsContent>
-                <TabsContent value="background">
+                {/* 下端に「レイヤを追加」を固定するため、高さをパネルいっぱいにする */}
+                <TabsContent value="background" className="flex min-h-full flex-col">
                   <BackgroundEditor />
                 </TabsContent>
                 <TabsContent value="lock">

@@ -50,6 +50,14 @@ export function ChevronDownIcon(props: IconProps) {
   );
 }
 
+export function PlusIcon(props: IconProps) {
+  return (
+    <LineIcon {...props}>
+      <path d="M12 5v14M5 12h14" />
+    </LineIcon>
+  );
+}
+
 export function ChevronLeftIcon(props: IconProps) {
   return (
     <LineIcon {...props}>
