@@ -108,7 +108,7 @@ function LockImageRow({
             {filename}
           </code>
           {index === 0 && (
-            <span className="rounded bg-primary px-1.5 py-0.5 text-xs font-semibold uppercase text-white">
+            <span className="whitespace-nowrap rounded bg-primary px-1.5 py-0.5 text-xs font-semibold uppercase text-white">
               {t('lock.required')}
             </span>
           )}
@@ -116,8 +116,9 @@ function LockImageRow({
         <p className="mt-0.5 truncate text-xs text-fg-subtle">
           {image.originalFileName ?? t('lock.noName')} · {sizeKb}
         </p>
-        <div className="mt-1 flex items-center gap-2">
-          <label className="text-xs text-fg-muted" htmlFor={weightInputId}>
+        {/* 狭いときは割合の表示だけ次の行へ回す（ラベルや入力欄を潰さない） */}
+        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+          <label className="whitespace-nowrap text-xs text-fg-muted" htmlFor={weightInputId}>
             {t('lock.weight.label')}
           </label>
           <Input
@@ -130,10 +131,10 @@ function LockImageRow({
             placeholder={String(defaultWeight)}
             onChange={(e) => setLocalWeight(e.target.value)}
             onBlur={commitWeight}
-            className="h-6 w-20 text-xs"
+            className="h-6 w-20 flex-shrink-0 text-xs"
             title={t('lock.weight.hint')}
           />
-          <span className="text-xs text-fg-subtle">
+          <span className="whitespace-nowrap text-xs text-fg-subtle">
             {image.weight === undefined
               ? t('lock.weight.inherited', { value: defaultWeight })
               : t('lock.weight.effective', {
@@ -165,7 +166,12 @@ function LockImageRow({
         >
           <ArrowDownIcon className="size-3.5" />
         </button>
-        <Button variant="ghost" size="sm" onClick={onDelete}>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onDelete}
+          className="whitespace-nowrap"
+        >
           {t('lock.delete')}
         </Button>
       </div>

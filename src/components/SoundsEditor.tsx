@@ -188,11 +188,12 @@ function EventRow({
         rowDisabled && 'opacity-60',
       )}
     >
-      <div className="flex min-w-[140px] flex-1 items-center gap-1.5">
-        <span className="font-medium text-fg">{label}</span>
+      {/* 狭いときは語の途中で折らず、バッジ→セレクトの順に次の行へ回す */}
+      <div className="flex min-w-[180px] flex-1 flex-wrap items-center gap-1.5">
+        <span className="whitespace-nowrap font-medium text-fg">{label}</span>
         {info && <InfoTooltip text={info} />}
         {hasBuiltin && (
-          <span className="rounded bg-muted px-1 py-0.5 text-xs text-fg-subtle">
+          <span className="whitespace-nowrap rounded bg-muted px-1 py-0.5 text-xs text-fg-subtle">
             {t('sound.builtinBadge')}
           </span>
         )}
