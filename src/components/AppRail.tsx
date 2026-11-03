@@ -128,7 +128,7 @@ export function AppRail({
               className={cn(
                 itemClass,
                 active
-                  ? 'bg-accent-soft text-accent-soft-fg'
+                  ? 'bg-primary text-white'
                   : 'text-fg-muted hover:bg-muted hover:text-fg',
               )}
             >

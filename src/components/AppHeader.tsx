@@ -28,7 +28,7 @@ export function AppHeader({ className }: { className?: string }) {
           <button
             type="button"
             onClick={() => setAboutOpen(true)}
-            className="cursor-pointer rounded text-left text-base font-semibold text-fg hover:text-blue-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            className="cursor-pointer rounded text-left text-base font-semibold text-fg hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
             title={t('header.aboutTooltip')}
           >
             {t('app.title')}

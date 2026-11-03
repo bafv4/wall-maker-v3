@@ -125,7 +125,7 @@ function OpacityRow({ value, onChange }: OpacityRowProps) {
         onChange={(e) => onChange(Number(e.target.value) / 100)}
         aria-label={t('background.opacity')}
         aria-valuetext={`${percent}%`}
-        className="w-full cursor-pointer accent-blue-600"
+        className="w-full cursor-pointer accent-primary"
       />
     </div>
   );
@@ -171,7 +171,7 @@ function SliderRow({ label, value, min, max, unit, onChange }: SliderRowProps) {
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
         aria-label={label}
-        className="w-full cursor-pointer accent-blue-600"
+        className="w-full cursor-pointer accent-primary"
       />
     </div>
   );
@@ -613,7 +613,7 @@ function GradientEditor({
           }
           aria-label={t('background.gradient.angle')}
           aria-valuetext={`${layer.angle}°`}
-          className="w-full cursor-pointer accent-blue-600"
+          className="w-full cursor-pointer accent-primary"
         />
       </div>
 
@@ -654,7 +654,7 @@ function GradientEditor({
                 }
                 aria-label={t('background.gradient.stopOffsetAria', { n: i + 1 })}
                 aria-valuetext={`${Math.round(stop.offset * 100)}%`}
-                className="flex-1 cursor-pointer accent-blue-600"
+                className="flex-1 cursor-pointer accent-primary"
               />
               <span className="w-10 text-right text-xs text-fg-subtle">
                 {Math.round(stop.offset * 100)}%

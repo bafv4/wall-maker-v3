@@ -321,7 +321,7 @@ function AreaEditorImpl({
                   value={area.rows}
                   onChange={(e) => onChange({ rows: Number(e.target.value) })}
                   aria-label={t('areaEditor.rows')}
-                  className="mt-2 w-full accent-blue-600"
+                  className="mt-2 w-full accent-primary"
                 />
               </div>
               <div>
@@ -342,7 +342,7 @@ function AreaEditorImpl({
                     onChange({ columns: Number(e.target.value) })
                   }
                   aria-label={t('areaEditor.columns')}
-                  className="mt-2 w-full accent-blue-600"
+                  className="mt-2 w-full accent-primary"
                 />
               </div>
             </div>
@@ -365,7 +365,7 @@ function AreaEditorImpl({
                   onChange({ padding: Number(e.target.value) })
                 }
                 aria-label={t('areaEditor.padding')}
-                className="mt-2 w-full accent-blue-600"
+                className="mt-2 w-full accent-primary"
               />
             </div>
           </div>
