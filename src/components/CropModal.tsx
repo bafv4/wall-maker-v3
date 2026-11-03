@@ -9,7 +9,6 @@
 
 import {
   useCallback,
-  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -18,6 +17,7 @@ import {
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { AreaCell, ImageLayer } from '../core/state';
+import { useObjectUrl } from '../hooks/useObjectUrl';
 import { Button, Modal } from './ui';
 import { cn } from './ui/cn';
 import type { Handle } from './snap';
@@ -98,21 +98,7 @@ export interface CropModalProps {
 
 export function CropModal({ layer, onClose, onApply }: CropModalProps) {
   const { t } = useTranslation();
-  const imageUrl = useMemo(() => {
-    if (layer.source.kind !== 'inline') return null;
-    return URL.createObjectURL(
-      // Uint8Array<ArrayBufferLike> → BlobPart 非互換（TS 5.7+）。実 ArrayBuffer 由来なので絞り込む。
-      new Blob([layer.source.bytes as Uint8Array<ArrayBuffer>], {
-        type: layer.source.mimeType ?? 'image/png',
-      }),
-    );
-  }, [layer.source]);
-
-  useEffect(() => {
-    return () => {
-      if (imageUrl) URL.revokeObjectURL(imageUrl);
-    };
-  }, [imageUrl]);
+  const imageUrl = useObjectUrl(layer.source);
 
   const imgRef = useRef<HTMLImageElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);

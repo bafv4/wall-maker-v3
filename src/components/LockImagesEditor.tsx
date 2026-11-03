@@ -21,6 +21,7 @@ import {
   lockWeightShares,
 } from '../core/lockWeights';
 import type { LockImage } from '../core/state';
+import { useObjectUrl } from '../hooks/useObjectUrl';
 import { useWallStore } from '../store/useWallStore';
 import { Button, Input, Switch, toast } from './ui';
 import { cn } from './ui/cn';
@@ -72,21 +73,7 @@ function LockImageRow({
     }
     onWeightChange(Number(trimmed));
   };
-  const previewUrl = useMemo(() => {
-    if (image.source.kind !== 'inline') return null;
-    return URL.createObjectURL(
-      // Uint8Array<ArrayBufferLike> → BlobPart 非互換（TS 5.7+）。実 ArrayBuffer 由来なので絞り込む。
-      new Blob([image.source.bytes as Uint8Array<ArrayBuffer>], {
-        type: image.source.mimeType ?? 'image/png',
-      }),
-    );
-  }, [image.source]);
-
-  useEffect(() => {
-    return () => {
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
-    };
-  }, [previewUrl]);
+  const previewUrl = useObjectUrl(image.source);
 
   const filename = index === 0 ? 'lock.png' : `lock-${index}.png`;
   const weightInputId = `lock-weight-${image.id}`;

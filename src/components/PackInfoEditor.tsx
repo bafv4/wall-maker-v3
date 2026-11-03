@@ -6,10 +6,11 @@
  * icon バイトは IndexedDB 永続化（Phase 3 persistAdapter 経由）。
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MAX_DIMENSION, toSafeInt } from '../core/coords';
 import { normalizeToPngBytes } from '../core/pngNormalize';
+import { useObjectUrl } from '../hooks/useObjectUrl';
 import { useWallStore } from '../store/useWallStore';
 import { presetValueOf, useResolutionPresets } from './resolutionPresets';
 import { Button, Input, Select, Switch, toast } from './ui';
@@ -257,22 +258,7 @@ export function PackInfoEditor() {
   // 元ファイル名（メモリ内のみ・保存不要）
   const [iconFileName, setIconFileName] = useState<string | null>(null);
 
-  const iconPreviewUrl = useMemo(() => {
-    const icon = packInfo.icon;
-    if (!icon || icon.kind !== 'inline') return null;
-    return URL.createObjectURL(
-      // Uint8Array<ArrayBufferLike> → BlobPart 非互換（TS 5.7+）。実 ArrayBuffer 由来なので絞り込む。
-      new Blob([icon.bytes as Uint8Array<ArrayBuffer>], {
-        type: icon.mimeType ?? 'image/png',
-      }),
-    );
-  }, [packInfo.icon]);
-
-  useEffect(() => {
-    return () => {
-      if (iconPreviewUrl) URL.revokeObjectURL(iconPreviewUrl);
-    };
-  }, [iconPreviewUrl]);
+  const iconPreviewUrl = useObjectUrl(packInfo.icon);
 
   const handleIconUpload = async (file: File) => {
     try {

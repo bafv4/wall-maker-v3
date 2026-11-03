@@ -20,7 +20,7 @@
  *    変わらないのに state / IndexedDB だけが肥大するため（JPEG 写真で数倍〜10 倍）。
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { HexColorPicker } from 'react-colorful';
 import { MIN_COORDINATE, expandCell, toSafeInt } from '../core/coords';
@@ -41,6 +41,7 @@ import {
   type ShapeKind,
   type ShapeLayer,
 } from '../core/state';
+import { useObjectUrl } from '../hooks/useObjectUrl';
 import {
   useWallStore,
   type BackgroundLayerPatch,
@@ -322,21 +323,7 @@ function ImageEditor({
     { value: 'manual', label: t('background.image.fit.manual') },
   ];
 
-  const previewUrl = useMemo(() => {
-    if (layer.source.kind !== 'inline') return null;
-    return URL.createObjectURL(
-      // Uint8Array<ArrayBufferLike> → BlobPart 非互換（TS 5.7+）。実 ArrayBuffer 由来なので絞り込む。
-      new Blob([layer.source.bytes as Uint8Array<ArrayBuffer>], {
-        type: layer.source.mimeType ?? 'image/png',
-      }),
-    );
-  }, [layer.source]);
-
-  useEffect(() => {
-    return () => {
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
-    };
-  }, [previewUrl]);
+  const previewUrl = useObjectUrl(layer.source);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   // 読み取り + デコード検証中。大きい画像だと秒単位かかるため、二重ピックで
