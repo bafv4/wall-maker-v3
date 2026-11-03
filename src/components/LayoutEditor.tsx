@@ -10,6 +10,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getLayoutPresets } from '../core/layoutPresets';
+import { notifyUndoable } from '../store/history';
 import { useWallStore } from '../store/useWallStore';
 import { AreaEditor, type AreaEditorPatch } from './AreaEditor';
 import { Button, Select, Switch } from './ui';
@@ -55,9 +56,12 @@ export function LayoutEditor() {
     () =>
       Array.from({ length: preparingCount }, (_, i) => ({
         onChange: (patch: AreaEditorPatch) => updatePreparing(i, patch),
-        onRemove: () => removePreparing(i),
+        onRemove: () => {
+          removePreparing(i);
+          notifyUndoable(t('history.deleted.preparing', { n: i + 1 }));
+        },
       })),
-    [preparingCount, updatePreparing, removePreparing],
+    [preparingCount, updatePreparing, removePreparing, t],
   );
 
   return (

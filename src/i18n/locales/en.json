@@ -61,7 +61,13 @@
   },
   "history": {
     "undo": "Undo",
-    "redo": "Redo"
+    "redo": "Redo",
+    "resetDone": "Reset to defaults",
+    "deleted": {
+      "layer": "Background layer deleted",
+      "lockImage": "Lock image deleted",
+      "preparing": "preparing #{{n}} deleted"
+    }
   },
   "header": {
     "import": "Import (.zip)",
@@ -103,9 +109,9 @@
     },
     "reset": {
       "title": "Reset",
-      "description": "Revert all edits to defaults. Saved layout and settings are also cleared.",
+      "description": "Reset pack info, layout, background, lock images and sounds to their defaults, and forget the overwrite target.",
       "button": "Reset",
-      "confirm": "Revert edits to defaults. Continue?"
+      "confirm": "Reset all edits (pack info, layout, background, lock images and sounds) to their defaults? You can undo this until you close the app."
     },
     "about": {
       "title": "About / Licenses",

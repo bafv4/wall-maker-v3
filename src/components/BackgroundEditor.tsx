@@ -42,6 +42,7 @@ import {
   type ShapeLayer,
 } from '../core/state';
 import { useObjectUrl } from '../hooks/useObjectUrl';
+import { notifyUndoable } from '../store/history';
 import {
   useWallStore,
   type BackgroundLayerPatch,
@@ -1236,7 +1237,10 @@ export function BackgroundEditor() {
                   onVisibleChange={(b) => handleVisibleChange(layer, b)}
                   onMoveUp={() => moveUp(i)}
                   onMoveDown={() => moveDown(i)}
-                  onDelete={() => removeBackgroundLayer(layer.id)}
+                  onDelete={() => {
+                    removeBackgroundLayer(layer.id);
+                    notifyUndoable(t('history.deleted.layer'));
+                  }}
                 />
               ))}
             </ul>

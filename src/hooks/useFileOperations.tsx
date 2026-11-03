@@ -81,7 +81,7 @@ import {
 } from '../core/parsePack';
 import type { Resolution, WallState } from '../core/state';
 import type { PackReadSource, VirtualPack } from '../core/types';
-import { clearHistory } from '../store/history';
+import { clearHistory, notifyUndoable } from '../store/history';
 import {
   takeBinaryRestoreReport,
   type BinaryFieldCounts,
@@ -501,6 +501,7 @@ export function FileOperationsProvider({ children }: { children: ReactNode }) {
     reset();
     setSourceFolder(null);
     setConfirmResetOpen(false);
+    notifyUndoable(t('history.resetDone'));
   };
 
   const dialogOpen =

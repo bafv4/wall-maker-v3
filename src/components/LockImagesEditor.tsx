@@ -22,6 +22,7 @@ import {
 } from '../core/lockWeights';
 import type { LockImage } from '../core/state';
 import { useObjectUrl } from '../hooks/useObjectUrl';
+import { notifyUndoable } from '../store/history';
 import { useWallStore } from '../store/useWallStore';
 import { Button, Input, Switch, toast } from './ui';
 import { cn } from './ui/cn';
@@ -339,7 +340,10 @@ export function LockImagesEditor() {
               share={shares[i] ?? 0}
               onMoveUp={() => moveUp(i)}
               onMoveDown={() => moveDown(i)}
-              onDelete={() => removeLockImage(img.id)}
+              onDelete={() => {
+                removeLockImage(img.id);
+                notifyUndoable(t('history.deleted.lockImage'));
+              }}
               onWeightChange={(w) => setLockImageWeight(img.id, w)}
             />
           ))}
