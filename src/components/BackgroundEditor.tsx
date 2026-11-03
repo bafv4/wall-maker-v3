@@ -26,14 +26,16 @@ import { HexColorPicker } from 'react-colorful';
 import { MIN_COORDINATE, expandCell, toSafeInt } from '../core/coords';
 import { errMsg } from '../core/errors';
 import { maxCornerRadius } from '../core/renderBackground';
-import type {
-  BackgroundLayer,
-  ColorLayer,
-  GradientLayer,
-  GradientStop,
-  ImageLayer,
-  ShapeKind,
-  ShapeLayer,
+import {
+  SHAPE_KINDS,
+  type AreaCell,
+  type BackgroundLayer,
+  type ColorLayer,
+  type GradientLayer,
+  type GradientStop,
+  type ImageLayer,
+  type ShapeKind,
+  type ShapeLayer,
 } from '../core/state';
 import {
   useWallStore,
@@ -134,9 +136,7 @@ function CornerRadiusRow({ value, max, onChange }: CornerRadiusRowProps) {
             min={0}
             max={max}
             value={effective}
-            onChange={(e) =>
-              onChange(Math.min(max, Math.floor(Number(e.target.value) || 0)))
-            }
+            onChange={(e) => onChange(toSafeInt(e.target.value, 0, 0, max))}
             aria-label={label}
             className="h-6 w-16 rounded border border-border-strong bg-surface px-1.5 text-xs text-fg"
           />
@@ -157,6 +157,34 @@ function CornerRadiusRow({ value, max, onChange }: CornerRadiusRowProps) {
 }
 
 // ---------------------------------------------------------------------------
+// 共通: 単色の選択（color / shape レイヤ）
+// ---------------------------------------------------------------------------
+
+/** カラーピッカーと現在値（色見本 + hex）。親の `space-y-*` に 2 行として並ぶ。 */
+function ColorField({
+  color,
+  onChange,
+}: {
+  color: string;
+  onChange: (next: string) => void;
+}) {
+  return (
+    <>
+      <div className="flex justify-center">
+        <HexColorPicker color={color} onChange={onChange} />
+      </div>
+      <div className="flex items-center gap-2">
+        <span
+          className="h-7 w-7 rounded border border-border-strong"
+          style={{ background: color }}
+        />
+        <code className="rounded bg-muted px-2 py-1 text-xs">{color}</code>
+      </div>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Color レイヤ
 // ---------------------------------------------------------------------------
 
@@ -169,21 +197,10 @@ function ColorEditor({
 }) {
   return (
     <div className="space-y-3">
-      <div className="flex justify-center">
-        <HexColorPicker
-          color={layer.color}
-          onChange={(c) => onUpdate({ type: 'color', color: c })}
-        />
-      </div>
-      <div className="flex items-center gap-2">
-        <span
-          className="h-7 w-7 rounded border border-border-strong"
-          style={{ background: layer.color }}
-        />
-        <code className="rounded bg-muted px-2 py-1 text-xs">
-          {layer.color}
-        </code>
-      </div>
+      <ColorField
+        color={layer.color}
+        onChange={(c) => onUpdate({ type: 'color', color: c })}
+      />
       <OpacityRow
         value={layer.opacity}
         onChange={(v) => onUpdate({ type: 'color', opacity: v })}
@@ -578,23 +595,17 @@ function GradientEditor({
 // Shape レイヤ
 // ---------------------------------------------------------------------------
 
-function ShapeEditor({
-  layer,
-  onUpdate,
-}: {
-  layer: ShapeLayer;
-  onUpdate: (patch: BackgroundLayerPatch) => void;
-}) {
+/**
+ * 図形をエリア（＋余白）に合わせる。適用時点のスナップショットで、エリアとは連動しない。
+ * layout の購読をここに閉じ、エリアのドラッグ中に ShapeEditor（カラーピッカー等）ごと
+ * 再描画しないようにする。
+ */
+function FitToAreaBox({ onFit }: { onFit: (transform: AreaCell) => void }) {
   const { t } = useTranslation();
   const layout = useWallStore((s) => s.wall.layout);
-  // エリアに合わせる: 対象と余白は図形を切り替えても引き継ぐ（同じ余白で並べる用途が多いため）
+  // 対象と余白は図形を切り替えても引き継ぐ（同じ余白で並べる用途が多いため）
   const [fitTarget, setFitTarget] = useState('main');
   const [fitPadding, setFitPadding] = useState(0);
-  const shapeOptions = [
-    { value: 'rect', label: t('background.shape.kind.rect') },
-    { value: 'triangle', label: t('background.shape.kind.triangle') },
-    { value: 'ellipse', label: t('background.shape.kind.ellipse') },
-  ];
 
   // 非表示の locked / preparing はパックに出ない（ゲームに存在しない）ので候補から外す
   const fitOptions = [
@@ -618,21 +629,68 @@ function ShapeEditor({
   const fitSelected =
     fitOptions.find((o) => o.value === fitTarget) ?? fitOptions[0];
 
-  const handleFit = () =>
-    onUpdate({
-      type: 'shape',
-      transform: expandCell(fitSelected.cell, fitPadding),
-    });
+  return (
+    <div className="space-y-2 rounded-md bg-muted p-3">
+      <span className="text-xs font-medium text-fg-muted">
+        {t('background.shape.fitTitle')}
+      </span>
+      <Select
+        label={t('background.shape.fitArea')}
+        value={fitSelected.value}
+        onValueChange={setFitTarget}
+        options={fitOptions}
+      />
+      <div className="flex items-end gap-2">
+        <label className="flex-1 text-xs text-fg-muted">
+          {t('background.shape.fitPadding')}
+          <span className="mt-0.5 flex items-center gap-1">
+            <input
+              type="number"
+              value={fitPadding}
+              onChange={(e) =>
+                setFitPadding(toSafeInt(e.target.value, 0, MIN_COORDINATE))
+              }
+              className="h-8 w-full rounded border border-border-strong bg-surface px-1.5 text-xs text-fg"
+            />
+            px
+          </span>
+        </label>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => onFit(expandCell(fitSelected.cell, fitPadding))}
+        >
+          {t('background.shape.fitApply')}
+        </Button>
+      </div>
+      <p className="text-[11px] text-fg-subtle">
+        {t('background.shape.fitHint')}
+      </p>
+    </div>
+  );
+}
 
+function ShapeEditor({
+  layer,
+  onUpdate,
+}: {
+  layer: ShapeLayer;
+  onUpdate: (patch: BackgroundLayerPatch) => void;
+}) {
+  const { t } = useTranslation();
+  const shapeOptions = SHAPE_KINDS.map((kind) => ({
+    value: kind,
+    label: t(`background.shape.kind.${kind}`),
+  }));
+
+  // 整数化と幅・高さ 1 以上はストア（floorLayerNumbers）が保証する
   const handleTransformField =
     (field: 'x' | 'y' | 'width' | 'height') =>
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const v = Math.floor(Number(e.target.value) || 0);
-      const next = { ...layer.transform, [field]: v };
-      if (next.width < 1) next.width = 1;
-      if (next.height < 1) next.height = 1;
-      onUpdate({ type: 'shape', transform: next });
-    };
+    (e: React.ChangeEvent<HTMLInputElement>) =>
+      onUpdate({
+        type: 'shape',
+        transform: { ...layer.transform, [field]: Number(e.target.value) },
+      });
 
   // 高さを幅に揃える（正方形・正円にする）
   const handleSquare = () =>
@@ -659,21 +717,10 @@ function ShapeEditor({
         options={shapeOptions}
       />
 
-      <div className="flex justify-center">
-        <HexColorPicker
-          color={layer.color}
-          onChange={(c) => onUpdate({ type: 'shape', color: c })}
-        />
-      </div>
-      <div className="flex items-center gap-2">
-        <span
-          className="h-7 w-7 rounded border border-border-strong"
-          style={{ background: layer.color }}
-        />
-        <code className="rounded bg-muted px-2 py-1 text-xs">
-          {layer.color}
-        </code>
-      </div>
+      <ColorField
+        color={layer.color}
+        onChange={(c) => onUpdate({ type: 'shape', color: c })}
+      />
 
       <div className="rounded-md bg-muted p-3">
         <div className="mb-2 flex items-center justify-between">
@@ -708,39 +755,9 @@ function ShapeEditor({
         </Button>
       </div>
 
-      <div className="space-y-2 rounded-md bg-muted p-3">
-        <span className="text-xs font-medium text-fg-muted">
-          {t('background.shape.fitTitle')}
-        </span>
-        <Select
-          label={t('background.shape.fitArea')}
-          value={fitSelected.value}
-          onValueChange={setFitTarget}
-          options={fitOptions}
-        />
-        <div className="flex items-end gap-2">
-          <label className="flex-1 text-xs text-fg-muted">
-            {t('background.shape.fitPadding')}
-            <span className="mt-0.5 flex items-center gap-1">
-              <input
-                type="number"
-                value={fitPadding}
-                onChange={(e) =>
-                  setFitPadding(toSafeInt(e.target.value, 0, MIN_COORDINATE))
-                }
-                className="h-8 w-full rounded border border-border-strong bg-surface px-1.5 text-xs text-fg"
-              />
-              px
-            </span>
-          </label>
-          <Button size="sm" variant="outline" onClick={handleFit}>
-            {t('background.shape.fitApply')}
-          </Button>
-        </div>
-        <p className="text-[11px] text-fg-subtle">
-          {t('background.shape.fitHint')}
-        </p>
-      </div>
+      <FitToAreaBox
+        onFit={(transform) => onUpdate({ type: 'shape', transform })}
+      />
 
       {/* 円には角が無いので出さない（値は保持し、種類を戻すと復帰する） */}
       {layer.shape !== 'ellipse' && (
