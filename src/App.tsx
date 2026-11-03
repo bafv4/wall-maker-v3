@@ -101,6 +101,22 @@ const EDITOR_TABS: readonly EditorTab[] = [
   'sound',
 ];
 
+/**
+ * 開いていたタブは閲覧者ごとの好みとして localStorage に覚え、次回はそこから始める
+ * （編集中の状態も残っているので、毎回ファイルタブから入り直させない）。
+ * 初回や読めない環境では、パックの読み込みから始められるファイルタブ。
+ */
+const TAB_STORAGE_KEY = 'wall-maker:editor-tab';
+
+function loadEditorTab(): EditorTab {
+  try {
+    const v = localStorage.getItem(TAB_STORAGE_KEY);
+    return EDITOR_TABS.find((tab) => tab === v) ?? 'file';
+  } catch {
+    return 'file';
+  }
+}
+
 const PREVIEW_TARGETS: readonly PreviewTarget[] = [
   'all',
   'background',
@@ -181,7 +197,15 @@ function App() {
   // 後から変わることはないので、レンダー時に都度参照しても問題ない。
   const desktop = isTauri();
 
-  const [tab, setTab] = useState<EditorTab>('file');
+  const [tab, setTabState] = useState<EditorTab>(loadEditorTab);
+  const setTab = (next: EditorTab) => {
+    setTabState(next);
+    try {
+      localStorage.setItem(TAB_STORAGE_KEY, next);
+    } catch {
+      // 保存できなくてもタブの切り替え自体は続ける
+    }
+  };
   const [boxMode, setBoxMode] = useState<PreviewTarget>('all');
   const [snapMode, setSnapMode] = useState<PreviewTarget>('all');
   const [hydrated, setHydrated] = useState(false);
