@@ -563,7 +563,7 @@ function AreaBox({
       })}
       aria-describedby={describedBy}
       className={cn(
-        'absolute border-2 focus:outline-none focus-visible:outline-solid focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-white',
+        'pointer-events-auto absolute border-2 focus:outline-none focus-visible:outline-solid focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-white',
         selected ? 'shadow-md' : 'opacity-90 hover:opacity-100',
       )}
       style={{
@@ -727,7 +727,7 @@ function LayerBox({
         height: transform.height,
       })}
       aria-describedby={describedBy}
-      className="absolute border-2 border-dashed focus:outline-none focus-visible:outline-solid focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-white"
+      className="pointer-events-auto absolute border-2 border-dashed focus:outline-none focus-visible:outline-solid focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-white"
       onKeyDown={(e) => onNudge(e, { kind: 'layer', layerId })}
       style={{
         left: pv.x,
@@ -1394,8 +1394,11 @@ export function WallPreview({
         ref={containerRef}
         className="flex w-full flex-col items-center md:min-h-48 md:flex-1"
       >
+        {/* キャンバス。枠は外側に描く（ring）ので、内側がちょうどプレビュー px になる
+            （border にすると内側が 2px 狭まり、右端・下端に接するエリアの枠線が切れる）。
+            画面そのものを表すので角は丸めない（エリアの角が削れないように）。 */}
         <div
-          className="relative overflow-hidden rounded-md border border-border-strong bg-muted select-none"
+          className="relative bg-muted ring-1 ring-border-strong select-none"
           style={{ width: preview.width, height: preview.height }}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
@@ -1408,96 +1411,107 @@ export function WallPreview({
             }
           }}
         >
-          <BackgroundCanvas
-            background={background}
-            resolution={resolution}
-            preview={preview}
-          />
-
-          {showAreas && (
-            <>
-              <AreaBox
-                {...areaBoxCommon}
-                area={layout.main}
-                refId={MAIN_REF}
-                color={AREA_COLORS.main.line}
-                ink={AREA_COLORS.main.ink}
-                label={t('areas.main')}
-                selected={selectedKeys.has(MAIN_KEY)}
-              />
-              {layout.locked.show && (
-                <AreaBox
-                  {...areaBoxCommon}
-                  area={layout.locked}
-                  refId={LOCKED_REF}
-                  color={AREA_COLORS.locked.line}
-                  ink={AREA_COLORS.locked.ink}
-                  label={t('areas.locked')}
-                  selected={selectedKeys.has(LOCKED_KEY)}
-                  lock={lockSprite}
-                />
-              )}
-              {visiblePreparing.map(({ p, index }) => {
-                const ref: AreaRef = { kind: 'preparing', index };
-                return (
-                  <AreaBox
-                    {...areaBoxCommon}
-                    key={index}
-                    area={p}
-                    refId={ref}
-                    color={AREA_COLORS.preparing.line}
-                    ink={AREA_COLORS.preparing.ink}
-                    label={t('areas.preparing', { n: index + 1 })}
-                    selected={selectedKeys.has(areaRefKey(ref))}
-                  />
-                );
-              })}
-            </>
-          )}
-
-          {/* レイヤ操作枠（image の fit=manual / shape）。レイヤ選択中は操作対象なので
-              エリアより手前に置く（main が全面を覆う既定レイアウトでも掴めるように）。 */}
-          {showLayerBox && selectedLayer && (
-            <LayerBox
-              layerId={selectedLayer.id}
-              transform={selectedLayer.cell}
-              label={t(`background.type.${selectedLayer.type}`)}
+          {/* 背景はキャンバスの範囲で切る */}
+          <div className="pointer-events-none absolute inset-0 overflow-hidden">
+            <BackgroundCanvas
+              background={background}
               resolution={resolution}
               preview={preview}
-              describedBy={keyboardHelpId}
-              onPointerDownLayer={onPointerDownLayer}
-              onNudge={onNudge}
             />
-          )}
+          </div>
 
-          {/* スナップヒット線 */}
-          {hitLineX !== null && (
-            <div
-              className="pointer-events-none absolute top-0 bottom-0 border-l border-pink-500"
-              style={{ left: hitLineX }}
-            />
-          )}
-          {hitLineY !== null && (
-            <div
-              className="pointer-events-none absolute left-0 right-0 border-t border-pink-500"
-              style={{ top: hitLineY }}
-            />
-          )}
+          {/* エリア・レイヤ枠・ハンドル・吸着線は、キャンバスより一回り（8px）大きく切る。
+              端に接するエリアのハンドル（辺の外へ半分出る）や影が欠けないようにしつつ、
+              画面外に置いたエリアは 8px で止める。クリックは中の枠だけが受け取り、
+              何もない所のクリックはキャンバス自体に届く（選択解除の判定）。 */}
+          <div className="pointer-events-none absolute -inset-2 overflow-hidden">
+            <div className="absolute inset-2">
+              {showAreas && (
+                <>
+                  <AreaBox
+                    {...areaBoxCommon}
+                    area={layout.main}
+                    refId={MAIN_REF}
+                    color={AREA_COLORS.main.line}
+                    ink={AREA_COLORS.main.ink}
+                    label={t('areas.main')}
+                    selected={selectedKeys.has(MAIN_KEY)}
+                  />
+                  {layout.locked.show && (
+                    <AreaBox
+                      {...areaBoxCommon}
+                      area={layout.locked}
+                      refId={LOCKED_REF}
+                      color={AREA_COLORS.locked.line}
+                      ink={AREA_COLORS.locked.ink}
+                      label={t('areas.locked')}
+                      selected={selectedKeys.has(LOCKED_KEY)}
+                      lock={lockSprite}
+                    />
+                  )}
+                  {visiblePreparing.map(({ p, index }) => {
+                    const ref: AreaRef = { kind: 'preparing', index };
+                    return (
+                      <AreaBox
+                        {...areaBoxCommon}
+                        key={index}
+                        area={p}
+                        refId={ref}
+                        color={AREA_COLORS.preparing.line}
+                        ink={AREA_COLORS.preparing.ink}
+                        label={t('areas.preparing', { n: index + 1 })}
+                        selected={selectedKeys.has(areaRefKey(ref))}
+                      />
+                    );
+                  })}
+                </>
+              )}
 
-          {/* ドラッグ中の px オーバーレイ */}
-          {dragOverlay && overlayPv && (
-            <div
-              className="pointer-events-none absolute z-10 rounded bg-slate-900/85 px-1.5 py-0.5 text-xs font-mono text-white shadow"
-              style={{
-                left: Math.max(0, Math.min(overlayPv.x, preview.width - 130)),
-                top: Math.max(0, overlayPv.y - 22),
-              }}
-            >
-              {Math.floor(dragOverlay.cell.x)}, {Math.floor(dragOverlay.cell.y)}{' '}
-              / {Math.floor(dragOverlay.cell.width)}×
-              {Math.floor(dragOverlay.cell.height)}
+              {/* レイヤ操作枠（image の fit=manual / shape）。レイヤ選択中は操作対象なので
+                  エリアより手前に置く（main が全面を覆う既定レイアウトでも掴めるように）。 */}
+              {showLayerBox && selectedLayer && (
+                <LayerBox
+                  layerId={selectedLayer.id}
+                  transform={selectedLayer.cell}
+                  label={t(`background.type.${selectedLayer.type}`)}
+                  resolution={resolution}
+                  preview={preview}
+                  describedBy={keyboardHelpId}
+                  onPointerDownLayer={onPointerDownLayer}
+                  onNudge={onNudge}
+                />
+              )}
+
+              {/* スナップヒット線。位置に線の中心を合わせ、キャンバスの右端・下端でも見えるようにする */}
+              {hitLineX !== null && (
+                <div
+                  className="pointer-events-none absolute top-0 bottom-0 w-px -translate-x-1/2 bg-pink-500"
+                  style={{ left: hitLineX }}
+                />
+              )}
+              {hitLineY !== null && (
+                <div
+                  className="pointer-events-none absolute left-0 right-0 h-px -translate-y-1/2 bg-pink-500"
+                  style={{ top: hitLineY }}
+                />
+              )}
+
+              {/* ドラッグ中の px オーバーレイ */}
+              {dragOverlay && overlayPv && (
+                <div
+                  className="pointer-events-none absolute z-10 rounded bg-slate-900/85 px-1.5 py-0.5 text-xs font-mono text-white shadow"
+                  style={{
+                    left: Math.max(0, Math.min(overlayPv.x, preview.width - 130)),
+                    top: Math.max(0, overlayPv.y - 22),
+                  }}
+                >
+                  {Math.floor(dragOverlay.cell.x)}, {Math.floor(dragOverlay.cell.y)}{' '}
+                  / {Math.floor(dragOverlay.cell.width)}×
+                  {Math.floor(dragOverlay.cell.height)}
+                </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
         <p
           ref={captionRef}
