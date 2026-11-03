@@ -1,5 +1,6 @@
 export { Button, type ButtonProps, type ButtonVariant, type ButtonSize } from './Button';
 export { Input, type InputProps } from './Input';
+export { RangeInput, type RangeInputProps } from './RangeInput';
 export { Select, type SelectProps, type SelectOption } from './Select';
 export { Switch, type SwitchProps } from './Switch';
 export {

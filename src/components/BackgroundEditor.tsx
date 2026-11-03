@@ -60,7 +60,7 @@ import {
   type BackgroundLayerPatch,
 } from '../store/useWallStore';
 import { CropModal } from './CropModal';
-import { Button, Select, Switch, toast } from './ui';
+import { Button, RangeInput, Select, Switch, toast } from './ui';
 import { cn } from './ui/cn';
 import { ChevronLeftIcon, CloseIcon, PlusIcon } from './ui/icons';
 
@@ -117,15 +117,14 @@ function OpacityRow({ value, onChange }: OpacityRowProps) {
         </span>
         <span className="text-xs text-fg-subtle">{percent}%</span>
       </div>
-      <input
-        type="range"
+      <RangeInput
         min={0}
         max={100}
         value={percent}
         onChange={(e) => onChange(Number(e.target.value) / 100)}
         aria-label={t('background.opacity')}
         aria-valuetext={`${percent}%`}
-        className="w-full cursor-pointer accent-primary"
+        className="w-full cursor-pointer"
       />
     </div>
   );
@@ -164,14 +163,13 @@ function SliderRow({ label, value, min, max, unit, onChange }: SliderRowProps) {
           {unit}
         </span>
       </div>
-      <input
-        type="range"
+      <RangeInput
         min={min}
         max={max}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
         aria-label={label}
-        className="w-full cursor-pointer accent-primary"
+        className="w-full cursor-pointer"
       />
     </div>
   );
@@ -603,8 +601,7 @@ function GradientEditor({
           </span>
           <span className="text-xs text-fg-subtle">{layer.angle}°</span>
         </div>
-        <input
-          type="range"
+        <RangeInput
           min={0}
           max={360}
           value={layer.angle}
@@ -613,7 +610,7 @@ function GradientEditor({
           }
           aria-label={t('background.gradient.angle')}
           aria-valuetext={`${layer.angle}°`}
-          className="w-full cursor-pointer accent-primary"
+          className="w-full cursor-pointer"
         />
       </div>
 
@@ -644,8 +641,7 @@ function GradientEditor({
                 style={{ background: stop.color }}
                 aria-label={t('background.gradient.selectStopAria', { n: i + 1 })}
               />
-              <input
-                type="range"
+              <RangeInput
                 min={0}
                 max={100}
                 value={Math.round(stop.offset * 100)}
@@ -654,7 +650,7 @@ function GradientEditor({
                 }
                 aria-label={t('background.gradient.stopOffsetAria', { n: i + 1 })}
                 aria-valuetext={`${Math.round(stop.offset * 100)}%`}
-                className="flex-1 cursor-pointer accent-primary"
+                className="flex-1 cursor-pointer"
               />
               <span className="w-10 text-right text-xs text-fg-subtle">
                 {Math.round(stop.offset * 100)}%

@@ -66,6 +66,11 @@
   --c-primary: #2563eb;          /* blue-600 */
   --c-primary-hover: #1d4ed8;    /* blue-700 */
   --c-primary-disabled: #93c5fd; /* blue-300 */
+
+  /* スライダーの進捗部分の枠・hover 色。Firefox が accent-color（= primary）から
+     輝度を拡大縮小して作る色（Theme の GetDark / GetDarker）の計算結果。primary を変えたら再計算する。 */
+  --c-range-progress-edge: #3a78ff;
+  --c-range-progress-edge-strong: #5395ff;
 }
 
 /* ダーク（OS/ブラウザ設定に追従）の実色 — 配色調整はここを書き換える。
@@ -92,6 +97,9 @@
     --c-primary: #4a72c4;
     --c-primary-hover: #3f66b6;
     --c-primary-disabled: #263a5e;
+
+    --c-range-progress-edge: #5e88e3;
+    --c-range-progress-edge-strong: #79a8ff;
   }
 }
 
@@ -175,4 +183,91 @@ textarea,
   display: none;
   width: 0;
   height: 0;
+}
+
+/* ===================================================================
+   スライダー（RangeInput）
+   Firefox の描画（非ネイティブテーマ widget/Theme.cpp）を正とし、WebView2(Chromium)・
+   WKWebView(WebKit) を同じ見た目に寄せる。Firefox は描画に手を入れない（accent-color のみ）。
+   - トラック: 高さ 6px・枠 1px・角丸 3px。つまみ中心で「進捗」と「残り」を塗り分ける。
+     WebKit には ::-moz-range-progress に当たる擬似要素が無いので、RangeInput が値の割合を
+     --range-p（0..1）で渡し、グラデーションの境目にする（境目はつまみの下に隠れる）。
+   - つまみ: 直径 20px・白枠 2px・影。
+   - 灰色は Firefox の固定値でライト/ダーク共通。進捗とドラッグ中のつまみだけ primary 由来。
+   =================================================================== */
+
+@supports not selector(::-moz-range-thumb) {
+  .range-input {
+    --range-track: #e9e9ed;
+    --range-track-edge: #8f8f9d;
+    --range-progress: var(--c-primary);
+    --range-progress-edge: var(--c-range-progress-edge);
+    --range-thumb: #676774;
+
+    -webkit-appearance: none;
+    appearance: none;
+    /* Firefox の既定の高さ。つまみ（20px）はこの箱からはみ出して描かれる。 */
+    block-size: 1.3em;
+    background: transparent;
+  }
+
+  .range-input:hover,
+  .range-input:active {
+    --range-track: #d0d0d7;
+    --range-track-edge: #676774;
+    --range-progress: var(--c-range-progress-edge);
+    --range-progress-edge: var(--c-range-progress-edge-strong);
+    --range-thumb: #484851;
+  }
+
+  .range-input:active {
+    --range-thumb: var(--c-primary);
+  }
+
+  .range-input:disabled {
+    --range-track: #e9e9ed80;
+    --range-track-edge: #8f8f9d80;
+    --range-progress: #8f8f9d80;
+    --range-progress-edge: #8f8f9d80;
+    --range-thumb: #8f8f9d;
+  }
+
+  /* つまみはトラックの内寸（枠の内側）の中を動くので、境目も枠の分だけずらして合わせる。 */
+  .range-input::-webkit-slider-runnable-track {
+    box-sizing: border-box;
+    height: 6px;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    background:
+      linear-gradient(
+          to right,
+          var(--range-progress) calc(10px + (100% - 20px) * var(--range-p, 0)),
+          var(--range-track) 0
+        )
+        padding-box,
+      linear-gradient(
+          to right,
+          var(--range-progress-edge) calc(11px + (100% - 22px) * var(--range-p, 0)),
+          var(--range-track-edge) 0
+        )
+        border-box;
+  }
+
+  .range-input::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    box-sizing: border-box;
+    width: 20px;
+    height: 20px;
+    /* トラックの内寸 4px の中央に置く: (4 - 20) / 2 */
+    margin-top: -8px;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    background: var(--range-thumb);
+    box-shadow: 0 2px 4px rgb(0 0 0 / 0.3);
+  }
+
+  .range-input:disabled::-webkit-slider-thumb {
+    box-shadow: none;
+  }
 }

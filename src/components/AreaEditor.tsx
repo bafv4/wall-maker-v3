@@ -29,7 +29,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { MAX_GRID_COUNT, MIN_COORDINATE, toSafeInt } from '../core/coords';
 import type { MainArea, Resolution, VisibleArea } from '../core/state';
-import { Button, Input, Switch } from './ui';
+import { Button, Input, RangeInput, Switch } from './ui';
 
 export type AreaEditorTarget = MainArea | VisibleArea;
 
@@ -314,14 +314,13 @@ function AreaEditorImpl({
                   onChange={(e) => setLocalRows(e.target.value)}
                   onBlur={commitRows}
                 />
-                <input
-                  type="range"
+                <RangeInput
                   min={1}
                   max={10}
                   value={area.rows}
                   onChange={(e) => onChange({ rows: Number(e.target.value) })}
                   aria-label={t('areaEditor.rows')}
-                  className="mt-2 w-full accent-primary"
+                  className="mt-2 w-full"
                 />
               </div>
               <div>
@@ -333,8 +332,7 @@ function AreaEditorImpl({
                   onChange={(e) => setLocalColumns(e.target.value)}
                   onBlur={commitColumns}
                 />
-                <input
-                  type="range"
+                <RangeInput
                   min={1}
                   max={10}
                   value={area.columns}
@@ -342,7 +340,7 @@ function AreaEditorImpl({
                     onChange({ columns: Number(e.target.value) })
                   }
                   aria-label={t('areaEditor.columns')}
-                  className="mt-2 w-full accent-primary"
+                  className="mt-2 w-full"
                 />
               </div>
             </div>
@@ -356,8 +354,7 @@ function AreaEditorImpl({
                 onChange={(e) => setLocalPadding(e.target.value)}
                 onBlur={commitPadding}
               />
-              <input
-                type="range"
+              <RangeInput
                 min={0}
                 max={64}
                 value={area.padding ?? 0}
@@ -365,7 +362,7 @@ function AreaEditorImpl({
                   onChange({ padding: Number(e.target.value) })
                 }
                 aria-label={t('areaEditor.padding')}
-                className="mt-2 w-full accent-primary"
+                className="mt-2 w-full"
               />
             </div>
           </div>
