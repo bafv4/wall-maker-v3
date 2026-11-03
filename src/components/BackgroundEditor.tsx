@@ -711,16 +711,16 @@ function FitToAreaBox({ onFit }: { onFit: (transform: AreaCell) => void }) {
 
   // 非表示の locked / preparing はパックに出ない（ゲームに存在しない）ので候補から外す
   const fitOptions = [
-    { value: 'main', label: 'main', cell: layout.main },
+    { value: 'main', label: t('areas.main'), cell: layout.main },
     ...(layout.locked.show
-      ? [{ value: 'locked', label: 'locked', cell: layout.locked }]
+      ? [{ value: 'locked', label: t('areas.locked'), cell: layout.locked }]
       : []),
     ...layout.preparing.flatMap((p, i) =>
       p.show
         ? [
             {
               value: `preparing:${i}`,
-              label: t('layoutEditor.preparingNumbered', { n: i + 1 }),
+              label: t('areas.preparing', { n: i + 1 }),
               cell: p,
             },
           ]

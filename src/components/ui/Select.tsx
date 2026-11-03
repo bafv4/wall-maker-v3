@@ -384,10 +384,11 @@ export const Select = forwardRef<HTMLDivElement, SelectProps>(function Select(
                         'ring-2 ring-inset ring-blue-500',
                     )}
                   >
-                    <span className="flex flex-1 items-center gap-2 truncate">
-                      <span className="truncate">{o.label}</span>
+                    {/* 補足が長いと名前が潰れるので、収まらなければ補足を次の行へ折り返す */}
+                    <span className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2">
+                      <span className="min-w-0 break-words">{o.label}</span>
                       {o.hint && (
-                        <span className="text-xs text-fg-subtle">
+                        <span className="break-keep text-xs text-fg-subtle">
                           {o.hint}
                         </span>
                       )}

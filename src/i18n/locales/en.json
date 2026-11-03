@@ -161,12 +161,23 @@
     "presetTitle": "Layout preset",
     "presetPlaceholder": "Select a preset…",
     "applyPreset": "Apply",
-    "presetHint": "Scaled to the current resolution and replaces the whole layout (main / locked / preparing).",
-    "replaceLockedInstances": "Replace locked instances",
-    "preparingTitle": "preparing ({{count}})",
-    "preparingEmpty": "No preparing groups yet.",
-    "preparingNumbered": "preparing #{{n}}",
+    "presetHint": "Scaled to the current resolution and replaces the whole layout (main, locked and preparing).",
+    "presetSummary": "Main {{columns}}×{{rows}}",
+    "presetSummaryLocked": "Locked {{count}}",
+    "presetSummaryPreparing": "Preparing {{columns}}×{{rows}}",
+    "replaceLockedInstances": "Refill slots freed by locking",
+    "replaceLockedInstancesHint": "Off: an instance you lock on the main wall moves to the locked area, and its slot stays empty until you reset all. On: the next instance fills the slot. Only has an effect while the locked area is shown.",
+    "preparingTitle": "Preparing areas ({{count}})",
+    "preparingEmpty": "No preparing areas yet.",
     "addPreparing": "+ Add"
+  },
+  "areas": {
+    "main": "Main",
+    "locked": "Locked",
+    "preparing": "Preparing #{{n}}",
+    "mainDescription": "The wall itself, where reset instances appear.",
+    "lockedDescription": "Where locked instances are shown.",
+    "preparingDescription": "Shows instances that are still generating."
   },
   "areaEditor": {
     "show": "Show",
@@ -180,10 +191,10 @@
     "centerV": "Center vertically",
     "grid": "Grid",
     "useGrid": "Use grid",
-    "rows": "rows",
-    "columns": "columns",
-    "padding": "padding (px)",
-    "tooManyCells": "Too many grid cells (rows × columns > 30)"
+    "rows": "Rows",
+    "columns": "Columns",
+    "padding": "Gap (px)",
+    "tooManyCells": "Too many instances (rows × columns exceeds 30)"
   },
   "background": {
     "addColor": "+ Color",

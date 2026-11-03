@@ -1419,7 +1419,7 @@ export function WallPreview({
                 refId={MAIN_REF}
                 color={AREA_COLORS.main.line}
                 ink={AREA_COLORS.main.ink}
-                label="main"
+                label={t('areas.main')}
                 selected={selectedKeys.has(MAIN_KEY)}
               />
               {layout.locked.show && (
@@ -1429,7 +1429,7 @@ export function WallPreview({
                   refId={LOCKED_REF}
                   color={AREA_COLORS.locked.line}
                   ink={AREA_COLORS.locked.ink}
-                  label="locked"
+                  label={t('areas.locked')}
                   selected={selectedKeys.has(LOCKED_KEY)}
                   lock={lockSprite}
                 />
@@ -1444,7 +1444,7 @@ export function WallPreview({
                     refId={ref}
                     color={AREA_COLORS.preparing.line}
                     ink={AREA_COLORS.preparing.ink}
-                    label={`preparing #${index + 1}`}
+                    label={t('areas.preparing', { n: index + 1 })}
                     selected={selectedKeys.has(areaRefKey(ref))}
                   />
                 );

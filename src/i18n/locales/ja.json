@@ -161,12 +161,23 @@
     "presetTitle": "レイアウトプリセット",
     "presetPlaceholder": "プリセットを選択…",
     "applyPreset": "適用",
-    "presetHint": "現在の解像度に合わせてスケールし、レイアウト全体（main / locked / preparing）を置き換えます。",
-    "replaceLockedInstances": "ロック済みインスタンスを置き換える",
-    "preparingTitle": "preparing ({{count}})",
-    "preparingEmpty": "preparing グループは現在ありません。",
-    "preparingNumbered": "preparing #{{n}}",
+    "presetHint": "現在の解像度に合わせて拡大縮小し、レイアウト全体（メイン・ロック欄・準備中）を置き換えます。",
+    "presetSummary": "メイン {{columns}}×{{rows}}",
+    "presetSummaryLocked": "ロック欄 {{count}}",
+    "presetSummaryPreparing": "準備中 {{columns}}×{{rows}}",
+    "replaceLockedInstances": "ロックで空いた枠をすぐ埋める",
+    "replaceLockedInstancesHint": "オフ: メインでロックしたインスタンスはロック欄へ移り、元の枠は「すべてリセット」まで空いたままになります。オン: 空いた枠に次のインスタンスが入ります。ロック欄を表示しているときだけ効きます。",
+    "preparingTitle": "準備中の欄 ({{count}})",
+    "preparingEmpty": "準備中の欄はありません。",
     "addPreparing": "+ 追加"
+  },
+  "areas": {
+    "main": "メイン",
+    "locked": "ロック欄",
+    "preparing": "準備中 #{{n}}",
+    "mainDescription": "リセットしたインスタンスが並ぶ、ウォールの本体です。",
+    "lockedDescription": "ロックしたインスタンスを並べる欄です。",
+    "preparingDescription": "まだ生成中のインスタンスを並べる欄です。"
   },
   "areaEditor": {
     "show": "表示",
@@ -180,10 +191,10 @@
     "centerV": "垂直中央",
     "grid": "グリッド",
     "useGrid": "グリッドを使う",
-    "rows": "rows",
-    "columns": "columns",
-    "padding": "padding (px)",
-    "tooManyCells": "グリッド分割が多すぎます（rows × columns > 30）"
+    "rows": "行数",
+    "columns": "列数",
+    "padding": "間隔 (px)",
+    "tooManyCells": "インスタンスが多すぎます（行数 × 列数 が 30 を超えています）"
   },
   "background": {
     "addColor": "+ 色",

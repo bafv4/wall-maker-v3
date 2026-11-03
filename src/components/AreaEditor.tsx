@@ -38,6 +38,10 @@ export type AreaEditorPatch = Partial<MainArea & VisibleArea>;
 export interface AreaEditorProps {
   area: AreaEditorTarget;
   title: string;
+  /** custom_layout.json 上のキー（main / locked / preparing）。見出しに補足として出す。 */
+  formatKey: string;
+  /** 見出しの下に出す、このエリアの役割の説明。 */
+  description: string;
   color: string;
   resolution: Resolution;
   onChange: (patch: AreaEditorPatch) => void;
@@ -69,6 +73,8 @@ function syncLocalNumber(
 function AreaEditorImpl({
   area,
   title,
+  formatKey,
+  description,
   color,
   resolution,
   onChange,
@@ -201,16 +207,22 @@ function AreaEditorImpl({
       onPointerDownCapture={onSelect}
       onFocusCapture={onSelect}
     >
-      <header className="mb-3 flex items-center justify-between">
-        <h3 className="flex items-center gap-2 text-sm font-semibold text-fg">
-          <span
-            aria-hidden
-            className="size-2.5 flex-shrink-0 rounded-full"
-            style={{ background: color }}
-          />
-          {title}
-        </h3>
-        <div className="flex items-center gap-3">
+      <header className="mb-3 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="flex items-center gap-2 text-sm font-semibold text-fg">
+            <span
+              aria-hidden
+              className="size-2.5 flex-shrink-0 rounded-full"
+              style={{ background: color }}
+            />
+            {title}
+            <code className="font-mono text-xs font-normal text-fg-subtle">
+              {formatKey}
+            </code>
+          </h3>
+          <p className="mt-0.5 text-xs text-fg-subtle">{description}</p>
+        </div>
+        <div className="flex flex-shrink-0 items-center gap-3">
           {showVisibilityToggle && hasShow(area) && (
             <Switch
               checked={area.show}

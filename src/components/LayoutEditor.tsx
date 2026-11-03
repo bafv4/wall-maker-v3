@@ -64,8 +64,31 @@ export function LayoutEditor() {
   // プリセットは現在の解像度に合わせて実 px に展開する（解像度変更で再計算）。
   const presets = useMemo(() => getLayoutPresets(resolution), [resolution]);
   const presetOptions = useMemo(
-    () => presets.map((p) => ({ value: p.id, label: p.name })),
-    [presets],
+    () =>
+      presets.map(({ id, name, layout }) => ({
+        value: id,
+        label: name,
+        // 名前だけでは中身が分からないので、構成を添える
+        hint: [
+          t('layoutEditor.presetSummary', {
+            columns: layout.main.columns,
+            rows: layout.main.rows,
+          }),
+          layout.locked.show &&
+            t('layoutEditor.presetSummaryLocked', {
+              count: layout.locked.rows * layout.locked.columns,
+            }),
+          ...layout.preparing.map((p) =>
+            t('layoutEditor.presetSummaryPreparing', {
+              columns: p.columns,
+              rows: p.rows,
+            }),
+          ),
+        ]
+          .filter(Boolean)
+          .join(' · '),
+      })),
+    [presets, t],
   );
   const [presetId, setPresetId] = useState('');
 
@@ -122,23 +145,34 @@ export function LayoutEditor() {
         </p>
       </div>
 
-      <div className="flex items-center justify-between rounded-lg bg-panel p-3">
-        <label
-          htmlFor={replaceLockedId}
-          className="cursor-pointer text-sm font-medium text-fg"
-        >
-          {t('layoutEditor.replaceLockedInstances')}
-        </label>
+      <div className="flex items-start justify-between gap-3 rounded-lg bg-panel p-3">
+        <div>
+          <label
+            htmlFor={replaceLockedId}
+            className="cursor-pointer text-sm font-medium text-fg"
+          >
+            {t('layoutEditor.replaceLockedInstances')}
+          </label>
+          <p
+            id={`${replaceLockedId}-hint`}
+            className="mt-0.5 text-xs text-fg-subtle"
+          >
+            {t('layoutEditor.replaceLockedInstancesHint')}
+          </p>
+        </div>
         <Switch
           id={replaceLockedId}
           checked={replaceLockedInstances}
           onChange={setReplaceLockedInstances}
+          aria-describedby={`${replaceLockedId}-hint`}
         />
       </div>
 
       <AreaEditor
         area={main}
-        title="main"
+        title={t('areas.main')}
+        formatKey="main"
+        description={t('areas.mainDescription')}
         color="#2563eb"
         resolution={resolution}
         onChange={setMain}
@@ -149,7 +183,9 @@ export function LayoutEditor() {
 
       <AreaEditor
         area={locked}
-        title="locked"
+        title={t('areas.locked')}
+        formatKey="locked"
+        description={t('areas.lockedDescription')}
         color="#ea580c"
         resolution={resolution}
         onChange={setLocked}
@@ -176,7 +212,9 @@ export function LayoutEditor() {
             <AreaEditor
               key={i}
               area={p}
-              title={t('layoutEditor.preparingNumbered', { n: i + 1 })}
+              title={t('areas.preparing', { n: i + 1 })}
+              formatKey="preparing"
+              description={t('areas.preparingDescription')}
               color="#16a34a"
               resolution={resolution}
               onChange={preparingHandlers[i].onChange}
