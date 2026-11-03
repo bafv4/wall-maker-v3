@@ -297,7 +297,7 @@
   "lock": {
     "title": "Use lock images",
     "description": "Turn off to disable the lock overlay.",
-    "addImage": "+ Add image",
+    "addImage": "Add image",
     "specNote": "The first image is always written as lock.png (if a pack ships only lock-1.png, the mod's built-in lock.png ends up as the first entry). Images are stored as-is without resizing (aspect ratio preserved). Weight controls how often an image is picked: its effective weight divided by the total is the probability.",
     "specMemo": "Format notes (click to expand)",
     "required": "Required",

@@ -237,7 +237,7 @@ function App() {
                 <TabsContent value="background" className="flex min-h-full flex-col">
                   <BackgroundEditor />
                 </TabsContent>
-                <TabsContent value="lock">
+                <TabsContent value="lock" className="flex min-h-full flex-col">
                   <LockImagesEditor />
                 </TabsContent>
                 <TabsContent value="sound">

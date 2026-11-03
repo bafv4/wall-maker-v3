@@ -26,7 +26,7 @@ import { notifyUndoable } from '../store/history';
 import { useWallStore } from '../store/useWallStore';
 import { Button, Input, Switch, toast } from './ui';
 import { cn } from './ui/cn';
-import { ArrowDownIcon, ArrowUpIcon } from './ui/icons';
+import { ArrowDownIcon, ArrowUpIcon, PlusIcon } from './ui/icons';
 
 interface RowProps {
   image: LockImage;
@@ -253,7 +253,7 @@ export function LockImagesEditor() {
       : t('lock.status.active', { count: lockImages.images.length });
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-1 flex-col gap-4">
       <div className="flex items-center justify-between rounded-lg bg-panel p-3">
         <div>
           <label
@@ -289,28 +289,6 @@ export function LockImagesEditor() {
       >
         {statusNote}
       </p>
-
-      <div>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          multiple
-          className="hidden"
-          onChange={(e) => {
-            const files = e.target.files;
-            if (files && files.length > 0) void handleFiles(files);
-            if (fileInputRef.current) fileInputRef.current.value = '';
-          }}
-        />
-        <Button
-          size="sm"
-          disabled={!lockImages.enabled || pickingNow}
-          onClick={() => fileInputRef.current?.click()}
-        >
-          {t('lock.addImage')}
-        </Button>
-      </div>
 
       {lockImages.enabled && lockImages.images.length > 1 && (
         <div className="rounded-lg bg-panel p-3">
@@ -373,6 +351,30 @@ export function LockImagesEditor() {
         </summary>
         <p className="mt-2">{t('lock.specNote')}</p>
       </details>
+
+      {/* 追加はパネル下端に固定（一覧が長くてもスクロールせずに押せる） */}
+      <div className="sticky -bottom-4 z-10 -mx-4 -mb-4 mt-auto border-t border-border bg-surface px-4 py-3">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={(e) => {
+            const files = e.target.files;
+            if (files && files.length > 0) void handleFiles(files);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+          }}
+        />
+        <Button
+          className="w-full"
+          disabled={!lockImages.enabled || pickingNow}
+          onClick={() => fileInputRef.current?.click()}
+        >
+          <PlusIcon />
+          {t('lock.addImage')}
+        </Button>
+      </div>
     </div>
   );
 }
