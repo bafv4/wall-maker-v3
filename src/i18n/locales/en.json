@@ -40,6 +40,14 @@
       "background": "Background",
       "layout": "Layout",
       "none": "None"
+    },
+    "snap": "Snap",
+    "snapInfo": "What dragged items snap to. Background = shape and manually placed image layers; Layout = area edges and centers. Canvas edges and center are always included unless set to None. Nothing snaps to the side whose boxes are hidden. Hold Shift to disable snapping.",
+    "snapMode": {
+      "all": "All",
+      "background": "Background",
+      "layout": "Layout",
+      "none": "None"
     }
   },
   "common": {

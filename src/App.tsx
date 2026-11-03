@@ -23,8 +23,10 @@ import { AppHeader } from './components/AppHeader';
 import {
   WallPreview,
   type PreviewBoxMode,
+  type PreviewSnapMode,
 } from './components/WallPreview';
 import {
+  InfoTooltip,
   Tabs,
   TabsContent,
   TabsList,
@@ -96,6 +98,7 @@ function App() {
 
   const [tab, setTab] = useState(desktop ? 'file' : 'info');
   const [boxMode, setBoxMode] = useState<PreviewBoxMode>('all');
+  const [snapMode, setSnapMode] = useState<PreviewSnapMode>('all');
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
@@ -192,34 +195,63 @@ function App() {
                     <h2 className="text-sm font-semibold text-fg">
                       {t('preview.title')}
                     </h2>
-                    {/* 枠の表示切替。見た目確認時に枠を消したり、片方だけ操作したりする用 */}
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-fg-subtle">
-                        {t('preview.boxes')}
-                      </span>
-                      <Tabs
-                        value={boxMode}
-                        onValueChange={(v) => setBoxMode(v as PreviewBoxMode)}
-                      >
-                        <TabsList className="h-8">
-                          {(['all', 'background', 'layout', 'none'] as const).map(
-                            (mode) => (
-                              <TabsTrigger
-                                key={mode}
-                                value={mode}
-                                className="h-6 px-2.5 text-xs"
-                              >
-                                {t(`preview.boxMode.${mode}`)}
-                              </TabsTrigger>
-                            ),
-                          )}
-                        </TabsList>
-                      </Tabs>
+                    {/* 狭幅では各グループ内でもラベルが切替の上に折り返す（横にはみ出さない） */}
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                      {/* 枠の表示切替。見た目確認時に枠を消したり、片方だけ操作したりする用 */}
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span className="whitespace-nowrap text-xs text-fg-subtle">
+                          {t('preview.boxes')}
+                        </span>
+                        <Tabs
+                          value={boxMode}
+                          onValueChange={(v) => setBoxMode(v as PreviewBoxMode)}
+                        >
+                          <TabsList className="h-8">
+                            {(['all', 'background', 'layout', 'none'] as const).map(
+                              (mode) => (
+                                <TabsTrigger
+                                  key={mode}
+                                  value={mode}
+                                  className="h-6 px-2.5 text-xs"
+                                >
+                                  {t(`preview.boxMode.${mode}`)}
+                                </TabsTrigger>
+                              ),
+                            )}
+                          </TabsList>
+                        </Tabs>
+                      </div>
+                      {/* 吸着先の切替。枠を隠している側にはこの設定に関わらず吸着しない */}
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span className="flex items-center gap-1 whitespace-nowrap text-xs text-fg-subtle">
+                          {t('preview.snap')}
+                          <InfoTooltip text={t('preview.snapInfo')} />
+                        </span>
+                        <Tabs
+                          value={snapMode}
+                          onValueChange={(v) => setSnapMode(v as PreviewSnapMode)}
+                        >
+                          <TabsList className="h-8">
+                            {(['all', 'background', 'layout', 'none'] as const).map(
+                              (mode) => (
+                                <TabsTrigger
+                                  key={mode}
+                                  value={mode}
+                                  className="h-6 px-2.5 text-xs"
+                                >
+                                  {t(`preview.snapMode.${mode}`)}
+                                </TabsTrigger>
+                              ),
+                            )}
+                          </TabsList>
+                        </Tabs>
+                      </div>
                     </div>
                   </div>
                   <div className="md:flex-1 md:min-h-0">
                     <WallPreview
                       boxMode={boxMode}
+                      snapMode={snapMode}
                       backgroundEditing={tab === 'background'}
                     />
                   </div>

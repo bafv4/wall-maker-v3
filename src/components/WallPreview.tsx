@@ -16,7 +16,9 @@
  *    他タブに残すと、選択したままのレイヤがエリアのドラッグを横取りする。
  *  - `boxMode` でエリア枠（レイアウト）/ レイヤ操作枠（背景）の表示を切り替える。
  *    非表示の枠は描画しない＝操作もできない（見た目の確認用）。
- *  - スナップ: 他エリア辺・中央・キャンバス端と中央へ磁着（プレビュー基準 6px）。Shift で無効化。
+ *  - スナップ: キャンバス端と中央、他エリアの辺・中央、他レイヤ（図形・手動配置の画像）の辺・中央へ
+ *    磁着（プレビュー基準 6px）。Shift で無効化。`snapMode` で吸着先（エリア / レイヤ）を絞れ、
+ *    `boxMode` で枠を隠している側には吸着しない（見えない線に吸い付かないように）。
  *    複数選択の移動では**選択全体の外接矩形**の辺・中央で判定する（指示線も同じ基準）。
  *  - ドラッグ中は `x,y / w×h` のオーバーレイ表示。
  *
@@ -44,6 +46,7 @@ import {
 import { renderBackgroundToCanvas } from '../core/renderBackground';
 import type {
   AreaCell,
+  BackgroundLayer,
   ImageLayer,
   MainArea,
   Resolution,
@@ -543,13 +546,38 @@ function LayerBox({
 /** プレビューに重ねる枠の表示範囲。layout=エリア枠、background=レイヤ操作枠。 */
 export type PreviewBoxMode = 'all' | 'background' | 'layout' | 'none';
 
+/**
+ * ドラッグ時の吸着先。layout=エリア、background=レイヤ（図形・手動配置の画像）。
+ * キャンバスの端と中央は none 以外で常に対象。
+ */
+export type PreviewSnapMode = 'all' | 'background' | 'layout' | 'none';
+
 export interface WallPreviewProps {
   boxMode: PreviewBoxMode;
+  snapMode: PreviewSnapMode;
   /** 背景タブを表示中か。false のときレイヤ操作枠は出さない。 */
   backgroundEditing: boolean;
 }
 
-export function WallPreview({ boxMode, backgroundEditing }: WallPreviewProps) {
+/**
+ * スナップ先にするレイヤの矩形。プレビュー上で位置を持つレイヤ（図形・手動配置の画像）だけ。
+ * 色・グラデーション・stretch の画像は全面＝キャンバス端と同じなので不要。contain / cover は
+ * 描画矩形の計算に画像の実寸が要るため対象外。非表示のレイヤは見えないので除く。
+ */
+function layerSnapCell(l: BackgroundLayer): AreaCell | null {
+  if (!l.visible) return null;
+  if (l.type === 'shape') return l.transform;
+  if (l.type === 'image' && l.fit === 'manual' && l.transform) {
+    return l.transform;
+  }
+  return null;
+}
+
+export function WallPreview({
+  boxMode,
+  snapMode,
+  backgroundEditing,
+}: WallPreviewProps) {
   const { t } = useTranslation();
 
   // 限定したスライスのみを購読する（不要な再描画を避ける）
@@ -621,28 +649,55 @@ export function WallPreview({ boxMode, backgroundEditing }: WallPreviewProps) {
     return () => ro.disconnect();
   }, [resolution]);
 
-  // ---- スナップ候補（他エリア＋キャンバス端） ----
-  // 移動中のエリア（複数選択なら選択中の全エリア）を候補から除く。
+  // ---- スナップ候補（キャンバス端＋他エリア＋他レイヤ） ----
+  // 移動中の対象（複数選択なら選択中の全エリア、レイヤならそのレイヤ）を候補から除く。
+  // 吸着先は snapMode で絞り、さらに boxMode で枠を隠している側は除く（見えない線に
+  // 吸い付かないように）。レイヤ側の判定はタブではなく boxMode だけで行う。レイアウト
+  // タブでもレイヤ自体は描画されていて、エリアを図形の枠に揃える用途があるため。
+  // getStartCell と同じく購読 state のクロージャではなく store を直接読む
+  // （ドラッグ開始直後の blur コミット後に作り直したとき最新値を使うため）。
   const buildSnapCandidates = useCallback(
     (excludeKeys: ReadonlySet<string>): { xs: number[]; ys: number[] } => {
-      const xs: number[] = [0, resolution.width / 2, resolution.width];
-      const ys: number[] = [0, resolution.height / 2, resolution.height];
+      const xs: number[] = [];
+      const ys: number[] = [];
+      if (snapMode === 'none') return { xs, ys };
+      const wall = useWallStore.getState().wall;
+      const res = wall.resolution;
+      const lay = wall.layout;
+      xs.push(0, res.width / 2, res.width);
+      ys.push(0, res.height / 2, res.height);
       const addCell = (c: AreaCell) => {
         xs.push(c.x, c.x + c.width / 2, c.x + c.width);
         ys.push(c.y, c.y + c.height / 2, c.y + c.height);
       };
-      if (!excludeKeys.has(MAIN_KEY)) addCell(layout.main);
-      if (!excludeKeys.has(LOCKED_KEY) && layout.locked.show)
-        addCell(layout.locked);
-      layout.preparing.forEach((p, i) => {
-        if (excludeKeys.has(areaRefKey({ kind: 'preparing', index: i })))
-          return;
-        if (!p.show) return;
-        addCell(p);
-      });
+      const snapToAreas =
+        (snapMode === 'all' || snapMode === 'layout') &&
+        (boxMode === 'all' || boxMode === 'layout');
+      const snapToLayers =
+        (snapMode === 'all' || snapMode === 'background') &&
+        (boxMode === 'all' || boxMode === 'background');
+      if (snapToAreas) {
+        if (!excludeKeys.has(MAIN_KEY)) addCell(lay.main);
+        if (!excludeKeys.has(LOCKED_KEY) && lay.locked.show)
+          addCell(lay.locked);
+        lay.preparing.forEach((p, i) => {
+          if (excludeKeys.has(areaRefKey({ kind: 'preparing', index: i })))
+            return;
+          if (!p.show) return;
+          addCell(p);
+        });
+      }
+      if (snapToLayers) {
+        for (const l of wall.background.layers) {
+          if (excludeKeys.has(areaRefKey({ kind: 'layer', layerId: l.id })))
+            continue;
+          const cell = layerSnapCell(l);
+          if (cell) addCell(cell);
+        }
+      }
       return { xs, ys };
     },
-    [resolution, layout],
+    [snapMode, boxMode],
   );
 
   // ---- 開始セルの取得 ----
