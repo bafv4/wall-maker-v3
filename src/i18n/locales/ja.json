@@ -188,7 +188,7 @@
     "addImage": "+ 画像",
     "addGradient": "+ グラデーション",
     "addShape": "+ 図形",
-    "drawOrderHint": "一覧で ↑=奥（先に描画） / ↓=手前（最後に描画）",
+    "drawOrderHint": "一覧の上にあるレイヤほど手前に描画されます。左端のつまみをドラッグして並び替えられます。",
     "layerListTitle": "レイヤ一覧 ({{count}})",
     "layerListEmpty": "背景レイヤがありません。",
     "visibilityHint": "左のトグルでの非表示は、プレビューだけでなく書き出すリソースパックからも除外されます（background.png に含まれません）。",
@@ -196,8 +196,15 @@
     "selectLayer": "レイヤを選択",
     "selectPrompt": "上の一覧からレイヤを選択すると、ここに編集画面が表示されます。",
     "layerVisible": "「{{name}}」を表示",
-    "moveBack": "奥へ",
-    "moveFront": "手前へ",
+    "dragHandle": "「{{name}}」を並び替え",
+    "dnd": {
+      "roleDescription": "並び替えのつまみ",
+      "instructions": "並び替えるには、スペースキーで持ち上げ、上下の矢印キーで動かし、もう一度スペースキーで置きます。Escape キーでやめます。",
+      "picked": "「{{name}}」を持ち上げました。上から {{position}} 番目（全 {{total}}）です。",
+      "moved": "上から {{position}} 番目（全 {{total}}）に移動しました。",
+      "dropped": "「{{name}}」を上から {{position}} 番目（全 {{total}}）に置きました。",
+      "canceled": "「{{name}}」の並び替えをやめました。"
+    },
     "delete": "削除",
     "type": {
       "color": "色",

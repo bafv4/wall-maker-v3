@@ -3,6 +3,8 @@
  *
  * 仕様: REWRITE_SPEC.md 第4.2章（Canvas 合成）/ 第7.1章（判別共用体）。
  *  - 配列の先頭が「奥」、末尾が「手前」（buildPack/renderBackground の描画順と一致）。
+ *    一覧は一般的な画像編集ツールと同じく**上ほど手前**に並べる（表示だけ反転する）。
+ *  - 並び替えは一覧のつまみのドラッグ（dnd-kit）。キーボードはつまみで Space → ↑↓ → Space。
  *  - 全ての state mutation は `updateBackgroundLayer(id, patch)` で型安全に。
  *  - color/image/gradient/shape の判別は patch.type で narrow される。
  *
@@ -20,7 +22,17 @@
  *    変わらないのに state / IndexedDB だけが肥大するため（JPEG 写真で数倍〜10 倍）。
  */
 
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { RestrictToVerticalAxis } from '@dnd-kit/abstract/modifiers';
+import {
+  Accessibility,
+  defaultPreset,
+  type DragEndEvent,
+  type DragOverEvent,
+  type DragStartEvent,
+} from '@dnd-kit/dom';
+import { DragDropProvider } from '@dnd-kit/react';
+import { isSortable, useSortable } from '@dnd-kit/react/sortable';
 import { useTranslation } from 'react-i18next';
 import { HexColorPicker } from 'react-colorful';
 import { MIN_COORDINATE, expandCell, toSafeInt } from '../core/coords';
@@ -905,15 +917,34 @@ function layerHeadline(
   }
 }
 
+/** 並び替えの読み上げで使う、各行の sortable に載せる値。 */
+interface LayerDragData {
+  name: string;
+  total: number;
+}
+
+/** 縦 2 列 × 3 段の点。ドラッグのつまみ。 */
+function GripIcon() {
+  return (
+    <svg viewBox="0 0 10 16" className="h-4 w-2.5" fill="currentColor" aria-hidden>
+      {[3, 8, 13].map((cy) => (
+        <g key={cy}>
+          <circle cx="2.5" cy={cy} r="1.5" />
+          <circle cx="7.5" cy={cy} r="1.5" />
+        </g>
+      ))}
+    </svg>
+  );
+}
+
 interface LayerListItemProps {
   layer: BackgroundLayer;
+  /** 一覧での位置（0 = 一番上 = 最も手前）。 */
   index: number;
   total: number;
   selected: boolean;
   onSelect: () => void;
   onVisibleChange: (next: boolean) => void;
-  onMoveUp: () => void;
-  onMoveDown: () => void;
   onDelete: () => void;
 }
 
@@ -924,20 +955,28 @@ function LayerListItem({
   selected,
   onSelect,
   onVisibleChange,
-  onMoveUp,
-  onMoveDown,
   onDelete,
 }: LayerListItemProps) {
   const { t } = useTranslation();
   const headline = layerHeadline(layer, t);
   const typeLabel = t(`background.type.${layer.type}`);
+  const name = `${typeLabel} ${headline}`;
+  // つまみ（handleRef）からだけドラッグを始める。行全体にすると、Switch や見出しの
+  // クリック・テキスト選択とドラッグの開始がぶつかるため。
+  const { ref, handleRef, isDragging } = useSortable({
+    id: layer.id,
+    index,
+    data: { name, total } satisfies LayerDragData,
+  });
 
   // 選択は「種別＋見出し」のボタンで行う。行全体を role=button にすると、中の Switch や
   // 並び替え・削除が入れ子の操作になり、支援技術から個別に扱えなくなるため。
   return (
     <li
+      ref={ref}
       className={cn(
         'group flex items-center gap-2 rounded-md border bg-surface p-2 transition-colors',
+        isDragging && 'relative z-10 shadow-lg',
         selected
           ? // ring-blue-100 はダーク面（neutral-900）で白く浮くため、
             // ダークのみ半透明ブルーのハローに切り替える。
@@ -946,15 +985,24 @@ function LayerListItem({
       )}
       title={headline}
     >
+      <button
+        ref={handleRef}
+        type="button"
+        data-drag-handle={layer.id}
+        aria-label={t('background.dragHandle', { name })}
+        // 未指定だと dnd-kit が英語の "draggable" を入れる
+        aria-roledescription={t('background.dnd.roleDescription')}
+        className="-ml-1 flex h-7 w-5 flex-shrink-0 cursor-grab items-center justify-center rounded text-fg-subtle hover:bg-muted hover:text-fg focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 active:cursor-grabbing"
+      >
+        <GripIcon />
+      </button>
       {/* ラッパーを flex 化。inline のままだと中の Switch がベースラインに乗り、
           下にディセンダ分の余白ができて上寄りに見えるため。 */}
       <span className="flex flex-shrink-0 items-center">
         <Switch
           checked={layer.visible}
           onChange={onVisibleChange}
-          aria-label={t('background.layerVisible', {
-            name: `${typeLabel} ${headline}`,
-          })}
+          aria-label={t('background.layerVisible', { name })}
         />
       </span>
       <button
@@ -976,37 +1024,15 @@ function LayerListItem({
           {headline}
         </span>
       </button>
-      <div className="flex flex-shrink-0 items-center gap-0.5">
-        <button
-          type="button"
-          disabled={index === 0}
-          onClick={onMoveUp}
-          className="h-7 w-7 cursor-pointer rounded text-xs text-fg-subtle hover:bg-muted disabled:cursor-not-allowed disabled:opacity-30"
-          title={t('background.moveBack')}
-          aria-label={t('background.moveBack')}
-        >
-          ↑
-        </button>
-        <button
-          type="button"
-          disabled={index === total - 1}
-          onClick={onMoveDown}
-          className="h-7 w-7 cursor-pointer rounded text-xs text-fg-subtle hover:bg-muted disabled:cursor-not-allowed disabled:opacity-30"
-          title={t('background.moveFront')}
-          aria-label={t('background.moveFront')}
-        >
-          ↓
-        </button>
-        <button
-          type="button"
-          onClick={onDelete}
-          className="h-7 w-7 cursor-pointer rounded text-xs text-red-600 hover:bg-red-50"
-          title={t('background.delete')}
-          aria-label={t('background.delete')}
-        >
-          ×
-        </button>
-      </div>
+      <button
+        type="button"
+        onClick={onDelete}
+        className="h-7 w-7 flex-shrink-0 cursor-pointer rounded text-xs text-red-600 hover:bg-red-50"
+        title={t('background.delete')}
+        aria-label={t('background.delete')}
+      >
+        ×
+      </button>
     </li>
   );
 }
@@ -1014,6 +1040,10 @@ function LayerListItem({
 // ---------------------------------------------------------------------------
 // BackgroundEditor 本体
 // ---------------------------------------------------------------------------
+
+// DragDropProvider は modifiers / plugins が別の配列になるたびに manager へ入れ直すので、
+// 毎レンダー作らない。
+const DND_MODIFIERS = [RestrictToVerticalAxis];
 
 export function BackgroundEditor() {
   const { t } = useTranslation();
@@ -1136,18 +1166,56 @@ export function BackgroundEditor() {
     selectBackgroundLayer(id);
   };
 
-  const moveUp = (i: number) => {
-    if (i === 0) return;
-    const ids = layers.map((l) => l.id);
-    [ids[i - 1], ids[i]] = [ids[i], ids[i - 1]];
-    reorderBackgroundLayers(ids);
-  };
-  const moveDown = (i: number) => {
-    if (i === layers.length - 1) return;
-    const ids = layers.map((l) => l.id);
-    [ids[i + 1], ids[i]] = [ids[i], ids[i + 1]];
-    reorderBackgroundLayers(ids);
-  };
+  // 一覧は上ほど手前。state（描画順）は先頭が奥なので、表示だけ反転する。
+  const listedLayers = useMemo(() => layers.slice().reverse(), [layers]);
+
+  // 置いた後、行の並び替えでつまみからフォーカスが外れるので、動かした行のつまみへ戻す
+  // （キーボードで続けて操作できるように）。
+  const refocusHandleRef = useRef<string | null>(null);
+  useEffect(() => {
+    const id = refocusHandleRef.current;
+    if (!id) return;
+    refocusHandleRef.current = null;
+    document
+      .querySelector<HTMLElement>(`[data-drag-handle="${CSS.escape(id)}"]`)
+      ?.focus();
+  }, [layers]);
+
+  // 読み上げの文言。レイヤ名と総数は各行の sortable の data（LayerDragData）から読む
+  // （plugins を作り直すと manager のプラグインが差し替わるため、依存は t だけにする）。
+  const dndPlugins = useMemo(() => {
+    const announce = (
+      key: 'picked' | 'moved' | 'dropped',
+      source: DragStartEvent['operation']['source'],
+    ) => {
+      if (!isSortable(source)) return undefined;
+      const data = source.data as LayerDragData;
+      return t(`background.dnd.${key}`, {
+        name: data.name,
+        position: source.index + 1,
+        total: data.total,
+      });
+    };
+    return [
+      ...defaultPreset.plugins.filter((p) => p !== Accessibility),
+      Accessibility.configure({
+        screenReaderInstructions: { draggable: t('background.dnd.instructions') },
+        announcements: {
+          dragstart: ({ operation }: DragStartEvent) =>
+            announce('picked', operation.source),
+          dragover: ({ operation }: DragOverEvent) =>
+            announce('moved', operation.source),
+          dragend: ({ operation, canceled }: DragEndEvent) =>
+            canceled
+              ? t('background.dnd.canceled', {
+                  name: (operation.source?.data as LayerDragData | undefined)
+                    ?.name,
+                })
+              : announce('dropped', operation.source),
+        },
+      }),
+    ];
+  }, [t]);
 
   const handleVisibleChange = (layer: BackgroundLayer, next: boolean) => {
     // 判別共用体の `type` ごとに patch 型が変わるが、`visible` 単独更新は
@@ -1222,29 +1290,43 @@ export function BackgroundEditor() {
               {t('background.layerListEmpty')}
             </p>
           ) : (
-            <ul className="max-h-[min(40vh,20rem)] space-y-2 overflow-y-auto pr-1">
-              {layers.map((layer, i) => (
-                <LayerListItem
-                  key={layer.id}
-                  layer={layer}
-                  index={i}
-                  total={layers.length}
-                  selected={selectedLayerId === layer.id}
-                  onSelect={() =>
-                    selectBackgroundLayer(
-                      selectedLayerId === layer.id ? null : layer.id,
-                    )
-                  }
-                  onVisibleChange={(b) => handleVisibleChange(layer, b)}
-                  onMoveUp={() => moveUp(i)}
-                  onMoveDown={() => moveDown(i)}
-                  onDelete={() => {
-                    removeBackgroundLayer(layer.id);
-                    notifyUndoable(t('history.deleted.layer'));
-                  }}
-                />
-              ))}
-            </ul>
+            <DragDropProvider
+              modifiers={DND_MODIFIERS}
+              plugins={dndPlugins}
+              onDragEnd={(event) => {
+                if (event.canceled) return;
+                const { source } = event.operation;
+                if (!isSortable(source) || source.initialIndex === source.index)
+                  return;
+                const ids = listedLayers.map((l) => l.id);
+                const [moved] = ids.splice(source.initialIndex, 1);
+                ids.splice(source.index, 0, moved);
+                refocusHandleRef.current = moved;
+                reorderBackgroundLayers(ids.reverse());
+              }}
+            >
+              <ul className="flex max-h-[min(40vh,20rem)] flex-col gap-2 overflow-y-auto pr-1">
+                {listedLayers.map((layer, i) => (
+                  <LayerListItem
+                    key={layer.id}
+                    layer={layer}
+                    index={i}
+                    total={listedLayers.length}
+                    selected={selectedLayerId === layer.id}
+                    onSelect={() =>
+                      selectBackgroundLayer(
+                        selectedLayerId === layer.id ? null : layer.id,
+                      )
+                    }
+                    onVisibleChange={(b) => handleVisibleChange(layer, b)}
+                    onDelete={() => {
+                      removeBackgroundLayer(layer.id);
+                      notifyUndoable(t('history.deleted.layer'));
+                    }}
+                  />
+                ))}
+              </ul>
+            </DragDropProvider>
           )}
         </section>
 

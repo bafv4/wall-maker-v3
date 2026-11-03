@@ -188,7 +188,7 @@
     "addImage": "+ Image",
     "addGradient": "+ Gradient",
     "addShape": "+ Shape",
-    "drawOrderHint": "In the list, ↑ = back (drawn first), ↓ = front (drawn last)",
+    "drawOrderHint": "Layers higher in the list are drawn in front. Drag the handle on the left to reorder.",
     "layerListTitle": "Layers ({{count}})",
     "layerListEmpty": "No background layers.",
     "visibilityHint": "The left toggle hides a layer in the preview and the exported resource pack — hidden layers are not written to background.png.",
@@ -196,8 +196,15 @@
     "selectLayer": "Select a layer",
     "selectPrompt": "Select a layer from the list above to edit it here.",
     "layerVisible": "Show “{{name}}”",
-    "moveBack": "Move back",
-    "moveFront": "Move front",
+    "dragHandle": "Reorder “{{name}}”",
+    "dnd": {
+      "roleDescription": "drag handle",
+      "instructions": "To reorder, press Space to pick up the layer, use the Up and Down arrow keys to move it, and press Space again to drop it. Press Escape to cancel.",
+      "picked": "Picked up “{{name}}”. Position {{position}} of {{total}} from the top.",
+      "moved": "Moved to position {{position}} of {{total}} from the top.",
+      "dropped": "Dropped “{{name}}” at position {{position}} of {{total}} from the top.",
+      "canceled": "Reordering “{{name}}” canceled."
+    },
     "delete": "Delete",
     "type": {
       "color": "Color",
