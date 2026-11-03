@@ -143,6 +143,11 @@ export function floorArea<T extends Area>(area: T): T {
   return floored;
 }
 
+/** 図形の角丸半径を 0 以上の整数にする。非有限は 0（角丸なし）に倒す。 */
+export function floorCornerRadius(radius: number): number {
+  return toSafeInt(radius, 0, 0);
+}
+
 // ---------------------------------------------------------------------------
 // プレビュー ↔ 実解像度 の相互変換
 // 同一アスペクト比とは限らない（プレビュー側にフレームが入り得る）。
@@ -225,16 +230,26 @@ export function scaleBackgroundLayer(
   scaleY: number,
 ): BackgroundLayer {
   if ((layer.type === 'image' || layer.type === 'shape') && layer.transform) {
-    return {
-      ...layer,
-      // floorCell 経由でエリアと同じ不変条件（整数・非有限禁止・最小サイズ 1）を適用する。
-      transform: floorCell({
-        x: layer.transform.x * scaleX,
-        y: layer.transform.y * scaleY,
-        width: layer.transform.width * scaleX,
-        height: layer.transform.height * scaleY,
-      }),
-    };
+    // floorCell 経由でエリアと同じ不変条件（整数・非有限禁止・最小サイズ 1）を適用する。
+    const transform = floorCell({
+      x: layer.transform.x * scaleX,
+      y: layer.transform.y * scaleY,
+      width: layer.transform.width * scaleX,
+      height: layer.transform.height * scaleY,
+    });
+    if (layer.type === 'shape' && layer.cornerRadius !== undefined) {
+      return {
+        ...layer,
+        transform,
+        // X/Y 非等倍時は相乗平均。padding のように小さい方を採ると、往復
+        // （1920x1080 → 2560x1080 → 1920x1080）で 40 → 40 → 30 と痩せていく。
+        // 半径は描画時に図形の上限で丸めるので、大きめに出てもはみ出さない。
+        cornerRadius: floorCornerRadius(
+          layer.cornerRadius * Math.sqrt(scaleX * scaleY),
+        ),
+      };
+    }
+    return { ...layer, transform };
   }
   return layer;
 }
@@ -283,11 +298,15 @@ export function normalizeWallStateNumbers(state: WallState): WallState {
       preparing: state.layout.preparing.map((p) => floorArea(p)),
     },
     background: {
-      layers: state.background.layers.map((l) =>
-        (l.type === 'image' || l.type === 'shape') && l.transform
-          ? { ...l, transform: floorCell(l.transform) }
-          : l,
-      ),
+      layers: state.background.layers.map((l) => {
+        const floored =
+          (l.type === 'image' || l.type === 'shape') && l.transform
+            ? { ...l, transform: floorCell(l.transform) }
+            : l;
+        return floored.type === 'shape' && floored.cornerRadius !== undefined
+          ? { ...floored, cornerRadius: floorCornerRadius(floored.cornerRadius) }
+          : floored;
+      }),
     },
   };
 }

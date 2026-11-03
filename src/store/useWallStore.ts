@@ -19,6 +19,7 @@ import { persist } from 'zustand/middleware';
 import {
   floorArea,
   floorCell,
+  floorCornerRadius,
   normalizeWallStateNumbers,
   scaleStateForResolution,
   toSafeInt,
@@ -204,7 +205,11 @@ function applyLayerPatch(
     }
     case 'shape': {
       const merged: ShapeLayer = { ...(layer as ShapeLayer), ...patch };
-      return { ...merged, transform: floorCell(merged.transform) };
+      const normalized = { ...merged, transform: floorCell(merged.transform) };
+      if (normalized.cornerRadius !== undefined) {
+        normalized.cornerRadius = floorCornerRadius(normalized.cornerRadius);
+      }
+      return normalized;
     }
   }
 }

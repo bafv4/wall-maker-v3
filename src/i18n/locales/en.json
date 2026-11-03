@@ -224,7 +224,8 @@
         "ellipse": "Ellipse"
       },
       "boundsTitle": "Position & size",
-      "square": "Match height to width"
+      "square": "Match height to width",
+      "cornerRadius": "Corner radius"
     },
     "toast": {
       "notRaster": "{{filename}}: unsupported image format (vector formats such as SVG are not supported — use PNG / JPEG / GIF / WebP)",

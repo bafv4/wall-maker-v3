@@ -224,7 +224,8 @@
         "ellipse": "円"
       },
       "boundsTitle": "位置・サイズ",
-      "square": "縦横を揃える（高さ＝幅）"
+      "square": "縦横を揃える（高さ＝幅）",
+      "cornerRadius": "角の丸み"
     },
     "toast": {
       "notRaster": "{{filename}}: 使用できない画像形式です（SVG などのベクタ形式は非対応。PNG / JPEG / GIF / WebP などを選んでください）",

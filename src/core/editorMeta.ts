@@ -14,7 +14,7 @@
  * 呼び出し側は従来どおり `background.png` を 1 枚の image レイヤとして復元する。
  */
 
-import { floorCell, scaleBackgroundLayer } from './coords';
+import { floorCell, floorCornerRadius, scaleBackgroundLayer } from './coords';
 import type {
   AreaCell,
   BackgroundLayer,
@@ -22,6 +22,7 @@ import type {
   ImageLayer,
   Resolution,
   ShapeKind,
+  ShapeLayer,
   WallState,
 } from './state';
 import type { VirtualPack } from './types';
@@ -49,6 +50,8 @@ type MetaLayer =
       shape: ShapeKind;
       color: string;
       transform: AreaCell;
+      /** 省略時は角丸なし（角丸導入前に書き出したメタも同じ形で読める）。 */
+      cornerRadius?: number;
       opacity: number;
       visible: boolean;
     }
@@ -115,6 +118,7 @@ export function addEditorMeta(pack: VirtualPack, state: WallState): void {
           shape: l.shape,
           color: l.color,
           transform: l.transform,
+          cornerRadius: l.cornerRadius,
           opacity: l.opacity,
           visible: l.visible,
         };
@@ -257,7 +261,7 @@ function parseMetaLayer(raw: unknown, pack: VirtualPack): BackgroundLayer | null
       ) {
         return null;
       }
-      return {
+      const layer: ShapeLayer = {
         id,
         type: 'shape',
         shape: raw.shape,
@@ -266,6 +270,10 @@ function parseMetaLayer(raw: unknown, pack: VirtualPack): BackgroundLayer | null
         opacity,
         visible,
       };
+      if (isFiniteNumber(raw.cornerRadius) && raw.cornerRadius > 0) {
+        layer.cornerRadius = floorCornerRadius(raw.cornerRadius);
+      }
+      return layer;
     }
     case 'image': {
       if (typeof raw.file !== 'string' || !isImageFit(raw.fit)) return null;

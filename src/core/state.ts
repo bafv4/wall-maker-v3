@@ -158,6 +158,12 @@ export interface ShapeLayer {
   color: string;
   /** 図形の外接矩形（絶対 px・整数）。image の transform と同じ不変条件で扱う。 */
   transform: { x: number; y: number; width: number; height: number };
+  /**
+   * 角丸の半径（絶対 px・0 以上の整数）。rect / triangle に適用し、ellipse では無視する。
+   * 省略・0 で角丸なし。描画時は図形に収まる上限（rect は短辺の半分、triangle は内接円の半径）に
+   * 丸めるので、保存値は上限を超えていてもよい（図形を縮めて戻したときに元の丸みへ戻る）。
+   */
+  cornerRadius?: number;
   opacity: number;
   visible: boolean;
 }
@@ -416,6 +422,16 @@ export function validateWallState(state: WallState): ValidationIssue[] {
           message: 'x/y/width/height must be integers and width/height >= 1',
         });
       }
+    }
+    if (
+      layer.type === 'shape' &&
+      layer.cornerRadius !== undefined &&
+      (!Number.isInteger(layer.cornerRadius) || layer.cornerRadius < 0)
+    ) {
+      issues.push({
+        path: `background.layers[${i}].cornerRadius`,
+        message: 'cornerRadius must be an integer >= 0',
+      });
     }
   });
 

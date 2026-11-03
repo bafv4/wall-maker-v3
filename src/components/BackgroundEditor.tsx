@@ -24,6 +24,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { HexColorPicker } from 'react-colorful';
 import { errMsg } from '../core/errors';
+import { maxCornerRadius } from '../core/renderBackground';
 import type {
   BackgroundLayer,
   ColorLayer,
@@ -100,6 +101,54 @@ function OpacityRow({ value, onChange }: OpacityRowProps) {
         max={100}
         value={percent}
         onChange={(e) => onChange(Number(e.target.value) / 100)}
+        className="w-full cursor-pointer accent-blue-600"
+      />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Shape 用: 角丸スライダ
+// ---------------------------------------------------------------------------
+
+interface CornerRadiusRowProps {
+  value: number; // px
+  /** 図形に収まる上限 px（maxCornerRadius）。 */
+  max: number;
+  onChange: (next: number) => void;
+}
+
+function CornerRadiusRow({ value, max, onChange }: CornerRadiusRowProps) {
+  const { t } = useTranslation();
+  // 図形を縮めると保存値が上限を超え得る（描画は上限で丸める）。表示は実際に効いている値にする
+  const effective = Math.min(value, max);
+  const label = t('background.shape.cornerRadius');
+  return (
+    <div>
+      <div className="mb-1 flex items-center justify-between">
+        <span className="text-xs font-medium text-fg-muted">{label}</span>
+        <span className="flex items-center gap-1 text-xs text-fg-subtle">
+          <input
+            type="number"
+            min={0}
+            max={max}
+            value={effective}
+            onChange={(e) =>
+              onChange(Math.min(max, Math.floor(Number(e.target.value) || 0)))
+            }
+            aria-label={label}
+            className="h-6 w-16 rounded border border-border-strong bg-surface px-1.5 text-xs text-fg"
+          />
+          px
+        </span>
+      </div>
+      <input
+        type="range"
+        min={0}
+        max={max}
+        value={effective}
+        onChange={(e) => onChange(Number(e.target.value))}
+        aria-label={label}
         className="w-full cursor-pointer accent-blue-600"
       />
     </div>
@@ -624,6 +673,15 @@ function ShapeEditor({
           {t('background.shape.square')}
         </Button>
       </div>
+
+      {/* 円には角が無いので出さない（値は保持し、種類を戻すと復帰する） */}
+      {layer.shape !== 'ellipse' && (
+        <CornerRadiusRow
+          value={layer.cornerRadius ?? 0}
+          max={maxCornerRadius(layer)}
+          onChange={(v) => onUpdate({ type: 'shape', cornerRadius: v })}
+        />
+      )}
 
       <OpacityRow
         value={layer.opacity}

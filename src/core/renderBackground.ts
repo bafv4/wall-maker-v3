@@ -160,22 +160,116 @@ export function drawGradientLayer(
   ctx.fillRect(0, 0, res.width, res.height);
 }
 
+type Point = readonly [number, number];
+
+/** 角を持つ図形の頂点（時計回り）。ellipse は角が無いので null。 */
+function shapeVertices(layer: ShapeLayer): Point[] | null {
+  const { x, y, width, height } = layer.transform;
+  switch (layer.shape) {
+    case 'rect':
+      return [
+        [x, y],
+        [x + width, y],
+        [x + width, y + height],
+        [x, y + height],
+      ];
+    case 'triangle':
+      return [
+        [x + width / 2, y],
+        [x + width, y + height],
+        [x, y + height],
+      ];
+    case 'ellipse':
+      return null;
+  }
+}
+
+/**
+ * 凸多角形の角丸の幾何。
+ *  - `cots[i]`: 頂点 i の内角の半分の cot。半径 r で丸めると、頂点から接点までの長さは r × cots[i]。
+ *  - `maxRadius`: 隣り合う頂点の接点が辺の上で重ならない最大半径
+ *    （rect は短辺の半分、triangle は内接円の半径になる）。
+ */
+function roundedPolygonGeometry(pts: readonly Point[]): {
+  cots: number[];
+  maxRadius: number;
+} {
+  const n = pts.length;
+  const cots = pts.map((cur, i) => {
+    const prev = pts[(i + n - 1) % n];
+    const next = pts[(i + 1) % n];
+    const ax = prev[0] - cur[0];
+    const ay = prev[1] - cur[1];
+    const bx = next[0] - cur[0];
+    const by = next[1] - cur[1];
+    const angle = Math.abs(Math.atan2(ax * by - ay * bx, ax * bx + ay * by));
+    return 1 / Math.tan(angle / 2);
+  });
+  let maxRadius = Infinity;
+  for (let i = 0; i < n; i++) {
+    const a = pts[i];
+    const b = pts[(i + 1) % n];
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    maxRadius = Math.min(maxRadius, len / (cots[i] + cots[(i + 1) % n]));
+  }
+  return { cots, maxRadius: Number.isFinite(maxRadius) ? maxRadius : 0 };
+}
+
+/** 角丸半径の上限（px・整数）。ellipse は 0。エディタのスライダ上限に使う。 */
+export function maxCornerRadius(layer: ShapeLayer): number {
+  const pts = shapeVertices(layer);
+  if (!pts) return 0;
+  // cot(45°) が浮動小数の誤差で 1 をわずかに超え、短辺 270 の上限が 134.99… → 134 になるのを防ぐ
+  return Math.floor(roundedPolygonGeometry(pts).maxRadius + 1e-6);
+}
+
+/**
+ * 凸多角形を塗る。radius > 0 なら各頂点を arcTo で丸める。
+ * arcTo は半径が大きすぎても抑えてくれず辺がはみ出すので、`maxRadius` に丸めてから描く。
+ */
+function fillPolygon(ctx: AnyCtx2D, pts: readonly Point[], radius: number): void {
+  const n = pts.length;
+  const geo = radius > 0 ? roundedPolygonGeometry(pts) : null;
+  const r = geo ? Math.min(radius, geo.maxRadius) : 0;
+  ctx.beginPath();
+  if (geo && r > 0) {
+    // 頂点 0 の手前の接点から始める。辺の中点から始めると、細長い三角形では
+    // 接点が中点より向こうに来て線が折り返す。
+    const [px, py] = pts[n - 1];
+    const [cx, cy] = pts[0];
+    const t = (r * geo.cots[0]) / Math.hypot(px - cx, py - cy);
+    ctx.moveTo(cx + (px - cx) * t, cy + (py - cy) * t);
+    for (let i = 0; i < n; i++) {
+      const [vx, vy] = pts[i];
+      const [nx, ny] = pts[(i + 1) % n];
+      ctx.arcTo(vx, vy, nx, ny, r);
+    }
+  } else {
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    for (let i = 1; i < n; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+  }
+  ctx.closePath();
+  ctx.fill();
+}
+
 /** 図形は transform（外接矩形）の中に描く。解像度は使わない（座標は実解像度 px のまま）。 */
 export function drawShapeLayer(ctx: AnyCtx2D, layer: ShapeLayer): void {
   const { x, y, width, height } = layer.transform;
+  const radius = layer.cornerRadius ?? 0;
   ctx.fillStyle = layer.color;
   switch (layer.shape) {
     case 'rect':
-      ctx.fillRect(x, y, width, height);
+    case 'triangle': {
+      const pts = shapeVertices(layer);
+      if (!pts) return;
+      // 角丸なしの四角形は従来どおり fillRect（既存パックの出力を変えない）
+      if (layer.shape === 'rect' && radius <= 0) {
+        ctx.fillRect(x, y, width, height);
+      } else {
+        fillPolygon(ctx, pts, radius);
+      }
       return;
-    case 'triangle':
-      ctx.beginPath();
-      ctx.moveTo(x + width / 2, y);
-      ctx.lineTo(x + width, y + height);
-      ctx.lineTo(x, y + height);
-      ctx.closePath();
-      ctx.fill();
-      return;
+    }
     case 'ellipse':
       ctx.beginPath();
       ctx.ellipse(
