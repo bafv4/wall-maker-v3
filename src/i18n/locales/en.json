@@ -155,7 +155,7 @@
     "iconDefaultName": "pack.png",
     "iconClear": "Clear",
     "embedEditorData": "Include background editing data",
-    "embedEditorDataHint": "Saves the background layer setup (original images, shape positions, colors, gradients) in a wall-maker/ folder so importing the .zip / folder restores each layer. Minecraft ignores it, but original images increase the file size."
+    "embedEditorDataHint": "Saves the background layer setup (original images, shape positions, colors, gradients) in a wall-maker/ folder so importing the .zip / folder restores each layer. If this is off, importing the exported pack brings the background back as a single flattened image. Minecraft ignores it, but original images increase the file size."
   },
   "layoutEditor": {
     "presetTitle": "Layout preset",
@@ -400,7 +400,7 @@
     "sound": "sound"
   },
   "toast": {
-    "exportSuccess": "Exported to {{dest}}",
+    "exportSuccess": "Exported to {{dest}}. Put it in your Minecraft resourcepacks folder and enable it on the Resource Packs screen.",
     "exportFailed": "Export failed: {{error}}",
     "saveSuccess": "Saved to {{dest}}",
     "saveFailed": "Save failed: {{error}}",

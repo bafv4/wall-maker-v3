@@ -155,7 +155,7 @@
     "iconDefaultName": "pack.png",
     "iconClear": "クリア",
     "embedEditorData": "背景の編集データを同梱する",
-    "embedEditorDataHint": "背景レイヤの構成（元画像・図形の位置・色・グラデーション）を wall-maker/ フォルダに保存し、.zip / フォルダの読み込み時にレイヤごと復元します。Minecraft には影響しませんが、元画像の分だけファイルサイズが増えます。"
+    "embedEditorDataHint": "背景レイヤの構成（元画像・図形の位置・色・グラデーション）を wall-maker/ フォルダに保存し、.zip / フォルダの読み込み時にレイヤごと復元します。オフのまま書き出したパックを読み込むと、背景は合成済みの 1 枚の画像として戻ります。Minecraft には影響しませんが、元画像の分だけファイルサイズが増えます。"
   },
   "layoutEditor": {
     "presetTitle": "レイアウトプリセット",
@@ -400,7 +400,7 @@
     "sound": "サウンド"
   },
   "toast": {
-    "exportSuccess": "{{dest}} に書き出しました",
+    "exportSuccess": "{{dest}} に書き出しました。Minecraft の resourcepacks フォルダに入れ、リソースパック画面で有効にすると反映されます。",
     "exportFailed": "エクスポートに失敗しました: {{error}}",
     "saveSuccess": "{{dest}} に保存しました",
     "saveFailed": "保存に失敗しました: {{error}}",
