@@ -18,8 +18,19 @@ import type { PackReadResult, PackReadSource } from '../core/types';
 import type { SaveTargetRestore } from './desktopSaveTarget';
 import type { AppUpdateInfo, AppUpdateProgress } from './desktopUpdate';
 import type { WindowAction } from './desktopWindow';
+import type {
+  DialogBridge,
+  DialogWindowHandle,
+  DialogWindowHandlers,
+} from './desktopDialog';
+import type {
+  DialogPayload,
+  DialogSpec,
+  DialogState,
+} from '../components/dialogs/dialogSpec';
 
 export type { AppUpdateInfo, AppUpdateProgress } from './desktopUpdate';
+export type { DialogBridge } from './desktopDialog';
 
 export type { PackReadResult, PackReadSource } from '../core/types';
 
@@ -42,6 +53,26 @@ export async function windowAction(action: WindowAction): Promise<void> {
   if (!isTauri()) return;
   const { windowActionDesktop } = await import('./desktopWindow');
   await windowActionDesktop(action);
+}
+
+/**
+ * ダイアログを別ウィンドウで開く（Desktop 専用。Web はアプリ内のモーダルを使うので呼ばない）。
+ * 詳細は `desktopDialog.ts`。
+ */
+export async function openDialogWindow(
+  spec: DialogSpec,
+  state: DialogState,
+  handlers: DialogWindowHandlers,
+  payload?: DialogPayload,
+): Promise<DialogWindowHandle> {
+  const { openDialogWindowDesktop } = await import('./desktopDialog');
+  return openDialogWindowDesktop(spec, state, handlers, payload);
+}
+
+/** ダイアログウィンドウ側の窓口（Desktop 専用）。 */
+export async function getDialogBridge(id: string): Promise<DialogBridge> {
+  const { dialogBridgeDesktop } = await import('./desktopDialog');
+  return dialogBridgeDesktop(id);
 }
 
 /** 最大化状態の監視（Desktop 専用）。Web では何もせず、解除関数だけ返す。 */

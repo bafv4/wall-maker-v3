@@ -5,11 +5,12 @@
  *
  * FFmpeg / @ffmpeg/core (GPL v2+) と ffmpeg.wasm (MIT) を MP3/WAV → OGG 変換に使用しており、
  * その表記をユーザに対して可視に保つ。AppHeader のタイトルから開く。最新リリースへのリンクも置く。
- * 言語切替（ja/en）もここに集約する。
+ * 言語切替（ja/en）もここに集約する。Desktop 版では別ウィンドウで開く（`useDialogWindow`）。
  */
 
 import { useTranslation, Trans } from 'react-i18next';
 import { SUPPORTED_LANGUAGES, setLanguage, type SupportedLanguage } from '../i18n';
+import { useDialogWindow, opensDialogWindows } from './dialogs/useDialogWindow';
 import { ExternalLink, Modal } from './ui';
 
 export interface AboutModalProps {
@@ -26,7 +27,11 @@ const FFMPEG_WASM_REPO = 'https://github.com/ffmpegwasm/ffmpeg.wasm';
 const GPL3_URL = 'https://www.gnu.org/licenses/gpl-3.0.html';
 const GPL2_URL = 'https://www.gnu.org/licenses/old-licenses/gpl-2.0.html';
 
-function LanguageSwitcher() {
+function LanguageSwitcher({
+  onChange,
+}: {
+  onChange: (lng: SupportedLanguage) => void;
+}) {
   const { t, i18n } = useTranslation();
   const current = (i18n.resolvedLanguage ??
     i18n.language) as SupportedLanguage;
@@ -45,7 +50,7 @@ function LanguageSwitcher() {
           <button
             key={lng}
             type="button"
-            onClick={() => void setLanguage(lng)}
+            onClick={() => onChange(lng)}
             className={
               current === lng
                 ? // 反転ピル（fg↔surface）。ライト=濃紺地に白、ダーク=明地に暗字で、
@@ -63,11 +68,16 @@ function LanguageSwitcher() {
   );
 }
 
-export function AboutModal({ open, onClose }: AboutModalProps) {
+/** About の本文。アプリ内のモーダルと別ウィンドウの両方で使う。 */
+export function AboutContent({
+  onLanguageChange = (lng) => void setLanguage(lng),
+}: {
+  /** 言語を切り替えたとき。別ウィンドウではメインウィンドウにも伝える。 */
+  onLanguageChange?: (lng: SupportedLanguage) => void;
+}) {
   const { t } = useTranslation();
 
   return (
-    <Modal open={open} onClose={onClose} title={t('about.title')}>
       <div className="space-y-5 text-sm text-fg-muted">
         <section className="space-y-1">
           <h3 className="text-base font-semibold text-fg">
@@ -96,7 +106,7 @@ export function AboutModal({ open, onClose }: AboutModalProps) {
           </p>
         </section>
 
-        <LanguageSwitcher />
+        <LanguageSwitcher onChange={onLanguageChange} />
 
         <section className="space-y-2">
           <h4 className="text-sm font-semibold text-fg">
@@ -144,6 +154,25 @@ export function AboutModal({ open, onClose }: AboutModalProps) {
           </ul>
         </section>
       </div>
+  );
+}
+
+export function AboutModal({ open, onClose }: AboutModalProps) {
+  const { t } = useTranslation();
+  useDialogWindow({
+    open,
+    spec: { kind: 'about', title: t('about.title'), width: 640 },
+    onMessage: (m) => {
+      if (m.type === 'dismiss') onClose();
+      else if (m.type === 'action' && m.name === 'language')
+        void setLanguage(m.value as SupportedLanguage);
+    },
+  });
+  if (opensDialogWindows) return null;
+
+  return (
+    <Modal open={open} onClose={onClose} title={t('about.title')}>
+      <AboutContent />
     </Modal>
   );
 }
