@@ -71,7 +71,7 @@ function ResolutionSection() {
 
   return (
     <section className="space-y-3 rounded-lg border border-border bg-panel p-3">
-      <h3 className="text-sm font-semibold text-fg">
+      <h3 className="text-[15px] font-semibold text-fg">
         {t('resolution.title')}
       </h3>
       {/*

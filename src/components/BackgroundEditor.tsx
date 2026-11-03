@@ -1399,7 +1399,7 @@ export function BackgroundEditor() {
             >
               {t(`background.type.${selectedLayer.type}`)}
             </span>
-            <h3 className="min-w-0 flex-1 truncate text-sm font-semibold text-fg">
+            <h3 className="min-w-0 flex-1 truncate text-[15px] font-semibold text-fg">
               {layerHeadline(selectedLayer, t)}
             </h3>
             <Switch
@@ -1455,7 +1455,7 @@ export function BackgroundEditor() {
         // 一覧画面: レイヤ一覧＋下端に固定した「レイヤを追加」。行を選ぶと編集画面に切り替わる
         <div className="flex flex-1 flex-col gap-3">
           <section className="flex flex-col gap-2">
-            <h3 className="text-sm font-semibold text-fg">
+            <h3 className="text-[15px] font-semibold text-fg">
               {t('background.layerListTitle', { count: layers.length })}
             </h3>
             {layers.length > 0 && (

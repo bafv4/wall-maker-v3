@@ -33,7 +33,7 @@ function ActionRow({ title, description, children }: ActionRowProps) {
   return (
     <section className="space-y-2 rounded-lg border border-border bg-panel p-4">
       <div>
-        <h3 className="text-sm font-semibold text-fg">{title}</h3>
+        <h3 className="text-[15px] font-semibold text-fg">{title}</h3>
         <p className="mt-0.5 text-xs leading-relaxed text-fg-muted">
           {description}
         </p>

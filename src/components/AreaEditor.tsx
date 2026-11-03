@@ -211,7 +211,7 @@ function AreaEditorImpl({
         className={cn('flex items-start justify-between gap-3', selected && 'mb-3')}
       >
         <div className="min-w-0">
-          <h3 className="text-sm font-semibold text-fg">
+          <h3 className="text-[15px] font-semibold text-fg">
             {/* 選択中のエリアだけ入力欄を開く。他は見出しと現在値の要約だけにして、
                 プレビューで選んだエリアのカードがどれかをすぐ見つけられるようにする */}
             <button

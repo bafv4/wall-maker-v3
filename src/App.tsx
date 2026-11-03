@@ -341,7 +341,7 @@ function App() {
                   onClick={toggleSidebar}
                   className="hidden md:flex"
                 />
-                <h2 className="truncate text-base font-semibold text-fg">
+                <h2 className="truncate text-lg font-semibold text-fg">
                   {t(`tab.${tab}`)}
                 </h2>
               </div>
@@ -393,7 +393,7 @@ function App() {
           <main className="flex flex-col p-5 md:col-start-3 md:row-start-2 md:min-h-0 md:overflow-y-auto">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               {/* 操作説明は常設の段落にせず、見出し横のⓘにしまう（キャンバスに高さを回す） */}
-              <h2 className="flex items-center gap-1.5 text-base font-semibold text-fg">
+              <h2 className="flex items-center gap-1.5 text-lg font-semibold text-fg">
                 {t('preview.title')}
                 <InfoTooltip text={t('preview.hint')} />
               </h2>

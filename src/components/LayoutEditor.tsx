@@ -196,7 +196,7 @@ export function LayoutEditor() {
 
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-fg">
+          <h3 className="text-[15px] font-semibold text-fg">
             {t('layoutEditor.preparingTitle', { count: preparingCount })}
           </h3>
           <Button variant="outline" size="sm" onClick={handleAddPreparing}>
