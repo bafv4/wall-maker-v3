@@ -25,14 +25,18 @@ import { useTranslation } from 'react-i18next';
 import { HexColorPicker } from 'react-colorful';
 import { MIN_COORDINATE, expandCell, toSafeInt } from '../core/coords';
 import { errMsg } from '../core/errors';
+import { hasImageAdjust } from '../core/imageAdjust';
 import { maxCornerRadius } from '../core/renderBackground';
 import {
+  IMAGE_ADJUST_KEYS,
+  IMAGE_ADJUST_RANGES,
   SHAPE_KINDS,
   type AreaCell,
   type BackgroundLayer,
   type ColorLayer,
   type GradientLayer,
   type GradientStop,
+  type ImageAdjust,
   type ImageLayer,
   type ShapeKind,
   type ShapeLayer,
@@ -111,6 +115,52 @@ function OpacityRow({ value, onChange }: OpacityRowProps) {
 }
 
 // ---------------------------------------------------------------------------
+// 共通: 整数のスライダ＋数値入力
+// ---------------------------------------------------------------------------
+
+interface SliderRowProps {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  /** 数値入力の後ろに付ける単位（px など）。 */
+  unit?: string;
+  onChange: (next: number) => void;
+}
+
+/** 数値入力は [min, max] の整数に丸めて渡す（空欄・不正値は 0）。 */
+function SliderRow({ label, value, min, max, unit, onChange }: SliderRowProps) {
+  return (
+    <div>
+      <div className="mb-1 flex items-center justify-between">
+        <span className="text-xs font-medium text-fg-muted">{label}</span>
+        <span className="flex items-center gap-1 text-xs text-fg-subtle">
+          <input
+            type="number"
+            min={min}
+            max={max}
+            value={value}
+            onChange={(e) => onChange(toSafeInt(e.target.value, 0, min, max))}
+            aria-label={label}
+            className="h-6 w-16 rounded border border-border-strong bg-surface px-1.5 text-xs text-fg"
+          />
+          {unit}
+        </span>
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        aria-label={label}
+        className="w-full cursor-pointer accent-blue-600"
+      />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Shape 用: 角丸スライダ
 // ---------------------------------------------------------------------------
 
@@ -124,34 +174,75 @@ interface CornerRadiusRowProps {
 function CornerRadiusRow({ value, max, onChange }: CornerRadiusRowProps) {
   const { t } = useTranslation();
   // 図形を縮めると保存値が上限を超え得る（描画は上限で丸める）。表示は実際に効いている値にする
-  const effective = Math.min(value, max);
-  const label = t('background.shape.cornerRadius');
   return (
-    <div>
-      <div className="mb-1 flex items-center justify-between">
-        <span className="text-xs font-medium text-fg-muted">{label}</span>
-        <span className="flex items-center gap-1 text-xs text-fg-subtle">
-          <input
-            type="number"
-            min={0}
-            max={max}
-            value={effective}
-            onChange={(e) => onChange(toSafeInt(e.target.value, 0, 0, max))}
-            aria-label={label}
-            className="h-6 w-16 rounded border border-border-strong bg-surface px-1.5 text-xs text-fg"
-          />
-          px
+    <SliderRow
+      label={t('background.shape.cornerRadius')}
+      value={Math.min(value, max)}
+      min={0}
+      max={max}
+      unit="px"
+      onChange={onChange}
+    />
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Image 用: 色調補正・ぼかし
+// ---------------------------------------------------------------------------
+
+const NO_IMAGE_ADJUST: ImageAdjust = {
+  lightness: 0,
+  saturation: 0,
+  hue: 0,
+  blur: 0,
+};
+
+const IMAGE_ADJUST_UNIT: Record<keyof ImageAdjust, string | undefined> = {
+  lightness: undefined,
+  saturation: undefined,
+  hue: '°',
+  blur: 'px',
+};
+
+function ImageAdjustBox({
+  adjust,
+  onChange,
+}: {
+  adjust: ImageAdjust | undefined;
+  /** `undefined` で補正なしに戻す。 */
+  onChange: (next: ImageAdjust | undefined) => void;
+}) {
+  const { t } = useTranslation();
+  const current = adjust ?? NO_IMAGE_ADJUST;
+  return (
+    <div className="space-y-2 rounded-md bg-muted p-3">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-medium text-fg-muted">
+          {t('background.image.adjust.title')}
         </span>
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={!hasImageAdjust(adjust)}
+          onClick={() => onChange(undefined)}
+        >
+          {t('background.image.adjust.reset')}
+        </Button>
       </div>
-      <input
-        type="range"
-        min={0}
-        max={max}
-        value={effective}
-        onChange={(e) => onChange(Number(e.target.value))}
-        aria-label={label}
-        className="w-full cursor-pointer accent-blue-600"
-      />
+      {IMAGE_ADJUST_KEYS.map((key) => (
+        <SliderRow
+          key={key}
+          label={t(`background.image.adjust.${key}`)}
+          value={current[key]}
+          min={IMAGE_ADJUST_RANGES[key].min}
+          max={IMAGE_ADJUST_RANGES[key].max}
+          unit={IMAGE_ADJUST_UNIT[key]}
+          onChange={(v) => onChange({ ...current, [key]: v })}
+        />
+      ))}
+      <p className="text-[11px] text-fg-subtle">
+        {t('background.image.adjust.hint')}
+      </p>
     </div>
   );
 }
@@ -424,6 +515,11 @@ function ImageEditor({
           </div>
         </div>
       )}
+
+      <ImageAdjustBox
+        adjust={layer.adjust}
+        onChange={(adjust) => onUpdate({ type: 'image', adjust })}
+      />
 
       <OpacityRow
         value={layer.opacity}

@@ -18,10 +18,12 @@ import { resolveInline } from './binaryFields';
 import { floorLayerNumbers, scaleBackgroundLayer } from './coords';
 import { isRecord, readBytes, readString } from './packRead';
 import {
+  IMAGE_ADJUST_KEYS,
   SHAPE_KINDS,
   type AreaCell,
   type BackgroundLayer,
   type GradientStop,
+  type ImageAdjust,
   type ImageLayer,
   type Resolution,
   type ShapeKind,
@@ -67,6 +69,8 @@ type MetaLayer =
       transform?: AreaCell;
       crop?: AreaCell;
       originalFileName?: string;
+      /** 省略時は無補正（色調補正の導入前に書き出したメタも同じ形で読める）。 */
+      adjust?: ImageAdjust;
       opacity: number;
       visible: boolean;
     };
@@ -142,6 +146,7 @@ export function addEditorMeta(pack: VirtualPack, state: WallState): void {
           transform: l.transform,
           crop: l.crop,
           originalFileName: l.originalFileName,
+          adjust: l.adjust,
           opacity: l.opacity,
           visible: l.visible,
         };
@@ -292,6 +297,16 @@ function parseMetaLayer(raw: unknown, pack: VirtualPack): BackgroundLayer | null
       if (crop) layer.crop = crop;
       if (typeof raw.originalFileName === 'string') {
         layer.originalFileName = raw.originalFileName;
+      }
+      if (isRecord(raw.adjust)) {
+        // 範囲外・欠けた値は floorLayerNumbers が範囲内／0（無補正）に揃える
+        const rawAdjust = raw.adjust;
+        const adjust = { lightness: 0, saturation: 0, hue: 0, blur: 0 };
+        for (const key of IMAGE_ADJUST_KEYS) {
+          const v = rawAdjust[key];
+          if (isFiniteNumber(v)) adjust[key] = v;
+        }
+        layer.adjust = adjust;
       }
       return floorLayerNumbers(layer);
     }

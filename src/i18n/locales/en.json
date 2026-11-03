@@ -205,7 +205,16 @@
         "manual": "manual (free placement)"
       },
       "manualTitle": "Free placement (transform)",
-      "manualHint": "Editable in preview too"
+      "manualHint": "Editable in preview too",
+      "adjust": {
+        "title": "Color & blur",
+        "reset": "Reset",
+        "lightness": "Lightness",
+        "saturation": "Saturation",
+        "hue": "Hue",
+        "blur": "Blur",
+        "hint": "Negative lightness moves toward black, positive toward white. Blur extends the image's edge pixels outward, so the edges stay opaque."
+      }
     },
     "gradient": {
       "angle": "Angle",

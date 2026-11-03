@@ -129,7 +129,43 @@ export interface ImageLayer {
   crop?: { x: number; y: number; width: number; height: number };
   /** UI 表示用の元ファイル名（任意）。 */
   originalFileName?: string;
+  /** 色調補正とぼかし（描画は core/imageAdjust.ts）。省略・全 0 で無補正。 */
+  adjust?: ImageAdjust;
 }
+
+/**
+ * 画像レイヤの色調補正とぼかし。値はすべて整数で、範囲は `IMAGE_ADJUST_RANGES`。
+ * 色調は画像編集ソフトの「色相・彩度」に合わせる。
+ */
+export interface ImageAdjust {
+  /** 明度。負で黒、正で白に寄せる（±100 で真っ黒／真っ白）。 */
+  lightness: number;
+  /** 彩度。-100 でグレースケール、+100 で 2 倍。 */
+  saturation: number;
+  /** 色相の回転（度）。 */
+  hue: number;
+  /**
+   * ぼかしの強さ（ガウスぼかしの標準偏差・実解像度 px）。座標と同じく解像度変更でスケールする。
+   * 画像の外側は端の画素を延長して扱う（縁が透けない）。
+   */
+  blur: number;
+}
+
+/** ImageAdjust の各値の範囲。正規化（floorLayerNumbers）・検証・エディタのスライダで共有する。 */
+export const IMAGE_ADJUST_RANGES = {
+  lightness: { min: -100, max: 100 },
+  saturation: { min: -100, max: 100 },
+  hue: { min: -180, max: 180 },
+  blur: { min: 0, max: 100 },
+} as const satisfies Record<keyof ImageAdjust, { min: number; max: number }>;
+
+/** ImageAdjust のキー（エディタの表示順）。 */
+export const IMAGE_ADJUST_KEYS = [
+  'lightness',
+  'saturation',
+  'hue',
+  'blur',
+] as const satisfies readonly (keyof ImageAdjust)[];
 
 export interface GradientLayer {
   id: string;
@@ -434,6 +470,18 @@ export function validateWallState(state: WallState): ValidationIssue[] {
         path: `background.layers[${i}].cornerRadius`,
         message: 'cornerRadius must be an integer >= 0',
       });
+    }
+    if (layer.type === 'image' && layer.adjust) {
+      for (const key of IMAGE_ADJUST_KEYS) {
+        const v = layer.adjust[key];
+        const { min, max } = IMAGE_ADJUST_RANGES[key];
+        if (!Number.isInteger(v) || v < min || v > max) {
+          issues.push({
+            path: `background.layers[${i}].adjust.${key}`,
+            message: `${key} must be an integer in [${min}, ${max}]`,
+          });
+        }
+      }
     }
   });
 

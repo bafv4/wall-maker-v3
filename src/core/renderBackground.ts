@@ -12,10 +12,17 @@
  * 描画途中の一瞬の透過（ちらつき）が発生しない。
  */
 
+import {
+  applyColorAdjust,
+  applyGaussianBlur,
+  gaussianBoxRadii,
+  hasImageAdjust,
+} from './imageAdjust';
 import type {
   BinaryRef,
   ColorLayer,
   GradientLayer,
+  ImageAdjust,
   ImageLayer,
   Resolution,
   ShapeLayer,
@@ -39,13 +46,27 @@ export type AnyCtx2D =
  * `AnyCanvas` から 2D コンテキストを取り出す唯一の窓口。
  * 環境分岐（`OffscreenCanvas` か否か）はここに閉じ、呼び出し側は型を意識しない。
  */
-export function get2DContext(canvas: AnyCanvas): AnyCtx2D | null {
+export function get2DContext(
+  canvas: AnyCanvas,
+  settings?: CanvasRenderingContext2DSettings,
+): AnyCtx2D | null {
   // OffscreenCanvas はメインスレッド / Worker 双方で利用可能。
   // HTMLCanvasElement は Worker では undefined になるため OffscreenCanvas 側で分岐する。
   if (typeof OffscreenCanvas !== 'undefined' && canvas instanceof OffscreenCanvas) {
-    return canvas.getContext('2d');
+    return canvas.getContext('2d', settings);
   }
-  return (canvas as HTMLCanvasElement).getContext('2d');
+  return (canvas as HTMLCanvasElement).getContext('2d', settings);
+}
+
+/** 作業用の canvas。Worker でも使えるよう OffscreenCanvas を優先する。 */
+function createScratchCanvas(width: number, height: number): AnyCanvas {
+  if (typeof OffscreenCanvas !== 'undefined') {
+    return new OffscreenCanvas(width, height);
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  return canvas;
 }
 
 // ---------------------------------------------------------------------------
@@ -84,12 +105,19 @@ export function drawColorLayer(
   ctx.fillRect(0, 0, res.width, res.height);
 }
 
-function drawImageLayerSync(
-  ctx: AnyCtx2D,
+interface Rect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** 画像レイヤの描画元（画像内の px）と描画先（実解像度 px）の矩形。 */
+function imageGeometry(
   layer: ImageLayer,
   bitmap: ImageBitmap,
   res: Resolution,
-): void {
+): { src: Rect; dst: Rect } {
   const sx = layer.crop?.x ?? 0;
   const sy = layer.crop?.y ?? 0;
   const sw = layer.crop?.width ?? bitmap.width;
@@ -121,11 +149,126 @@ function drawImageLayerSync(
   // fit === 'stretch' は dw/dh = 解像度のまま
   // fit === 'manual' で transform 未設定なら stretch と同じ振る舞い
 
-  ctx.drawImage(bitmap, sx, sy, sw, sh, dx, dy, dw, dh);
+  return {
+    src: { x: sx, y: sy, width: sw, height: sh },
+    dst: { x: dx, y: dy, width: dw, height: dh },
+  };
+}
+
+function drawImageLayerSync(
+  ctx: AnyCtx2D,
+  layer: ImageLayer,
+  bitmap: ImageBitmap,
+  res: Resolution,
+): void {
+  const { src, dst } = imageGeometry(layer, bitmap, res);
+  ctx.drawImage(
+    bitmap,
+    src.x,
+    src.y,
+    src.width,
+    src.height,
+    dst.x,
+    dst.y,
+    dst.width,
+    dst.height,
+  );
+}
+
+/**
+ * 補正済み画像のキャッシュ（画像 1 枚につき直近の 1 件）。補正は全画素の処理で重いので、
+ * 他のレイヤやエリアの操作でプレビューを描き直すたびには繰り返さない。
+ */
+const adjustedCache = new WeakMap<
+  ImageBitmap,
+  { key: string; canvas: AnyCanvas }
+>();
+
+/**
+ * 色調補正・ぼかし付きで画像レイヤを描く。補正は描画先の画素（canvas のバッキングストア）で
+ * 行い、ぼかしの半径も同じ倍率で縮めるので、縮小プレビューでも書き出しと同じ見た目になる。
+ * 処理するのは描画範囲のうち canvas とぼかしの裾野が届く部分だけ（cover のはみ出しは処理しない）。
+ * 呼び出し側の transform（実解像度 → バッキングストアの縮小）は使わず、ここで座標を換算する。
+ */
+function drawAdjustedImageLayer(
+  ctx: AnyCtx2D,
+  layer: ImageLayer,
+  adjust: ImageAdjust,
+  bitmap: ImageBitmap,
+  res: Resolution,
+  scaleX: number,
+  scaleY: number,
+): void {
+  const { src, dst } = imageGeometry(layer, bitmap, res);
+  const radiiX = gaussianBoxRadii(adjust.blur * scaleX);
+  const radiiY = gaussianBoxRadii(adjust.blur * scaleY);
+  const marginX = radiiX.reduce((sum, r) => sum + r, 0);
+  const marginY = radiiY.reduce((sum, r) => sum + r, 0);
+  // 描画先は画素境界に丸める（ずれは 0.5px 未満）。縮小プレビューで端が画素の途中に来ると
+  // 端の行が半透明になり、それを「端の延長」に使ったぼかしで内側まで透けて暗くなるため。
+  const rx0 = Math.round(dst.x * scaleX);
+  const ry0 = Math.round(dst.y * scaleY);
+  const rx1 = Math.max(rx0 + 1, Math.round((dst.x + dst.width) * scaleX));
+  const ry1 = Math.max(ry0 + 1, Math.round((dst.y + dst.height) * scaleY));
+  const x0 = Math.max(rx0, -marginX);
+  const y0 = Math.max(ry0, -marginY);
+  const x1 = Math.min(rx1, ctx.canvas.width + marginX);
+  const y1 = Math.min(ry1, ctx.canvas.height + marginY);
+  if (x1 <= x0 || y1 <= y0) return;
+
+  const key = [
+    src.x,
+    src.y,
+    src.width,
+    src.height,
+    rx0,
+    ry0,
+    rx1,
+    ry1,
+    x0,
+    y0,
+    x1,
+    y1,
+    ctx.imageSmoothingQuality,
+    adjust.lightness,
+    adjust.saturation,
+    adjust.hue,
+    radiiX.join('/'),
+    radiiY.join('/'),
+  ].join(',');
+  let cached = adjustedCache.get(bitmap);
+  if (cached?.key !== key) {
+    const canvas = createScratchCanvas(x1 - x0, y1 - y0);
+    const sctx = get2DContext(canvas, { willReadFrequently: true });
+    if (!sctx) return;
+    sctx.imageSmoothingQuality = ctx.imageSmoothingQuality;
+    sctx.drawImage(
+      bitmap,
+      src.x,
+      src.y,
+      src.width,
+      src.height,
+      rx0 - x0,
+      ry0 - y0,
+      rx1 - rx0,
+      ry1 - ry0,
+    );
+    const image = sctx.getImageData(0, 0, x1 - x0, y1 - y0);
+    applyColorAdjust(image.data, adjust);
+    applyGaussianBlur(image.data, image.width, image.height, radiiX, radiiY);
+    sctx.putImageData(image, 0, 0);
+    cached = { key, canvas };
+    adjustedCache.set(bitmap, cached);
+  }
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.drawImage(cached.canvas, x0, y0);
+  ctx.restore();
 }
 
 /**
  * 非同期版（外部互換）。キャッシュを利用するため 2 回目以降の呼び出しは microtask-fast。
+ * 色調補正・ぼかし（layer.adjust）は描かない（補正込みの描画は renderBackgroundToCanvas）。
  */
 export async function drawImageLayer(
   ctx: AnyCtx2D,
@@ -357,7 +500,20 @@ export async function renderBackgroundToCanvas(
         break;
       case 'image': {
         const bitmap = bitmaps[i];
-        if (bitmap) drawImageLayerSync(ctx, layer, bitmap, resolution);
+        if (!bitmap) break;
+        if (hasImageAdjust(layer.adjust)) {
+          drawAdjustedImageLayer(
+            ctx,
+            layer,
+            layer.adjust,
+            bitmap,
+            resolution,
+            scaleX,
+            scaleY,
+          );
+        } else {
+          drawImageLayerSync(ctx, layer, bitmap, resolution);
+        }
         break;
       }
       case 'gradient':

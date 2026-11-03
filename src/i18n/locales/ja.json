@@ -205,7 +205,16 @@
         "manual": "manual（自由配置）"
       },
       "manualTitle": "自由配置 (transform)",
-      "manualHint": "プレビューでも操作可"
+      "manualHint": "プレビューでも操作可",
+      "adjust": {
+        "title": "色調・ぼかし",
+        "reset": "リセット",
+        "lightness": "明度",
+        "saturation": "彩度",
+        "hue": "色相",
+        "blur": "ぼかし",
+        "hint": "明度は負の値で黒、正の値で白に近づきます。ぼかしは画像の外側を端の色で延ばして計算するので、縁は透けません。"
+      }
     },
     "gradient": {
       "angle": "角度",
