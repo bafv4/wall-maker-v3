@@ -1178,9 +1178,11 @@ export function BackgroundEditor() {
 
   return (
     <>
-      <div className="flex h-full flex-col gap-3">
-        {/* 上段: 追加ボタン群（固定） */}
-        <section className="flex-shrink-0 space-y-2">
+      {/* パネル全体が 1 本のスクロールに乗る。一覧と編集欄で高さを取り合わせると、
+          背の低いウィンドウ（Desktop 既定の 800×600 など）で一覧が 0 まで潰れるため。 */}
+      <div className="flex flex-col gap-3">
+        {/* 上段: 追加ボタン群 */}
+        <section className="space-y-2">
           <div className="flex flex-wrap gap-2">
             <Button size="sm" onClick={handleAddColor}>
               {t('background.addColor')}
@@ -1216,22 +1218,22 @@ export function BackgroundEditor() {
           </p>
         </section>
 
-        {/* 中段: レイヤ一覧（スクロール） */}
-        <section className="flex min-h-0 flex-1 flex-col gap-2">
-          <h3 className="flex-shrink-0 text-xs font-semibold uppercase tracking-wide text-fg-subtle">
+        {/* 中段: レイヤ一覧（多いときは一覧の中でスクロール） */}
+        <section className="flex flex-col gap-2">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-fg-subtle">
             {t('background.layerListTitle', { count: layers.length })}
           </h3>
           {layers.length > 0 && (
-            <p className="flex-shrink-0 text-[11px] text-fg-subtle">
+            <p className="text-[11px] text-fg-subtle">
               {t('background.visibilityHint')}
             </p>
           )}
           {layers.length === 0 ? (
-            <p className="flex-shrink-0 rounded border border-dashed border-border-strong p-3 text-xs text-fg-subtle">
+            <p className="rounded border border-dashed border-border-strong p-3 text-xs text-fg-subtle">
               {t('background.layerListEmpty')}
             </p>
           ) : (
-            <ul className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+            <ul className="max-h-[min(40vh,20rem)] space-y-2 overflow-y-auto pr-1">
               {layers.map((layer, i) => (
                 <LayerListItem
                   key={layer.id}
@@ -1254,13 +1256,13 @@ export function BackgroundEditor() {
           )}
         </section>
 
-        {/* 下段: エディタ（固定・必要なら内部スクロール） */}
-        <section className="flex max-h-[55%] flex-shrink-0 flex-col gap-2 border-t border-border pt-3">
-          <h3 className="flex-shrink-0 text-xs font-semibold uppercase tracking-wide text-fg-subtle">
+        {/* 下段: 選択中レイヤのエディタ */}
+        <section className="flex flex-col gap-2 border-t border-border pt-3">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-fg-subtle">
             {editorTitle}
           </h3>
           {selectedLayer ? (
-            <div className="min-h-0 flex-1 overflow-y-auto rounded-md border border-border bg-panel p-3">
+            <div className="rounded-md border border-border bg-panel p-3">
               {selectedLayer.type === 'color' && (
                 <ColorEditor
                   layer={selectedLayer}
@@ -1288,7 +1290,7 @@ export function BackgroundEditor() {
               )}
             </div>
           ) : (
-            <p className="flex-shrink-0 rounded border border-dashed border-border-strong p-3 text-xs text-fg-subtle">
+            <p className="rounded border border-dashed border-border-strong p-3 text-xs text-fg-subtle">
               {t('background.selectPrompt')}
             </p>
           )}

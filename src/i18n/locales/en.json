@@ -9,7 +9,8 @@
     "layout": "Layout",
     "background": "Background",
     "lock": "Lock",
-    "sound": "Sound"
+    "sound": "Sound",
+    "listLabel": "Sections"
   },
     "update": {
       "available": "A new version v{{version}} is available (current v{{current}})",

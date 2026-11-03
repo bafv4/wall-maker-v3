@@ -1,6 +1,7 @@
 /**
- * AppHeader — タイトル＋Import/Reset/Export（Web 用）。
+ * AppHeader — メイン領域上端のバー。タイトル＋Import/Export（Web 用）。
  *
+ * リセットはエクスポートの隣で押し間違えないよう、左端のレール（`AppRail`）の下端に置く。
  * Desktop ではこのコンポーネントは表示せず、ファイル操作は「ファイル」タブ
  * （`FileEditor`）に集約される（App.tsx で isTauri() 判定）。
  *
@@ -22,20 +23,21 @@ import { Button } from './ui';
 const LATEST_RELEASE_URL =
   'https://github.com/bafv4/wall-maker-v3/releases/latest';
 
-export function AppHeader() {
+export function AppHeader({ className }: { className?: string }) {
   const { t } = useTranslation();
-  const { busy, importPhase, openImport, doExportZip, doReset } =
-    useFileOperations();
+  const { busy, importPhase, openImport, doExportZip } = useFileOperations();
   const [aboutOpen, setAboutOpen] = useState(false);
 
   return (
-    <header className="flex-shrink-0 border-b border-border bg-surface">
-      <div className="mx-auto flex h-16 max-w-[1920px] items-center justify-between gap-4 px-5">
+    <header className={className}>
+      {/* 高さは罫線込みで 48px（左のエディタパネル見出しと揃える）。
+          狭いメイン幅ではボタン群が 2 行目に折り返す（横にはみ出さない）。 */}
+      <div className="flex min-h-12 flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-border px-5 py-1">
         <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={() => setAboutOpen(true)}
-            className="cursor-pointer rounded text-left text-lg font-semibold text-fg hover:text-blue-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            className="cursor-pointer rounded text-left text-base font-semibold text-fg hover:text-blue-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
             title={t('header.aboutTooltip')}
           >
             {t('app.title')}
@@ -71,21 +73,7 @@ export function AppHeader() {
           </a>
         </div>
 
-        <div className="flex items-center gap-3">
-          {/*
-            Import/Export と同じく busy 中は押せなくする。エクスポート中にリセット
-            されると worker が古い state のままパックを作り切り、空のエディタに対して
-            成功トーストが出てしまう（Desktop 側の FileEditor と挙動を揃える）。
-          */}
-          <Button
-            variant="danger-outline"
-            size="sm"
-            disabled={busy}
-            onClick={doReset}
-          >
-            {t('header.reset')}
-          </Button>
-          <span className="h-6 w-px bg-border" aria-hidden="true" />
+        <div className="flex items-center gap-2">
           <Button
             size="sm"
             variant="outline"

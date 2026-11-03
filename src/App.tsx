@@ -1,15 +1,14 @@
 /**
- * App — シェル。
- * 左: タブ式エディタ（Desktop は最左に「ファイル」タブを差し込む）
- * 右: WallPreview
- * 上: Header（Web のみ。Desktop ではヘッダーを表示せずファイルタブに集約）
+ * App — シェル。サイドバー＋メイン領域の構成。
+ * サイドバー: 左端のレール（編集項目の切替。Desktop は先頭に「ファイル」）＋エディタパネル
+ * メイン: 上端のバー（Web のみ。タイトルと Import/Export）＋ WallPreview
  *
  * レスポンシブ:
- *  - md (>=768px): 2 カラム（エディタ 1 / プレビュー 2）の固定高さレイアウト。
- *    内部の長いコンテンツはタブ本文の `overflow-y-auto` でスクロール。
- *  - 狭幅 (<768px): 縦並びの自然な高さレイアウトに切り替え、`main` 自体が縦スクロール。
- *    `h-full` + `flex-1` の入れ子は親が auto-height だと 0 に潰れるため、
- *    `md:` プレフィックスで固定高さ前提の構造を解除する。
+ *  - md (>=768px): 3 列グリッド（レール / エディタ / メイン）の固定高さレイアウト。
+ *    エディタとプレビューはそれぞれの列の中で縦スクロールする。
+ *  - 狭幅 (<768px): ヘッダ → 横並びのナビ → エディタ → プレビューの縦並び（自然な高さ）。
+ *    グリッド全体が縦スクロールする。ヘッダは DOM 上はエディタの後ろにある（md での
+ *    フォーカス順をレール → エディタ → メインにするため）ので、狭幅でだけ先頭へ並べ替える。
  *
  * タブ本文は `React.lazy` で分割する。`TabsContent` はアクティブなタブしか描画しないのに
  * 静的 import では全エディタが初期チャンクに入り、`react-colorful`（BackgroundEditor →
@@ -20,6 +19,7 @@ import { Suspense, lazy, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { isTauri } from './adapters';
 import { AppHeader } from './components/AppHeader';
+import { AppRail, type EditorTab } from './components/AppRail';
 import { WallPreview, type PreviewTarget } from './components/WallPreview';
 import {
   InfoTooltip,
@@ -27,7 +27,6 @@ import {
   TabsContent,
   TabsList,
   TabsTrigger,
-  cn,
 } from './components/ui';
 import { FileOperationsProvider } from './hooks/useFileOperations';
 import { useWallStore } from './store/useWallStore';
@@ -86,6 +85,15 @@ function TabFallback() {
   );
 }
 
+const EDITOR_TABS: readonly EditorTab[] = [
+  'info',
+  'layout',
+  'background',
+  'lock',
+  'sound',
+];
+const DESKTOP_EDITOR_TABS: readonly EditorTab[] = ['file', ...EDITOR_TABS];
+
 const PREVIEW_TARGETS: readonly PreviewTarget[] = [
   'all',
   'background',
@@ -136,7 +144,7 @@ function App() {
   // 後から変わることはないので、レンダー時に都度参照しても問題ない。
   const desktop = isTauri();
 
-  const [tab, setTab] = useState(desktop ? 'file' : 'info');
+  const [tab, setTab] = useState<EditorTab>(desktop ? 'file' : 'info');
   const [boxMode, setBoxMode] = useState<PreviewTarget>('all');
   const [snapMode, setSnapMode] = useState<PreviewTarget>('all');
   const [hydrated, setHydrated] = useState(false);
@@ -158,117 +166,101 @@ function App() {
   return (
     <FileOperationsProvider>
       <div className="flex h-screen flex-col bg-canvas text-fg">
-        {!desktop && <AppHeader />}
         {desktop && (
           <Suspense fallback={null}>
             <DesktopUpdateNotice />
           </Suspense>
         )}
 
-        <main className="flex-1 min-h-0 overflow-y-auto md:overflow-hidden">
-          <div
-            className={cn(
-              'mx-auto max-w-[1920px] md:h-full',
-              // Desktop は AppHeader が無いぶん上下にも余白が必要。全方向に均等な余白を取り、
-              // Web より少し広めにして「ウィンドウ枠とコンテンツ」のリズムを揃える。
-              desktop ? 'p-6' : 'px-5 py-5',
-            )}
-          >
-            <div className="grid grid-cols-1 gap-5 md:h-full md:grid-cols-3">
-              {/* Left: Editors */}
-              <div className="md:col-span-1 md:min-h-0">
-                <div className="flex flex-col rounded-lg border border-border bg-surface md:h-full">
-                  <Tabs
-                    value={tab}
-                    onValueChange={setTab}
-                    className="flex flex-col md:h-full"
-                  >
-                    {/* タブが入り切らない場合は横スクロール。内側に inline-flex の TabsList が並ぶ。 */}
-                    <div className="border-b border-border p-3 md:flex-shrink-0">
-                      <div className="overflow-x-auto">
-                        <TabsList>
-                          {desktop && (
-                            <TabsTrigger value="file">{t('tab.file')}</TabsTrigger>
-                          )}
-                          <TabsTrigger value="info">{t('tab.info')}</TabsTrigger>
-                          <TabsTrigger value="layout">{t('tab.layout')}</TabsTrigger>
-                          <TabsTrigger value="background">{t('tab.background')}</TabsTrigger>
-                          <TabsTrigger value="lock">{t('tab.lock')}</TabsTrigger>
-                          <TabsTrigger value="sound">{t('tab.sound')}</TabsTrigger>
-                        </TabsList>
-                      </div>
-                    </div>
-                    <div className="p-4 md:min-h-0 md:flex-1 md:overflow-y-auto">
-                      {/* TabsContent は非アクティブなタブを描画しないので、
-                          Suspense はパネル領域にひとつあれば足りる。 */}
-                      <Suspense fallback={<TabFallback />}>
-                        {desktop && (
-                          <TabsContent value="file">
-                            <FileEditor />
-                          </TabsContent>
-                        )}
-                        <TabsContent value="info">
-                          <PackInfoEditor />
-                        </TabsContent>
-                        <TabsContent value="layout">
-                          <LayoutEditor />
-                        </TabsContent>
-                        <TabsContent value="background" className="md:h-full">
-                          <BackgroundEditor />
-                        </TabsContent>
-                        <TabsContent value="lock">
-                          <LockImagesEditor />
-                        </TabsContent>
-                        <TabsContent value="sound">
-                          <SoundsEditor />
-                        </TabsContent>
-                      </Suspense>
-                    </div>
-                  </Tabs>
-                </div>
-              </div>
+        <Tabs
+          value={tab}
+          onValueChange={(v) => setTab(v as EditorTab)}
+          // 狭幅の暗黙行は max-content。auto のままだとスクロールコンテナ（横スクロールのナビ）の
+          // 最小高さが 0 扱いになり、全体が画面より高いときにナビが潰れる。
+          className="grid min-h-0 flex-1 auto-rows-max grid-cols-1 overflow-y-auto md:grid-cols-[84px_clamp(280px,30vw,420px)_minmax(0,1fr)] md:grid-rows-[auto_minmax(0,1fr)] md:overflow-hidden"
+        >
+          <AppRail
+            tabs={desktop ? DESKTOP_EDITOR_TABS : EDITOR_TABS}
+            value={tab}
+            onValueChange={setTab}
+            showReset={!desktop}
+            className="md:row-span-2"
+          />
 
-              {/* Right: Preview */}
-              <div className="md:col-span-2 md:min-h-0">
-                <div className="flex flex-col rounded-lg border border-border bg-surface p-4 md:h-full">
-                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                    <h2 className="text-sm font-semibold text-fg">
-                      {t('preview.title')}
-                    </h2>
-                    {/* 狭幅では各グループ内でもラベルが切替の上に折り返す（横にはみ出さない） */}
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                      {/* 枠の表示切替。見た目確認時に枠を消したり、片方だけ操作したりする用 */}
-                      <PreviewTargetTabs
-                        label={t('preview.boxes')}
-                        value={boxMode}
-                        onChange={setBoxMode}
-                        optionKey="preview.boxMode"
-                      />
-                      {/* 吸着先の切替。枠を隠している側にはこの設定に関わらず吸着しない */}
-                      <PreviewTargetTabs
-                        label={t('preview.snap')}
-                        info={t('preview.snapInfo')}
-                        value={snapMode}
-                        onChange={setSnapMode}
-                        optionKey="preview.snapMode"
-                      />
-                    </div>
-                  </div>
-                  <div className="md:flex-1 md:min-h-0">
-                    <WallPreview
-                      boxMode={boxMode}
-                      snapMode={snapMode}
-                      backgroundEditing={tab === 'background'}
-                    />
-                  </div>
-                  <p className="mt-3 text-xs text-fg-subtle">
-                    {t('preview.hint')}
-                  </p>
-                </div>
+          {/* サイドバー: エディタパネル */}
+          <section
+            aria-label={t(`tab.${tab}`)}
+            className="flex flex-col border-b border-border bg-surface md:row-span-2 md:min-h-0 md:border-r md:border-b-0"
+          >
+            <h2 className="flex h-12 flex-shrink-0 items-center border-b border-border px-4 text-sm font-semibold text-fg">
+              {t(`tab.${tab}`)}
+            </h2>
+            <div className="p-4 md:min-h-0 md:flex-1 md:overflow-y-auto">
+              {/* TabsContent は非アクティブなタブを描画しないので、
+                  Suspense はパネル領域にひとつあれば足りる。 */}
+              <Suspense fallback={<TabFallback />}>
+                {desktop && (
+                  <TabsContent value="file">
+                    <FileEditor />
+                  </TabsContent>
+                )}
+                <TabsContent value="info">
+                  <PackInfoEditor />
+                </TabsContent>
+                <TabsContent value="layout">
+                  <LayoutEditor />
+                </TabsContent>
+                <TabsContent value="background">
+                  <BackgroundEditor />
+                </TabsContent>
+                <TabsContent value="lock">
+                  <LockImagesEditor />
+                </TabsContent>
+                <TabsContent value="sound">
+                  <SoundsEditor />
+                </TabsContent>
+              </Suspense>
+            </div>
+          </section>
+
+          {/* メイン: 上端のバー（Web のみ）。狭幅ではページ先頭に出す */}
+          {!desktop && (
+            <AppHeader className="max-md:order-first md:col-start-3 md:row-start-1" />
+          )}
+
+          {/* メイン: プレビュー */}
+          <main className="flex flex-col p-5 md:col-start-3 md:row-start-2 md:min-h-0 md:overflow-y-auto">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-sm font-semibold text-fg">
+                {t('preview.title')}
+              </h2>
+              {/* 狭幅では各グループ内でもラベルが切替の上に折り返す（横にはみ出さない） */}
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                {/* 枠の表示切替。見た目確認時に枠を消したり、片方だけ操作したりする用 */}
+                <PreviewTargetTabs
+                  label={t('preview.boxes')}
+                  value={boxMode}
+                  onChange={setBoxMode}
+                  optionKey="preview.boxMode"
+                />
+                {/* 吸着先の切替。枠を隠している側にはこの設定に関わらず吸着しない */}
+                <PreviewTargetTabs
+                  label={t('preview.snap')}
+                  info={t('preview.snapInfo')}
+                  value={snapMode}
+                  onChange={setSnapMode}
+                  optionKey="preview.snapMode"
+                />
               </div>
             </div>
-          </div>
-        </main>
+            <WallPreview
+              boxMode={boxMode}
+              snapMode={snapMode}
+              backgroundEditing={tab === 'background'}
+            />
+            <p className="mt-3 text-xs text-fg-subtle">{t('preview.hint')}</p>
+          </main>
+        </Tabs>
       </div>
     </FileOperationsProvider>
   );
