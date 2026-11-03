@@ -72,6 +72,9 @@
     }
   },
   "sidebar": {
+    "collapse": "Close sidebar",
+    "toggleTitle": "{{label}} (Ctrl+B)",
+    "expand": "Open sidebar",
     "resize": "Sidebar width",
     "resizeHint": "Drag to resize (double-click to reset). Arrow keys also work"
   },

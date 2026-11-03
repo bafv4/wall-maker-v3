@@ -26,12 +26,14 @@ import { SidebarResizer } from './components/SidebarResizer';
 import { HistoryControls } from './components/HistoryControls';
 import { WallPreview, type PreviewTarget } from './components/WallPreview';
 import {
+  cn,
   InfoTooltip,
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
 } from './components/ui';
+import { SidebarIcon } from './components/ui/icons';
 import { FileOperationsProvider } from './hooks/useFileOperations';
 import { useSidebarWidth } from './hooks/useSidebarWidth';
 import { useWallStore } from './store/useWallStore';
@@ -143,6 +145,36 @@ function PreviewTargetTabs({
   );
 }
 
+/** サイドバーの開閉ボタン。`expanded` は今サイドバーが開いているか。 */
+function SidebarToggle({
+  expanded,
+  onClick,
+  className,
+}: {
+  expanded: boolean;
+  onClick: () => void;
+  className?: string;
+}) {
+  const { t } = useTranslation();
+  const label = expanded ? t('sidebar.collapse') : t('sidebar.expand');
+  return (
+    <button
+      type="button"
+      data-sidebar-toggle
+      onClick={onClick}
+      aria-expanded={expanded}
+      className={cn(
+        'flex h-8 w-8 flex-shrink-0 cursor-pointer items-center justify-center rounded-md text-fg-subtle hover:bg-muted hover:text-fg focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500',
+        className,
+      )}
+      aria-label={label}
+      title={t('sidebar.toggleTitle', { label })}
+    >
+      <SidebarIcon />
+    </button>
+  );
+}
+
 function App() {
   const { t } = useTranslation();
   // Tauri webview 内かどうか。__TAURI_INTERNALS__ は webview 起動時に注入され
@@ -156,6 +188,35 @@ function App() {
   // サイドバー（エディタパネル）の幅。右端の境界線で変えられる
   const sidebar = useSidebarWidth();
   const sidebarRef = useRef<HTMLElement>(null);
+  const { collapsed, setCollapsed } = sidebar;
+
+  // 開閉ボタンはサイドバー見出し（開いているとき）とメインのヘッダ（閉じているとき）で
+  // 入れ替わるので、ボタンで開閉したらもう一方のボタンへフォーカスを運ぶ
+  const focusToggleRef = useRef(false);
+  const toggleSidebar = () => {
+    focusToggleRef.current = true;
+    setCollapsed(!collapsed);
+  };
+  useEffect(() => {
+    if (!focusToggleRef.current) return;
+    focusToggleRef.current = false;
+    // 閉じたサイドバーは display:none で DOM に残るので、見えている方を選ぶ
+    Array.from(document.querySelectorAll<HTMLElement>('[data-sidebar-toggle]'))
+      .find((el) => el.offsetParent !== null)
+      ?.focus();
+  }, [collapsed]);
+
+  // Ctrl+B（macOS は ⌘B）で開閉。エディタ系アプリの慣例に合わせる
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== 'b' || !(e.ctrlKey || e.metaKey)) return;
+      if (e.altKey || e.shiftKey) return;
+      e.preventDefault();
+      setCollapsed(!collapsed);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
 
   useEffect(() => {
     const unsub = useWallStore.persist.onFinishHydration(() => setHydrated(true));
@@ -201,7 +262,10 @@ function App() {
           <section
             ref={sidebarRef}
             aria-label={t(`tab.${tab}`)}
-            className="relative flex flex-col border-b border-border bg-surface md:row-span-2 md:min-h-0 md:border-r md:border-b-0"
+            className={cn(
+              'relative flex flex-col border-b border-border bg-surface md:row-span-2 md:min-h-0 md:border-r md:border-b-0',
+              collapsed && 'md:hidden',
+            )}
           >
             <SidebarResizer
               width={sidebar.width}
@@ -212,11 +276,19 @@ function App() {
             {/* Desktop ではここもウィンドウを掴んで動かせる（OS のタイトルバーが無いため） */}
             <div
               data-tauri-drag-region
-              className="flex h-12 flex-shrink-0 items-center justify-between gap-2 border-b border-border pr-2 pl-4"
+              className="flex h-12 flex-shrink-0 items-center justify-between gap-2 border-b border-border pr-2 pl-4 md:pl-2"
             >
-              <h2 className="text-base font-semibold text-fg">
-                {t(`tab.${tab}`)}
-              </h2>
+              <div className="flex min-w-0 items-center gap-1">
+                {/* 閉じるのは md 以上のみ（狭幅は縦積みでプレビューを狭めないため） */}
+                <SidebarToggle
+                  expanded
+                  onClick={toggleSidebar}
+                  className="hidden md:flex"
+                />
+                <h2 className="truncate text-base font-semibold text-fg">
+                  {t(`tab.${tab}`)}
+                </h2>
+              </div>
               <HistoryControls />
             </div>
             <div className="p-4 md:min-h-0 md:flex-1 md:overflow-y-auto">
@@ -248,7 +320,18 @@ function App() {
           </section>
 
           {/* メイン: 上端のバー。狭幅ではページ先頭に出す */}
-          <AppHeader className="max-md:order-first md:col-start-3 md:row-start-1" />
+          {/* サイドバーを閉じている間は、開閉ボタンと取り消し / やり直しをタイトルの左に移す */}
+          <AppHeader
+            className="max-md:order-first md:col-start-3 md:row-start-1"
+            leading={
+              collapsed && (
+                <div className="hidden items-center gap-1 md:flex">
+                  <SidebarToggle expanded={false} onClick={toggleSidebar} />
+                  <HistoryControls />
+                </div>
+              )
+            }
+          />
 
           {/* メイン: プレビュー */}
           <main className="flex flex-col p-5 md:col-start-3 md:row-start-2 md:min-h-0 md:overflow-y-auto">

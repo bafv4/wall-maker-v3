@@ -12,24 +12,38 @@
  * リンク等を表示する。
  */
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AboutModal } from './AboutModal';
 import { WindowControls } from './WindowControls';
+import { cn } from './ui';
 
-export function AppHeader({ className }: { className?: string }) {
+export function AppHeader({
+  className,
+  leading,
+}: {
+  className?: string;
+  /** タイトルの左に置く操作（サイドバーを閉じている間の開閉ボタンなど）。 */
+  leading?: ReactNode;
+}) {
   const { t } = useTranslation();
   const [aboutOpen, setAboutOpen] = useState(false);
 
   return (
     <header className={className}>
       {/* 高さは罫線込みで 48px（左のエディタパネル見出しと揃える） */}
+      {/* leading があるとき（サイドバーを閉じている間）は左の余白をサイドバー見出しと揃え、
+          開閉ボタンが開閉の前後で同じ位置に来るようにする */}
       <div
         data-tauri-drag-region
-        className="flex h-12 items-center gap-3 border-b border-border px-5"
+        className={cn(
+          'flex h-12 items-center gap-3 border-b border-border px-5',
+          leading ? 'md:pl-2' : undefined,
+        )}
       >
         {/* 1 行に収める（折り返すとウィンドウ操作ボタンが 2 行目に落ちる）。狭いときはタイトルを省略表示 */}
         <div className="flex min-w-0 items-center gap-3">
+          {leading}
           <button
             type="button"
             onClick={() => setAboutOpen(true)}
