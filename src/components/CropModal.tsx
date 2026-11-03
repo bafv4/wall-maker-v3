@@ -20,7 +20,7 @@ import { useTranslation } from 'react-i18next';
 import type { AreaCell, ImageLayer } from '../core/state';
 import { useObjectUrl } from '../hooks/useObjectUrl';
 import { useDialogWindow, opensDialogWindows } from './dialogs/useDialogWindow';
-import { Button, Modal } from './ui';
+import { Button, Modal, NumberInput } from './ui';
 import { cn } from './ui/cn';
 import type { Handle } from './snap';
 
@@ -371,40 +371,40 @@ export function CropEditor({
           <div className="grid grid-cols-4 gap-2">
             <label className="text-xs text-fg-muted">
               {t('areaEditor.x')}
-              <input
-                type="number"
+              <NumberInput
                 value={Math.floor(crop.x)}
                 onChange={handleField('x')}
-                className="mt-0.5 h-8 w-full rounded border border-border-strong px-2 text-sm"
+                wrapperClassName="mt-0.5"
+                className="h-8 w-full rounded border border-border-strong px-2 text-sm"
               />
             </label>
             <label className="text-xs text-fg-muted">
               {t('areaEditor.y')}
-              <input
-                type="number"
+              <NumberInput
                 value={Math.floor(crop.y)}
                 onChange={handleField('y')}
-                className="mt-0.5 h-8 w-full rounded border border-border-strong px-2 text-sm"
+                wrapperClassName="mt-0.5"
+                className="h-8 w-full rounded border border-border-strong px-2 text-sm"
               />
             </label>
             <label className="text-xs text-fg-muted">
               {t('areaEditor.width')}
-              <input
-                type="number"
+              <NumberInput
                 min={1}
                 value={Math.floor(crop.width)}
                 onChange={handleField('width')}
-                className="mt-0.5 h-8 w-full rounded border border-border-strong px-2 text-sm"
+                wrapperClassName="mt-0.5"
+                className="h-8 w-full rounded border border-border-strong px-2 text-sm"
               />
             </label>
             <label className="text-xs text-fg-muted">
               {t('areaEditor.height')}
-              <input
-                type="number"
+              <NumberInput
                 min={1}
                 value={Math.floor(crop.height)}
                 onChange={handleField('height')}
-                className="mt-0.5 h-8 w-full rounded border border-border-strong px-2 text-sm"
+                wrapperClassName="mt-0.5"
+                className="h-8 w-full rounded border border-border-strong px-2 text-sm"
               />
             </label>
           </div>

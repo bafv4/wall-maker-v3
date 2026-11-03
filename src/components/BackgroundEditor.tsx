@@ -60,7 +60,7 @@ import {
   type BackgroundLayerPatch,
 } from '../store/useWallStore';
 import { CropModal } from './CropModal';
-import { Button, RangeInput, Select, Switch, toast } from './ui';
+import { Button, NumberInput, RangeInput, Select, Switch, toast } from './ui';
 import { cn } from './ui/cn';
 import { ChevronLeftIcon, CloseIcon, PlusIcon } from './ui/icons';
 
@@ -151,14 +151,14 @@ function SliderRow({ label, value, min, max, unit, onChange }: SliderRowProps) {
       <div className="mb-1 flex items-center justify-between">
         <span className="text-xs font-medium text-fg-muted">{label}</span>
         <span className="flex items-center gap-1 text-xs text-fg-subtle">
-          <input
-            type="number"
+          <NumberInput
             min={min}
             max={max}
             value={value}
             onChange={(e) => onChange(toSafeInt(e.target.value, 0, min, max))}
             aria-label={label}
-            className="h-6 w-16 rounded border border-border-strong bg-surface px-1.5 text-xs text-fg"
+            wrapperClassName="w-16"
+            className="h-6 w-full rounded border border-border-strong bg-surface px-1.5 text-xs text-fg"
           />
           {unit}
         </span>
@@ -477,40 +477,44 @@ function ImageEditor({
           <div className="grid grid-cols-2 gap-2">
             <label className="text-xs text-violet-700 dark:text-violet-300">
               {t('areaEditor.x')}
-              <input
-                type="number"
+              <NumberInput
                 value={layer.transform?.x ?? 0}
                 onChange={handleTransformField('x')}
-                className="mt-0.5 h-8 w-full rounded border border-violet-300 bg-surface px-1.5 text-xs text-fg dark:border-violet-500/40"
+                wrapperClassName="mt-0.5"
+                stepperClassName="border-violet-300 dark:border-violet-500/40"
+                className="h-8 w-full rounded border border-violet-300 bg-surface px-1.5 text-xs text-fg dark:border-violet-500/40"
               />
             </label>
             <label className="text-xs text-violet-700 dark:text-violet-300">
               {t('areaEditor.y')}
-              <input
-                type="number"
+              <NumberInput
                 value={layer.transform?.y ?? 0}
                 onChange={handleTransformField('y')}
-                className="mt-0.5 h-8 w-full rounded border border-violet-300 bg-surface px-1.5 text-xs text-fg dark:border-violet-500/40"
+                wrapperClassName="mt-0.5"
+                stepperClassName="border-violet-300 dark:border-violet-500/40"
+                className="h-8 w-full rounded border border-violet-300 bg-surface px-1.5 text-xs text-fg dark:border-violet-500/40"
               />
             </label>
             <label className="text-xs text-violet-700 dark:text-violet-300">
               {t('areaEditor.width')}
-              <input
-                type="number"
+              <NumberInput
                 min={1}
                 value={layer.transform?.width ?? resolution.width}
                 onChange={handleTransformField('width')}
-                className="mt-0.5 h-8 w-full rounded border border-violet-300 bg-surface px-1.5 text-xs text-fg dark:border-violet-500/40"
+                wrapperClassName="mt-0.5"
+                stepperClassName="border-violet-300 dark:border-violet-500/40"
+                className="h-8 w-full rounded border border-violet-300 bg-surface px-1.5 text-xs text-fg dark:border-violet-500/40"
               />
             </label>
             <label className="text-xs text-violet-700 dark:text-violet-300">
               {t('areaEditor.height')}
-              <input
-                type="number"
+              <NumberInput
                 min={1}
                 value={layer.transform?.height ?? resolution.height}
                 onChange={handleTransformField('height')}
-                className="mt-0.5 h-8 w-full rounded border border-violet-300 bg-surface px-1.5 text-xs text-fg dark:border-violet-500/40"
+                wrapperClassName="mt-0.5"
+                stepperClassName="border-violet-300 dark:border-violet-500/40"
+                className="h-8 w-full rounded border border-violet-300 bg-surface px-1.5 text-xs text-fg dark:border-violet-500/40"
               />
             </label>
           </div>
@@ -743,12 +747,12 @@ function FitToAreaBox({ onFit }: { onFit: (transform: AreaCell) => void }) {
         <label className="flex-1 text-xs text-fg-muted">
           {t('background.shape.fitPadding')}
           <span className="mt-0.5 flex items-center gap-1">
-            <input
-              type="number"
+            <NumberInput
               value={fitPadding}
               onChange={(e) =>
                 setFitPadding(toSafeInt(e.target.value, 0, MIN_COORDINATE))
               }
+              wrapperClassName="w-full"
               className="h-8 w-full rounded border border-border-strong bg-surface px-1.5 text-xs text-fg"
             />
             px
@@ -834,12 +838,12 @@ function ShapeEditor({
           {fields.map((f) => (
             <label key={f.key} className="text-xs text-fg-muted">
               {f.label}
-              <input
-                type="number"
+              <NumberInput
                 min={f.min}
                 value={layer.transform[f.key]}
                 onChange={handleTransformField(f.key)}
-                className="mt-0.5 h-8 w-full rounded border border-border-strong bg-surface px-1.5 text-xs text-fg"
+                wrapperClassName="mt-0.5"
+                className="h-8 w-full rounded border border-border-strong bg-surface px-1.5 text-xs text-fg"
               />
             </label>
           ))}
