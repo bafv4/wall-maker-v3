@@ -52,7 +52,7 @@ function SaveTargetBanner({ path }: { path: string | null }) {
   const { t } = useTranslation();
   if (!path) return null;
   return (
-    <div className="rounded-lg border border-blue-200 border-l-4 border-l-blue-500 bg-accent-soft px-4 py-2.5 dark:border-blue-900 dark:border-l-blue-500">
+    <div className="rounded-lg border border-border border-l-4 border-l-primary bg-accent-soft px-4 py-2.5">
       <div className="text-xs font-semibold text-accent-soft-fg">
         {t('fileEditor.save.currentTargetLabel')}
       </div>
