@@ -33,6 +33,7 @@ import { errMsg } from '../core/errors';
 import { formatBytes } from '../core/format';
 import { flushPersistedWrites } from '../store/persistAdapter';
 import { Button, ExternalLink, toast } from './ui';
+import { CloseIcon } from './ui/icons';
 
 // アプリ起動につき 1 回だけチェックする（StrictMode の二重 effect / HMR 対策）
 let checkPromise: Promise<AppUpdateInfo | null> | null = null;
@@ -195,11 +196,11 @@ export function DesktopUpdateNotice() {
         <button
           type="button"
           onClick={() => setDismissed(true)}
-          className="ml-auto cursor-pointer rounded px-1.5 text-fg-subtle hover:text-fg"
+          className="ml-auto cursor-pointer rounded p-1 text-fg-subtle hover:bg-muted hover:text-fg"
           aria-label={t('common.close')}
           title={t('common.close')}
         >
-          ×
+          <CloseIcon />
         </button>
       )}
     </div>

@@ -26,6 +26,7 @@ import { notifyUndoable } from '../store/history';
 import { useWallStore } from '../store/useWallStore';
 import { Button, Input, Switch, toast } from './ui';
 import { cn } from './ui/cn';
+import { ArrowDownIcon, ArrowUpIcon } from './ui/icons';
 
 interface RowProps {
   image: LockImage;
@@ -148,21 +149,21 @@ function LockImageRow({
           type="button"
           disabled={index === 0}
           onClick={onMoveUp}
-          className="h-6 w-6 rounded text-xs text-fg-subtle hover:bg-muted disabled:opacity-30"
+          className="flex h-6 w-6 cursor-pointer items-center justify-center rounded text-fg-subtle hover:bg-muted hover:text-fg disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent"
           title={t('lock.moveUp')}
           aria-label={t('lock.moveUp')}
         >
-          ↑
+          <ArrowUpIcon className="size-3.5" />
         </button>
         <button
           type="button"
           disabled={index === total - 1}
           onClick={onMoveDown}
-          className="h-6 w-6 rounded text-xs text-fg-subtle hover:bg-muted disabled:opacity-30"
+          className="flex h-6 w-6 cursor-pointer items-center justify-center rounded text-fg-subtle hover:bg-muted hover:text-fg disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent"
           title={t('lock.moveDown')}
           aria-label={t('lock.moveDown')}
         >
-          ↓
+          <ArrowDownIcon className="size-3.5" />
         </button>
         <Button variant="ghost" size="sm" onClick={onDelete}>
           {t('lock.delete')}

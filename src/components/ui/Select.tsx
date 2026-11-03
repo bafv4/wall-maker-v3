@@ -31,6 +31,7 @@ import {
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
+import { CheckIcon, ChevronDownIcon } from './icons';
 
 export interface SelectOption {
   value: string;
@@ -323,15 +324,12 @@ export const Select = forwardRef<HTMLDivElement, SelectProps>(function Select(
         >
           {selectedLabel ?? placeholder ?? t('common.selectPlaceholder')}
         </span>
-        <span
+        <ChevronDownIcon
           className={cn(
-            'flex-shrink-0 text-fg-subtle transition-transform',
+            'text-fg-subtle transition-transform',
             open && 'rotate-180',
           )}
-          aria-hidden
-        >
-          ▾
-        </span>
+        />
       </div>
 
       {open &&
@@ -394,9 +392,7 @@ export const Select = forwardRef<HTMLDivElement, SelectProps>(function Select(
                       )}
                     </span>
                     {selected && (
-                      <span className="text-accent-soft-fg" aria-hidden>
-                        ✓
-                      </span>
+                      <CheckIcon className="text-accent-soft-fg" />
                     )}
                   </li>
                 );

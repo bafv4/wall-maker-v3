@@ -62,6 +62,7 @@ import {
 import { CropModal } from './CropModal';
 import { Button, Select, Switch, toast } from './ui';
 import { cn } from './ui/cn';
+import { CloseIcon } from './ui/icons';
 
 // ---------------------------------------------------------------------------
 // 共通: 画像ファイルの取り込み
@@ -662,10 +663,10 @@ function GradientEditor({
                 type="button"
                 disabled={layer.stops.length <= 2}
                 onClick={() => handleRemoveStop(i)}
-                className="cursor-pointer text-xs text-red-600 disabled:cursor-not-allowed disabled:opacity-30 dark:text-red-400"
+                className="flex h-6 w-6 cursor-pointer items-center justify-center rounded text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent dark:text-red-400 dark:hover:bg-red-500/15"
                 aria-label={t('background.delete')}
               >
-                ×
+                <CloseIcon className="size-3.5" />
               </button>
             </li>
           ))}
@@ -1031,11 +1032,11 @@ function LayerListItem({
       <button
         type="button"
         onClick={onDelete}
-        className="h-7 w-7 flex-shrink-0 cursor-pointer rounded text-xs text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/15"
+        className="flex h-7 w-7 flex-shrink-0 cursor-pointer items-center justify-center rounded text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/15"
         title={t('background.delete')}
         aria-label={t('background.delete')}
       >
-        ×
+        <CloseIcon className="size-3.5" />
       </button>
     </li>
   );

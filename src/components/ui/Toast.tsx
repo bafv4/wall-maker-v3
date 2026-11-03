@@ -22,6 +22,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
+import { CloseIcon } from './icons';
 
 type ToastType = 'info' | 'error' | 'success';
 
@@ -159,9 +160,9 @@ export function ToastRoot() {
               type="button"
               onClick={() => dismisser?.(item.id)}
               aria-label={t('common.close')}
-              className="-my-1 -mr-2 shrink-0 cursor-pointer rounded p-1 text-lg leading-none text-white/80 hover:bg-white/15 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              className="-my-1 -mr-2 shrink-0 cursor-pointer rounded p-1 text-white/80 hover:bg-white/15 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
             >
-              ×
+              <CloseIcon />
             </button>
           )}
         </div>

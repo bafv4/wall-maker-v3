@@ -21,6 +21,7 @@ import {
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
+import { CloseIcon } from './icons';
 
 export interface ModalProps {
   open: boolean;
@@ -120,10 +121,10 @@ export function Modal({
             <button
               type="button"
               onClick={onClose}
-              className="cursor-pointer rounded p-1.5 text-lg leading-none text-fg-subtle hover:bg-muted hover:text-fg"
+              className="cursor-pointer rounded p-1.5 text-fg-subtle hover:bg-muted hover:text-fg"
               aria-label={t('common.close')}
             >
-              ×
+              <CloseIcon />
             </button>
           </div>
         )}
