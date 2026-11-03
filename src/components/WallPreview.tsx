@@ -170,9 +170,11 @@ const HANDLE_LIST: Handle[] = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
 /**
  * 枠の色と、その上に白文字のラベルを載せる一段濃い色（白文字で 4.5:1 以上）。
  * 枠の色のまま白文字にすると、オレンジ・緑は 3.3〜3.6:1 しか出ない。
+ * main はアプリの Primary（App.css のトークン。ダークでは彩度を落とした青）に揃える。
+ * CSS 変数を含むので、透過は `${color}1a` ではなく color-mix で作り、SVG は style で塗る。
  */
 const AREA_COLORS = {
-  main: { line: '#2563eb', ink: '#1d4ed8' },
+  main: { line: 'var(--c-primary)', ink: 'var(--c-primary-hover)' },
   locked: { line: '#ea580c', ink: '#c2410c' },
   preparing: { line: '#16a34a', ink: '#15803d' },
   layer: { line: '#9333ea', ink: '#7e22ce' },
@@ -571,7 +573,9 @@ function AreaBox({
         height: pv.height,
         borderColor: color,
         // タイルを描くときは塗らない（padding の溝と余りに背景が透けて見えるように）
-        background: tiles ? undefined : `${color}1a`,
+        background: tiles
+          ? undefined
+          : `color-mix(in srgb, ${color} 10%, transparent)`,
         cursor: 'move',
         touchAction: 'none',
       }}
@@ -606,9 +610,8 @@ function AreaBox({
                   y={c.y + 0.5}
                   width={Math.max(0, c.w - 1)}
                   height={Math.max(0, c.h - 1)}
-                  fill={color}
+                  style={{ fill: color, stroke: color }}
                   fillOpacity={selected ? 0.3 : 0.2}
-                  stroke={color}
                   strokeOpacity={0.75}
                 />
                 {lock && (

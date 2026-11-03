@@ -173,7 +173,7 @@ export function LayoutEditor() {
         title={t('areas.main')}
         formatKey="main"
         description={t('areas.mainDescription')}
-        color="#2563eb"
+        color="var(--c-primary)"
         resolution={resolution}
         onChange={setMain}
         allowGridToggle
