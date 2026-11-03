@@ -47,10 +47,8 @@ import { renderBackgroundToCanvas } from '../core/renderBackground';
 import type {
   AreaCell,
   BackgroundLayer,
-  ImageLayer,
   MainArea,
   Resolution,
-  ShapeLayer,
   VisibleArea,
   WallState,
 } from '../core/state';
@@ -543,29 +541,33 @@ function LayerBox({
 // WallPreview 本体
 // ---------------------------------------------------------------------------
 
-/** プレビューに重ねる枠の表示範囲。layout=エリア枠、background=レイヤ操作枠。 */
-export type PreviewBoxMode = 'all' | 'background' | 'layout' | 'none';
-
 /**
- * ドラッグ時の吸着先。layout=エリア、background=レイヤ（図形・手動配置の画像）。
- * キャンバスの端と中央は none 以外で常に対象。
+ * 枠の表示・吸着の対象範囲。layout=エリア、background=レイヤ（図形・手動配置の画像）。
+ * 枠の表示（boxMode）と吸着先（snapMode）で共有する。
  */
-export type PreviewSnapMode = 'all' | 'background' | 'layout' | 'none';
+export type PreviewTarget = 'all' | 'background' | 'layout' | 'none';
+
+/** mode が side（エリア / レイヤ）を対象に含むか。 */
+function covers(mode: PreviewTarget, side: 'background' | 'layout'): boolean {
+  return mode === 'all' || mode === side;
+}
 
 export interface WallPreviewProps {
-  boxMode: PreviewBoxMode;
-  snapMode: PreviewSnapMode;
+  /** 枠の表示範囲。隠した枠は操作もできない。 */
+  boxMode: PreviewTarget;
+  /** ドラッグ時の吸着先。キャンバスの端と中央は none 以外で常に対象。 */
+  snapMode: PreviewTarget;
   /** 背景タブを表示中か。false のときレイヤ操作枠は出さない。 */
   backgroundEditing: boolean;
 }
 
 /**
- * スナップ先にするレイヤの矩形。プレビュー上で位置を持つレイヤ（図形・手動配置の画像）だけ。
- * 色・グラデーション・stretch の画像は全面＝キャンバス端と同じなので不要。contain / cover は
- * 描画矩形の計算に画像の実寸が要るため対象外。非表示のレイヤは見えないので除く。
+ * プレビュー上で位置を持つレイヤ（図形・手動配置の画像）の矩形。それ以外は null。
+ * 操作枠・ドラッグ開始位置・スナップ先の判定はすべてこれに揃える。
+ * 色・グラデーション・stretch の画像は全面＝キャンバス端と同じ。contain / cover は
+ * 描画矩形の計算に画像の実寸が要るため対象外。
  */
-function layerSnapCell(l: BackgroundLayer): AreaCell | null {
-  if (!l.visible) return null;
+function layerBoxCell(l: BackgroundLayer): AreaCell | null {
   if (l.type === 'shape') return l.transform;
   if (l.type === 'image' && l.fit === 'manual' && l.transform) {
     return l.transform;
@@ -629,13 +631,11 @@ export function WallPreview({
   } | null>(null);
 
   // 選択中の、プレビューで操作できるレイヤ（image の manual 配置 / shape）
-  const selectedLayer = useMemo<ImageLayer | ShapeLayer | null>(() => {
+  const selectedLayer = useMemo(() => {
     if (!selectedLayerId) return null;
     const l = background.layers.find((x) => x.id === selectedLayerId);
-    if (!l) return null;
-    if (l.type === 'shape') return l;
-    if (l.type === 'image' && l.fit === 'manual' && l.transform) return l;
-    return null;
+    const cell = l ? layerBoxCell(l) : null;
+    return l && cell ? { id: l.id, type: l.type, cell } : null;
   }, [background.layers, selectedLayerId]);
 
   // ---- コンテナ幅 → preview サイズ ----
@@ -670,12 +670,9 @@ export function WallPreview({
         xs.push(c.x, c.x + c.width / 2, c.x + c.width);
         ys.push(c.y, c.y + c.height / 2, c.y + c.height);
       };
-      const snapToAreas =
-        (snapMode === 'all' || snapMode === 'layout') &&
-        (boxMode === 'all' || boxMode === 'layout');
+      const snapToAreas = covers(snapMode, 'layout') && covers(boxMode, 'layout');
       const snapToLayers =
-        (snapMode === 'all' || snapMode === 'background') &&
-        (boxMode === 'all' || boxMode === 'background');
+        covers(snapMode, 'background') && covers(boxMode, 'background');
       if (snapToAreas) {
         if (!excludeKeys.has(MAIN_KEY)) addCell(lay.main);
         if (!excludeKeys.has(LOCKED_KEY) && lay.locked.show)
@@ -691,7 +688,8 @@ export function WallPreview({
         for (const l of wall.background.layers) {
           if (excludeKeys.has(areaRefKey({ kind: 'layer', layerId: l.id })))
             continue;
-          const cell = layerSnapCell(l);
+          // 非表示のレイヤは見えないので吸着先にしない
+          const cell = l.visible ? layerBoxCell(l) : null;
           if (cell) addCell(cell);
         }
       }
@@ -714,18 +712,7 @@ export function WallPreview({
         return wall.layout.preparing[refId.index] ?? null;
       case 'layer': {
         const l = wall.background.layers.find((x) => x.id === refId.layerId);
-        if (!l) return null;
-        if (l.type === 'shape') return l.transform;
-        if (l.type !== 'image') return null;
-        if (l.fit !== 'manual') return null;
-        return (
-          l.transform ?? {
-            x: 0,
-            y: 0,
-            width: wall.resolution.width,
-            height: wall.resolution.height,
-          }
-        );
+        return l ? layerBoxCell(l) : null;
       }
     }
   }, []);
@@ -1053,9 +1040,8 @@ export function WallPreview({
     .filter(({ p }) => p.show);
 
   const soleSelection = selectedRefs.length === 1;
-  const showAreas = boxMode === 'all' || boxMode === 'layout';
-  const showLayerBox =
-    backgroundEditing && (boxMode === 'all' || boxMode === 'background');
+  const showAreas = covers(boxMode, 'layout');
+  const showLayerBox = backgroundEditing && covers(boxMode, 'background');
 
   // ドラッグオーバーレイ位置（プレビュー px）
   const overlayPv = useMemo(() => {
@@ -1146,13 +1132,11 @@ export function WallPreview({
 
         {/* レイヤ操作枠（image の fit=manual / shape）。レイヤ選択中は操作対象なので
             エリアより手前に置く（main が全面を覆う既定レイアウトでも掴めるように）。 */}
-        {showLayerBox && selectedLayer?.transform && (
+        {showLayerBox && selectedLayer && (
           <LayerBox
             layerId={selectedLayer.id}
-            transform={selectedLayer.transform}
-            label={
-              selectedLayer.type === 'shape' ? 'shape layer' : 'image layer'
-            }
+            transform={selectedLayer.cell}
+            label={`${selectedLayer.type} layer`}
             resolution={resolution}
             preview={preview}
             onPointerDownLayer={onPointerDownLayer}

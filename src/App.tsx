@@ -20,11 +20,7 @@ import { Suspense, lazy, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { isTauri } from './adapters';
 import { AppHeader } from './components/AppHeader';
-import {
-  WallPreview,
-  type PreviewBoxMode,
-  type PreviewSnapMode,
-} from './components/WallPreview';
+import { WallPreview, type PreviewTarget } from './components/WallPreview';
 import {
   InfoTooltip,
   Tabs,
@@ -90,6 +86,50 @@ function TabFallback() {
   );
 }
 
+const PREVIEW_TARGETS: readonly PreviewTarget[] = [
+  'all',
+  'background',
+  'layout',
+  'none',
+];
+
+/**
+ * プレビュー見出しの切替（ボックス表示 / スナップ先）。ラベルと 4 択のタブ。
+ * `optionKey` は各選択肢のラベルの i18n キーの親（`<optionKey>.<all|background|…>`）。
+ */
+function PreviewTargetTabs({
+  label,
+  info,
+  value,
+  onChange,
+  optionKey,
+}: {
+  label: string;
+  info?: string;
+  value: PreviewTarget;
+  onChange: (next: PreviewTarget) => void;
+  optionKey: string;
+}) {
+  const { t } = useTranslation();
+  return (
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+      <span className="flex items-center gap-1 whitespace-nowrap text-xs text-fg-subtle">
+        {label}
+        {info && <InfoTooltip text={info} />}
+      </span>
+      <Tabs value={value} onValueChange={(v) => onChange(v as PreviewTarget)}>
+        <TabsList className="h-8">
+          {PREVIEW_TARGETS.map((mode) => (
+            <TabsTrigger key={mode} value={mode} className="h-6 px-2.5 text-xs">
+              {t(`${optionKey}.${mode}`)}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
+    </div>
+  );
+}
+
 function App() {
   const { t } = useTranslation();
   // Tauri webview 内かどうか。__TAURI_INTERNALS__ は webview 起動時に注入され
@@ -97,8 +137,8 @@ function App() {
   const desktop = isTauri();
 
   const [tab, setTab] = useState(desktop ? 'file' : 'info');
-  const [boxMode, setBoxMode] = useState<PreviewBoxMode>('all');
-  const [snapMode, setSnapMode] = useState<PreviewSnapMode>('all');
+  const [boxMode, setBoxMode] = useState<PreviewTarget>('all');
+  const [snapMode, setSnapMode] = useState<PreviewTarget>('all');
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
@@ -198,54 +238,20 @@ function App() {
                     {/* 狭幅では各グループ内でもラベルが切替の上に折り返す（横にはみ出さない） */}
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                       {/* 枠の表示切替。見た目確認時に枠を消したり、片方だけ操作したりする用 */}
-                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                        <span className="whitespace-nowrap text-xs text-fg-subtle">
-                          {t('preview.boxes')}
-                        </span>
-                        <Tabs
-                          value={boxMode}
-                          onValueChange={(v) => setBoxMode(v as PreviewBoxMode)}
-                        >
-                          <TabsList className="h-8">
-                            {(['all', 'background', 'layout', 'none'] as const).map(
-                              (mode) => (
-                                <TabsTrigger
-                                  key={mode}
-                                  value={mode}
-                                  className="h-6 px-2.5 text-xs"
-                                >
-                                  {t(`preview.boxMode.${mode}`)}
-                                </TabsTrigger>
-                              ),
-                            )}
-                          </TabsList>
-                        </Tabs>
-                      </div>
+                      <PreviewTargetTabs
+                        label={t('preview.boxes')}
+                        value={boxMode}
+                        onChange={setBoxMode}
+                        optionKey="preview.boxMode"
+                      />
                       {/* 吸着先の切替。枠を隠している側にはこの設定に関わらず吸着しない */}
-                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                        <span className="flex items-center gap-1 whitespace-nowrap text-xs text-fg-subtle">
-                          {t('preview.snap')}
-                          <InfoTooltip text={t('preview.snapInfo')} />
-                        </span>
-                        <Tabs
-                          value={snapMode}
-                          onValueChange={(v) => setSnapMode(v as PreviewSnapMode)}
-                        >
-                          <TabsList className="h-8">
-                            {(['all', 'background', 'layout', 'none'] as const).map(
-                              (mode) => (
-                                <TabsTrigger
-                                  key={mode}
-                                  value={mode}
-                                  className="h-6 px-2.5 text-xs"
-                                >
-                                  {t(`preview.snapMode.${mode}`)}
-                                </TabsTrigger>
-                              ),
-                            )}
-                          </TabsList>
-                        </Tabs>
-                      </div>
+                      <PreviewTargetTabs
+                        label={t('preview.snap')}
+                        info={t('preview.snapInfo')}
+                        value={snapMode}
+                        onChange={setSnapMode}
+                        optionKey="preview.snapMode"
+                      />
                     </div>
                   </div>
                   <div className="md:flex-1 md:min-h-0">
