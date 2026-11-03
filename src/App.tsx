@@ -17,11 +17,12 @@
  * CropModal）や `@ffmpeg/ffmpeg` ラッパ（SoundsEditor → audio/convert）まで初回に載る。
  */
 
-import { Suspense, lazy, useEffect, useState } from 'react';
+import { Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { isTauri } from './adapters';
 import { AppHeader } from './components/AppHeader';
 import { AppRail, type EditorTab } from './components/AppRail';
+import { SidebarResizer } from './components/SidebarResizer';
 import { HistoryControls } from './components/HistoryControls';
 import { WallPreview, type PreviewTarget } from './components/WallPreview';
 import {
@@ -32,6 +33,7 @@ import {
   TabsTrigger,
 } from './components/ui';
 import { FileOperationsProvider } from './hooks/useFileOperations';
+import { useSidebarWidth } from './hooks/useSidebarWidth';
 import { useWallStore } from './store/useWallStore';
 import './App.css';
 
@@ -151,6 +153,9 @@ function App() {
   const [boxMode, setBoxMode] = useState<PreviewTarget>('all');
   const [snapMode, setSnapMode] = useState<PreviewTarget>('all');
   const [hydrated, setHydrated] = useState(false);
+  // サイドバー（エディタパネル）の幅。右端の境界線で変えられる
+  const sidebar = useSidebarWidth();
+  const sidebarRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     const unsub = useWallStore.persist.onFinishHydration(() => setHydrated(true));
@@ -168,7 +173,10 @@ function App() {
 
   return (
     <FileOperationsProvider>
-      <div className="flex h-screen flex-col bg-canvas text-fg">
+      <div
+        className="flex h-screen flex-col bg-canvas text-fg"
+        style={{ '--sidebar-w': sidebar.cssWidth } as React.CSSProperties}
+      >
         {desktop && (
           <Suspense fallback={null}>
             <DesktopUpdateNotice />
@@ -180,7 +188,7 @@ function App() {
           onValueChange={(v) => setTab(v as EditorTab)}
           // 狭幅の暗黙行は max-content。auto のままだとスクロールコンテナ（横スクロールのナビ）の
           // 最小高さが 0 扱いになり、全体が画面より高いときにナビが潰れる。
-          className="grid min-h-0 flex-1 auto-rows-max grid-cols-1 overflow-y-auto md:grid-cols-[84px_clamp(280px,30vw,420px)_minmax(0,1fr)] md:grid-rows-[auto_minmax(0,1fr)] md:overflow-hidden"
+          className="grid min-h-0 flex-1 auto-rows-max grid-cols-1 overflow-y-auto md:grid-cols-[84px_var(--sidebar-w)_minmax(0,1fr)] md:grid-rows-[auto_minmax(0,1fr)] md:overflow-hidden"
         >
           <AppRail
             tabs={EDITOR_TABS}
@@ -191,9 +199,15 @@ function App() {
 
           {/* サイドバー: エディタパネル */}
           <section
+            ref={sidebarRef}
             aria-label={t(`tab.${tab}`)}
-            className="flex flex-col border-b border-border bg-surface md:row-span-2 md:min-h-0 md:border-r md:border-b-0"
+            className="relative flex flex-col border-b border-border bg-surface md:row-span-2 md:min-h-0 md:border-r md:border-b-0"
           >
+            <SidebarResizer
+              width={sidebar.width}
+              onChange={sidebar.setWidth}
+              targetRef={sidebarRef}
+            />
             {/* 取り消し / やり直しはどのタブの編集にも効くので、パネル見出しに常に置く */}
             {/* Desktop ではここもウィンドウを掴んで動かせる（OS のタイトルバーが無いため） */}
             <div

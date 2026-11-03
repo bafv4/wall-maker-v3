@@ -71,6 +71,10 @@
       "preparing": "preparing #{{n}} deleted"
     }
   },
+  "sidebar": {
+    "resize": "Sidebar width",
+    "resizeHint": "Drag to resize (double-click to reset). Arrow keys also work"
+  },
   "window": {
     "minimize": "Minimize",
     "maximize": "Maximize",

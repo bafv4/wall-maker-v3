@@ -71,6 +71,10 @@
       "preparing": "preparing #{{n}} を削除しました"
     }
   },
+  "sidebar": {
+    "resize": "サイドバーの幅",
+    "resizeHint": "ドラッグで幅を変更（ダブルクリックで元の幅）。←/→ キーでも変えられます"
+  },
   "window": {
     "minimize": "最小化",
     "maximize": "最大化",
