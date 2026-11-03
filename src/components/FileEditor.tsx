@@ -8,7 +8,6 @@
  *  - 保存         : Desktop のみ。フォルダ形式で「名前を付けて保存」／「上書き保存」
  *  - エクスポート : `.zip` 1 ファイル（Web=ダウンロード / Desktop=保存ダイアログ）
  *  - 背景の編集データを同梱する : 書き出し（zip / フォルダ）に wall-maker/ を含めるか
- *  - About        : Desktop のみ（Web はヘッダのタイトルから開く）
  *
  * リセットは書き出しボタンの並びで押し間違えないよう、一覧から離して最後に置く。
  * 内容がパネルに収まるときはパネルの下端に寄せ、スクロールするときはスクロールの末尾に来る
@@ -17,12 +16,11 @@
  * 進行状態は `useFileOperations()` で共有しており、タブ切替で消えない。
  */
 
-import { useId, useState } from 'react';
+import { useId } from 'react';
 import { useTranslation } from 'react-i18next';
 import { isTauri } from '../adapters';
 import { useFileOperations } from '../hooks/useFileOperations';
 import { useWallStore } from '../store/useWallStore';
-import { AboutModal } from './AboutModal';
 import { Button, Switch } from './ui';
 
 interface ActionRowProps {
@@ -168,7 +166,6 @@ export function FileEditor() {
 
         <EmbedEditorDataSection />
 
-        {desktop && <AboutSection />}
       </div>
 
       <div className="mt-auto pt-4">
@@ -232,23 +229,5 @@ function FileResetBar() {
         {t('fileEditor.reset.button')}
       </Button>
     </div>
-  );
-}
-
-function AboutSection() {
-  const { t } = useTranslation();
-  const [open, setOpen] = useState(false);
-  return (
-    <>
-      <ActionRow
-        title={t('fileEditor.about.title')}
-        description={t('fileEditor.about.description')}
-      >
-        <Button size="sm" variant="ghost" onClick={() => setOpen(true)}>
-          {t('fileEditor.about.button')}
-        </Button>
-      </ActionRow>
-      <AboutModal open={open} onClose={() => setOpen(false)} />
-    </>
   );
 }

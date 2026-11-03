@@ -15,12 +15,19 @@ export interface ExternalLinkProps {
   children?: React.ReactNode;
   /** 省略時は本文中リンクの既定スタイル。 */
   className?: string;
+  title?: string;
 }
 
-export function ExternalLink({ href, children, className }: ExternalLinkProps) {
+export function ExternalLink({
+  href,
+  children,
+  className,
+  title,
+}: ExternalLinkProps) {
   return (
     <a
       href={href}
+      title={title}
       target="_blank"
       rel="noopener noreferrer"
       className={

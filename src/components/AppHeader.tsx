@@ -1,8 +1,7 @@
 /**
- * AppHeader — メイン領域上端のバー（Web 用）。タイトルとリリースへのリンク。
+ * AppHeader — メイン領域上端のバー（Web / Desktop 共通）。タイトルとリリースへのリンク。
  *
- * インポート / エクスポート / リセットは Web・Desktop とも「ファイル」タブ（`FileEditor`）に
- * 集約している。Desktop ではこのコンポーネントは表示しない（App.tsx で isTauri() 判定）。
+ * インポート / エクスポート / リセットは「ファイル」タブ（`FileEditor`）に集約している。
  *
  * タイトル部分をクリックすると AboutModal が開き、FFmpeg ライセンス表記等を表示する。
  * タイトルの右隣には GitHub の最新リリースページ（/releases/latest）への外部リンクを置く。
@@ -11,6 +10,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AboutModal } from './AboutModal';
+import { ExternalLink } from './ui';
 
 /** GitHub の最新リリースページ。タグを固定しないよう /releases/latest を使う。 */
 const LATEST_RELEASE_URL =
@@ -38,10 +38,9 @@ export function AppHeader({ className }: { className?: string }) {
             </span>
           </button>
 
-          <a
+          {/* Desktop の webview では <a target="_blank"> が開かないことがあるので ExternalLink を使う */}
+          <ExternalLink
             href={LATEST_RELEASE_URL}
-            target="_blank"
-            rel="noopener noreferrer"
             title={t('header.releasesTooltip')}
             className="inline-flex items-center gap-1 rounded text-xs font-medium text-fg-muted hover:text-blue-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
           >
@@ -61,7 +60,7 @@ export function AppHeader({ className }: { className?: string }) {
                 d="M13.5 6H18v4.5M17.25 6.75L10.5 13.5M18 14.25V18a1.5 1.5 0 01-1.5 1.5H6A1.5 1.5 0 014.5 18V7.5A1.5 1.5 0 016 6h3.75"
               />
             </svg>
-          </a>
+          </ExternalLink>
         </div>
       </div>
 

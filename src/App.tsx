@@ -1,7 +1,7 @@
 /**
  * App — シェル。サイドバー＋メイン領域の構成。
  * サイドバー: 左端のレール（編集項目の切替。先頭は「ファイル」）＋エディタパネル
- * メイン: 上端のバー（Web のみ。タイトルとリリースへのリンク）＋ WallPreview
+ * メイン: 上端のバー（タイトルとリリースへのリンク）＋ WallPreview
  *
  * インポート / エクスポート / リセットは Web・Desktop とも「ファイル」タブに集約する。
  *
@@ -147,7 +147,7 @@ function App() {
   // 後から変わることはないので、レンダー時に都度参照しても問題ない。
   const desktop = isTauri();
 
-  const [tab, setTab] = useState<EditorTab>(desktop ? 'file' : 'info');
+  const [tab, setTab] = useState<EditorTab>('file');
   const [boxMode, setBoxMode] = useState<PreviewTarget>('all');
   const [snapMode, setSnapMode] = useState<PreviewTarget>('all');
   const [hydrated, setHydrated] = useState(false);
@@ -228,10 +228,8 @@ function App() {
             </div>
           </section>
 
-          {/* メイン: 上端のバー（Web のみ）。狭幅ではページ先頭に出す */}
-          {!desktop && (
-            <AppHeader className="max-md:order-first md:col-start-3 md:row-start-1" />
-          )}
+          {/* メイン: 上端のバー。狭幅ではページ先頭に出す */}
+          <AppHeader className="max-md:order-first md:col-start-3 md:row-start-1" />
 
           {/* メイン: プレビュー */}
           <main className="flex flex-col p-5 md:col-start-3 md:row-start-2 md:min-h-0 md:overflow-y-auto">
