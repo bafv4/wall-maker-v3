@@ -195,6 +195,7 @@
     "editLayer": "{{type}} レイヤを編集",
     "selectLayer": "レイヤを選択",
     "selectPrompt": "上の一覧からレイヤを選択すると、ここに編集画面が表示されます。",
+    "layerVisible": "「{{name}}」を表示",
     "moveBack": "奥へ",
     "moveFront": "手前へ",
     "delete": "削除",
@@ -233,6 +234,7 @@
       "stopsTitle": "ストップ ({{count}})",
       "addStop": "+ 追加",
       "selectStopAria": "ストップ {{n}} を選択",
+      "stopOffsetAria": "ストップ {{n}} の位置",
       "stopColorPrompt": "選択中のストップの色（#{{n}}）",
       "fileImage": "画像 ({{size}} KB)",
       "imageRef": "画像 (ref)"

@@ -7,7 +7,7 @@
  *  - 子の `AreaEditor` は memo 済みなので、渡す `onChange` / `onRemove` は安定参照にする。
  */
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useId, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getLayoutPresets } from '../core/layoutPresets';
 import { notifyUndoable } from '../store/history';
@@ -17,6 +17,7 @@ import { Button, Select, Switch } from './ui';
 
 export function LayoutEditor() {
   const { t } = useTranslation();
+  const replaceLockedId = useId();
   const main = useWallStore((s) => s.wall.layout.main);
   const locked = useWallStore((s) => s.wall.layout.locked);
   const preparing = useWallStore((s) => s.wall.layout.preparing);
@@ -77,6 +78,7 @@ export function LayoutEditor() {
             onValueChange={setPresetId}
             placeholder={t('layoutEditor.presetPlaceholder')}
             options={presetOptions}
+            aria-label={t('layoutEditor.presetTitle')}
           />
           <Button
             size="sm"
@@ -94,10 +96,14 @@ export function LayoutEditor() {
       </div>
 
       <div className="flex items-center justify-between rounded-lg bg-panel p-3">
-        <span className="text-sm font-medium text-fg">
+        <label
+          htmlFor={replaceLockedId}
+          className="cursor-pointer text-sm font-medium text-fg"
+        >
           {t('layoutEditor.replaceLockedInstances')}
-        </span>
+        </label>
         <Switch
+          id={replaceLockedId}
           checked={replaceLockedInstances}
           onChange={setReplaceLockedInstances}
         />

@@ -110,6 +110,8 @@ function OpacityRow({ value, onChange }: OpacityRowProps) {
         max={100}
         value={percent}
         onChange={(e) => onChange(Number(e.target.value) / 100)}
+        aria-label={t('background.opacity')}
+        aria-valuetext={`${percent}%`}
         className="w-full cursor-pointer accent-blue-600"
       />
     </div>
@@ -596,6 +598,8 @@ function GradientEditor({
           onChange={(e) =>
             onUpdate({ type: 'gradient', angle: Number(e.target.value) })
           }
+          aria-label={t('background.gradient.angle')}
+          aria-valuetext={`${layer.angle}°`}
           className="w-full cursor-pointer accent-blue-600"
         />
       </div>
@@ -635,6 +639,8 @@ function GradientEditor({
                 onChange={(e) =>
                   handleStopOffset(i, Number(e.target.value) / 100)
                 }
+                aria-label={t('background.gradient.stopOffsetAria', { n: i + 1 })}
+                aria-valuetext={`${Math.round(stop.offset * 100)}%`}
                 className="flex-1 cursor-pointer accent-blue-600"
               />
               <span className="w-10 text-right text-xs text-fg-subtle">
@@ -924,28 +930,14 @@ function LayerListItem({
 }: LayerListItemProps) {
   const { t } = useTranslation();
   const headline = layerHeadline(layer, t);
-  // アクション系（visible toggle / 並び替え / 削除）はクリックを行全体まで伝搬させない
-  const stop = (e: React.MouseEvent | React.PointerEvent | React.KeyboardEvent) => {
-    e.stopPropagation();
-  };
+  const typeLabel = t(`background.type.${layer.type}`);
 
+  // 選択は「種別＋見出し」のボタンで行う。行全体を role=button にすると、中の Switch や
+  // 並び替え・削除が入れ子の操作になり、支援技術から個別に扱えなくなるため。
   return (
     <li
-      role="button"
-      tabIndex={0}
-      aria-pressed={selected}
-      onClick={onSelect}
-      onKeyDown={(e) => {
-        // 子要素（Switch / 並び替え / 削除）からバブルしたキー操作は横取りしない
-        if (e.target !== e.currentTarget) return;
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onSelect();
-        }
-      }}
       className={cn(
-        'group flex cursor-pointer items-center gap-2 rounded-md border bg-surface p-2 transition-colors',
-        'focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500',
+        'group flex items-center gap-2 rounded-md border bg-surface p-2 transition-colors',
         selected
           ? // ring-blue-100 はダーク面（neutral-900）で白く浮くため、
             // ダークのみ半透明ブルーのハローに切り替える。
@@ -956,35 +948,42 @@ function LayerListItem({
     >
       {/* ラッパーを flex 化。inline のままだと中の Switch がベースラインに乗り、
           下にディセンダ分の余白ができて上寄りに見えるため。 */}
-      <span
-        className="flex flex-shrink-0 items-center"
-        onClick={stop}
-        onPointerDown={stop}
-      >
-        <Switch checked={layer.visible} onChange={onVisibleChange} />
+      <span className="flex flex-shrink-0 items-center">
+        <Switch
+          checked={layer.visible}
+          onChange={onVisibleChange}
+          aria-label={t('background.layerVisible', {
+            name: `${typeLabel} ${headline}`,
+          })}
+        />
       </span>
-      <span
-        className={cn(
-          'flex-shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-semibold',
-          TYPE_COLOR[layer.type],
-        )}
+      <button
+        type="button"
+        aria-pressed={selected}
+        onClick={onSelect}
+        className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 self-stretch rounded text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
       >
-        {t(`background.type.${layer.type}`)}
-      </span>
-      <span className="flex-1 truncate text-left text-xs text-fg-muted group-hover:text-fg">
-        {headline}
-      </span>
-      <div
-        className="flex flex-shrink-0 items-center gap-0.5"
-        onClick={stop}
-        onPointerDown={stop}
-      >
+        <span
+          className={cn(
+            'flex-shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-semibold',
+            TYPE_COLOR[layer.type],
+          )}
+        >
+          {typeLabel}
+        </span>
+        {/* 読み上げ名で種別と見出しがつながらないように（flex 内の空白は描画されない） */}{' '}
+        <span className="flex-1 truncate text-xs text-fg-muted group-hover:text-fg">
+          {headline}
+        </span>
+      </button>
+      <div className="flex flex-shrink-0 items-center gap-0.5">
         <button
           type="button"
           disabled={index === 0}
           onClick={onMoveUp}
           className="h-7 w-7 cursor-pointer rounded text-xs text-fg-subtle hover:bg-muted disabled:cursor-not-allowed disabled:opacity-30"
           title={t('background.moveBack')}
+          aria-label={t('background.moveBack')}
         >
           ↑
         </button>
@@ -994,6 +993,7 @@ function LayerListItem({
           onClick={onMoveDown}
           className="h-7 w-7 cursor-pointer rounded text-xs text-fg-subtle hover:bg-muted disabled:cursor-not-allowed disabled:opacity-30"
           title={t('background.moveFront')}
+          aria-label={t('background.moveFront')}
         >
           ↓
         </button>
@@ -1002,6 +1002,7 @@ function LayerListItem({
           onClick={onDelete}
           className="h-7 w-7 cursor-pointer rounded text-xs text-red-600 hover:bg-red-50"
           title={t('background.delete')}
+          aria-label={t('background.delete')}
         >
           ×
         </button>

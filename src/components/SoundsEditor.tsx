@@ -20,7 +20,7 @@
  *  - FFmpeg ライセンス表記は AboutModal と README に明記。
  */
 
-import { useRef, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   convertToOgg,
@@ -202,6 +202,7 @@ function EventRow({
           onValueChange={handleModeChange}
           disabled={rowDisabled}
           options={modeOptions}
+          aria-label={label}
         />
       </div>
 
@@ -255,6 +256,7 @@ const NON_INSTANCE_RESET_KEYS: ReadonlySet<SoundEventKey> = new Set([
 
 export function SoundsEditor() {
   const { t } = useTranslation();
+  const resetUnifiedId = useId();
   const sounds = useWallStore((s) => s.wall.sounds);
   const setSoundGlobalMode = useWallStore((s) => s.setSoundGlobalMode);
   const setSoundResetUnified = useWallStore((s) => s.setSoundResetUnified);
@@ -322,17 +324,25 @@ export function SoundsEditor() {
 
       <div className="flex items-center justify-between rounded-md bg-panel p-3">
         <div>
-          <span className="block text-sm font-medium text-fg">
+          <label
+            htmlFor={resetUnifiedId}
+            className="block text-sm font-medium text-fg"
+          >
             {t('sound.resetUnifiedTitle')}
-          </span>
-          <span className="block text-[11px] text-fg-subtle">
+          </label>
+          <span
+            id={`${resetUnifiedId}-desc`}
+            className="block text-[11px] text-fg-subtle"
+          >
             {t('sound.resetUnifiedDescription')}
           </span>
         </div>
         <Switch
+          id={resetUnifiedId}
           checked={sounds.resetUnified}
           onChange={handleResetUnifiedToggle}
           disabled={eventDisabled}
+          aria-describedby={`${resetUnifiedId}-desc`}
         />
       </div>
 

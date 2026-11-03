@@ -195,6 +195,7 @@
     "editLayer": "Edit {{type}} layer",
     "selectLayer": "Select a layer",
     "selectPrompt": "Select a layer from the list above to edit it here.",
+    "layerVisible": "Show “{{name}}”",
     "moveBack": "Move back",
     "moveFront": "Move front",
     "delete": "Delete",
@@ -233,6 +234,7 @@
       "stopsTitle": "Stops ({{count}})",
       "addStop": "+ Add",
       "selectStopAria": "Select stop {{n}}",
+      "stopOffsetAria": "Stop {{n}} position",
       "stopColorPrompt": "Color of selected stop (#{{n}})",
       "fileImage": "Image ({{size}} KB)",
       "imageRef": "Image (ref)"

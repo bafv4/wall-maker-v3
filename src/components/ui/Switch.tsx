@@ -6,9 +6,24 @@ export interface SwitchProps {
   label?: string;
   disabled?: boolean;
   id?: string;
+  /**
+   * `label` を使わないときの読み上げ名。見える文言が別の場所にあるなら、そちらを
+   * `<label htmlFor={id}>` にして結び付けるほうがよい（文言のクリックでも切り替わる）。
+   */
+  'aria-label'?: string;
+  /** 補足説明の要素 id。 */
+  'aria-describedby'?: string;
 }
 
-export function Switch({ checked, onChange, label, disabled, id }: SwitchProps) {
+export function Switch({
+  checked,
+  onChange,
+  label,
+  disabled,
+  id,
+  'aria-label': ariaLabel,
+  'aria-describedby': ariaDescribedBy,
+}: SwitchProps) {
   return (
     <label
       htmlFor={id}
@@ -26,6 +41,8 @@ export function Switch({ checked, onChange, label, disabled, id }: SwitchProps) 
           checked={checked}
           onChange={(e) => onChange(e.target.checked)}
           disabled={disabled}
+          aria-label={ariaLabel}
+          aria-describedby={ariaDescribedBy}
         />
         <span
           aria-hidden

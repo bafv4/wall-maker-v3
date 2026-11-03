@@ -9,7 +9,7 @@
  *  - サイズ自由（リサイズしない）。
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { errMsg } from '../core/errors';
 import { normalizeToPngBytes } from '../core/pngNormalize';
@@ -148,6 +148,7 @@ function LockImageRow({
           onClick={onMoveUp}
           className="h-6 w-6 rounded text-xs text-fg-subtle hover:bg-muted disabled:opacity-30"
           title={t('lock.moveUp')}
+          aria-label={t('lock.moveUp')}
         >
           ↑
         </button>
@@ -157,6 +158,7 @@ function LockImageRow({
           onClick={onMoveDown}
           className="h-6 w-6 rounded text-xs text-fg-subtle hover:bg-muted disabled:opacity-30"
           title={t('lock.moveDown')}
+          aria-label={t('lock.moveDown')}
         >
           ↓
         </button>
@@ -170,6 +172,7 @@ function LockImageRow({
 
 export function LockImagesEditor() {
   const { t } = useTranslation();
+  const enabledId = useId();
   const lockImages = useWallStore((s) => s.wall.lockImages);
   const setLockEnabled = useWallStore((s) => s.setLockEnabled);
   const addLockImage = useWallStore((s) => s.addLockImage);
@@ -250,14 +253,25 @@ export function LockImagesEditor() {
     <div className="space-y-4">
       <div className="flex items-center justify-between rounded-lg bg-panel p-3">
         <div>
-          <span className="block text-sm font-medium text-fg">
+          <label
+            htmlFor={enabledId}
+            className="block cursor-pointer text-sm font-medium text-fg"
+          >
             {t('lock.title')}
-          </span>
-          <span className="block text-[11px] text-fg-subtle">
+          </label>
+          <span
+            id={`${enabledId}-desc`}
+            className="block text-[11px] text-fg-subtle"
+          >
             {t('lock.description')}
           </span>
         </div>
-        <Switch checked={lockImages.enabled} onChange={setLockEnabled} />
+        <Switch
+          id={enabledId}
+          checked={lockImages.enabled}
+          onChange={setLockEnabled}
+          aria-describedby={`${enabledId}-desc`}
+        />
       </div>
 
       <p

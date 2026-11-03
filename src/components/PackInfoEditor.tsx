@@ -6,7 +6,7 @@
  * icon バイトは IndexedDB 永続化（Phase 3 persistAdapter 経由）。
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MAX_DIMENSION, toSafeInt } from '../core/coords';
 import { normalizeToPngBytes } from '../core/pngNormalize';
@@ -252,6 +252,7 @@ function IconDropZone({
 
 export function PackInfoEditor() {
   const { t } = useTranslation();
+  const embedId = useId();
   const packInfo = useWallStore((s) => s.wall.packInfo);
   const setPackInfo = useWallStore((s) => s.setPackInfo);
 
@@ -309,15 +310,20 @@ export function PackInfoEditor() {
 
       <section className="space-y-1.5 rounded-lg bg-panel p-3">
         <div className="flex items-center justify-between gap-3">
-          <span className="text-sm font-medium text-fg">
+          <label
+            htmlFor={embedId}
+            className="cursor-pointer text-sm font-medium text-fg"
+          >
             {t('packInfo.embedEditorData')}
-          </span>
+          </label>
           <Switch
+            id={embedId}
             checked={packInfo.embedEditorData ?? false}
             onChange={(b) => setPackInfo({ embedEditorData: b })}
+            aria-describedby={`${embedId}-desc`}
           />
         </div>
-        <p className="text-[11px] text-fg-subtle">
+        <p id={`${embedId}-desc`} className="text-[11px] text-fg-subtle">
           {t('packInfo.embedEditorDataHint')}
         </p>
       </section>
