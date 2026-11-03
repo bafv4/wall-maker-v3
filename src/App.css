@@ -39,6 +39,10 @@
 
   --color-accent-soft: var(--c-accent-soft);
   --color-accent-soft-fg: var(--c-accent-soft-fg);
+
+  --color-primary: var(--c-primary);
+  --color-primary-hover: var(--c-primary-hover);
+  --color-primary-disabled: var(--c-primary-disabled);
 }
 
 /* ライト（既定）の実色 */
@@ -57,6 +61,11 @@
 
   --c-accent-soft: #eff6ff;   /* blue-50  */
   --c-accent-soft-fg: #1d4ed8;/* blue-700 */
+
+  /* 主ボタン・スイッチなどの塗り（白文字を載せる） */
+  --c-primary: #2563eb;          /* blue-600 */
+  --c-primary-hover: #1d4ed8;    /* blue-700 */
+  --c-primary-disabled: #93c5fd; /* blue-300 */
 }
 
 /* ダーク（OS/ブラウザ設定に追従）の実色 — 配色調整はここを書き換える。
@@ -77,6 +86,12 @@
 
     --c-accent-soft: #172554;   /* blue-950（アクセントは青を維持） */
     --c-accent-soft-fg: #93c5fd;/* blue-300 */
+
+    /* 暗い地では blue-600 の鮮やかさが刺さるので、彩度を落としたやわらかい青にする。
+       白文字とのコントラストは 4.6:1（hover は 5.5:1）を保つ。 */
+    --c-primary: #4a72c4;
+    --c-primary-hover: #3f66b6;
+    --c-primary-disabled: #263a5e;
   }
 }
 

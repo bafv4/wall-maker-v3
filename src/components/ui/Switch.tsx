@@ -48,7 +48,7 @@ export function Switch({
           aria-hidden
           className={cn(
             'block h-6 w-11 rounded-full bg-border-strong transition-colors',
-            'peer-checked:bg-blue-600',
+            'peer-checked:bg-primary',
             'peer-focus-visible:ring-2 peer-focus-visible:ring-blue-500 peer-focus-visible:ring-offset-1 peer-focus-visible:ring-offset-surface',
           )}
         />

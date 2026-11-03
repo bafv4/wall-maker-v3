@@ -108,7 +108,7 @@ function LockImageRow({
             {filename}
           </code>
           {index === 0 && (
-            <span className="rounded bg-blue-600 px-1.5 py-0.5 text-xs font-semibold uppercase text-white">
+            <span className="rounded bg-primary px-1.5 py-0.5 text-xs font-semibold uppercase text-white">
               {t('lock.required')}
             </span>
           )}
