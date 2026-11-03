@@ -148,7 +148,9 @@ export interface GradientStop {
 }
 
 /** 図形の種類。triangle は外接矩形の上辺中央を頂点とする二等辺三角形、ellipse は外接矩形に内接する楕円。 */
-export type ShapeKind = 'rect' | 'triangle' | 'ellipse';
+export const SHAPE_KINDS = ['rect', 'triangle', 'ellipse'] as const;
+
+export type ShapeKind = (typeof SHAPE_KINDS)[number];
 
 export interface ShapeLayer {
   id: string;
