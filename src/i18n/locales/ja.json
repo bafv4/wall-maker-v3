@@ -421,9 +421,9 @@
   "toast": {
     "exportSuccess": "{{dest}} に書き出しました。Minecraft の resourcepacks フォルダに入れ、リソースパック画面で有効にすると反映されます。",
     "exportFailed": "エクスポートに失敗しました: {{error}}",
-    "saveSuccess": "{{dest}} に保存しました",
+    "saveSuccess": "{{dest}} に保存しました。resourcepacks フォルダ内ならリソースパック画面で有効にすると反映されます。",
     "saveFailed": "保存に失敗しました: {{error}}",
-    "overwriteSuccess": "{{dest}} を上書き保存しました",
+    "overwriteSuccess": "{{dest}} を上書き保存しました。有効にしているパックなら、Minecraft で F3+T を押すと読み込み直します。",
     "overwriteFailed": "上書き保存に失敗しました: {{error}}",
     "overwriteNoTarget": "上書き保存先がありません（先に「保存」してください）",
     "importSuccess": "{{filename}} をインポートしました",

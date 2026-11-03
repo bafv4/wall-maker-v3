@@ -421,9 +421,9 @@
   "toast": {
     "exportSuccess": "Exported to {{dest}}. Put it in your Minecraft resourcepacks folder and enable it on the Resource Packs screen.",
     "exportFailed": "Export failed: {{error}}",
-    "saveSuccess": "Saved to {{dest}}",
+    "saveSuccess": "Saved to {{dest}}. If it is inside your resourcepacks folder, enable it on the Resource Packs screen.",
     "saveFailed": "Save failed: {{error}}",
-    "overwriteSuccess": "Overwrote {{dest}}",
+    "overwriteSuccess": "Overwrote {{dest}}. If the pack is enabled, press F3+T in Minecraft to reload it.",
     "overwriteFailed": "Overwrite failed: {{error}}",
     "overwriteNoTarget": "No save target yet — use \"Save As\" first",
     "importSuccess": "Imported {{filename}}",
