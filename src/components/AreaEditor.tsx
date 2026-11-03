@@ -8,6 +8,9 @@
  *  - width/height は 1 以上。空欄や 0/負は blur で 1 に丸める（x/y は負も許容、空欄は 0）。
  *  - 非有限値（"1e999" → Infinity、"abc" → NaN）は `toSafeInt`（coords.ts）で弾く。
  *
+ * 選択の連動: プレビューで選ばれているエリアのカードは強調し、見えていなければ一覧を
+ * スクロールして見せる。カード内を操作（クリック / フォーカス）するとそのエリアを選ぶ。
+ *
  * 再描画:
  *  - `memo` 済み。親は `area` / `onChange` / `onRemove` を安定参照で渡すこと
  *    （LayoutEditor 側で store の細粒度購読と useCallback/useMemo により担保）。
@@ -18,6 +21,7 @@ import {
   memo,
   useCallback,
   useEffect,
+  useRef,
   useState,
   type Dispatch,
   type SetStateAction,
@@ -40,6 +44,10 @@ export interface AreaEditorProps {
   onRemove?: () => void;
   allowGridToggle?: boolean;
   showVisibilityToggle?: boolean;
+  /** プレビューで選択中か。 */
+  selected?: boolean;
+  /** カード内を操作したときにこのエリアを選ぶ。安定参照で渡すこと。 */
+  onSelect?: () => void;
 }
 
 function hasShow(a: AreaEditorTarget): a is VisibleArea {
@@ -67,8 +75,19 @@ function AreaEditorImpl({
   onRemove,
   allowGridToggle = false,
   showVisibilityToggle = false,
+  selected = false,
+  onSelect,
 }: AreaEditorProps) {
   const { t } = useTranslation();
+  const sectionRef = useRef<HTMLElement>(null);
+
+  // プレビュー側で選ばれたら、カードを見える位置へ。自分の中を操作して選ばれたときは
+  // 既に見えているので動かさない（入力中に一覧が跳ねないように）。
+  useEffect(() => {
+    const el = sectionRef.current;
+    if (!selected || !el || el.contains(document.activeElement)) return;
+    el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [selected]);
   // 数値入力（x/y/width/height/rows/columns/padding）は空欄入力を許すためローカル管理
   const [localX, setLocalX] = useState(String(area.x));
   const [localY, setLocalY] = useState(String(area.y));
@@ -172,8 +191,15 @@ function AreaEditorImpl({
 
   return (
     <section
-      className="rounded-lg border p-4"
-      style={{ borderColor: color }}
+      ref={sectionRef}
+      className="rounded-lg border p-4 transition-shadow"
+      style={{
+        borderColor: color,
+        // 選択中は枠を太く見せる（エリア色の内側の線を足す）
+        boxShadow: selected ? `inset 0 0 0 1px ${color}` : undefined,
+      }}
+      onPointerDownCapture={onSelect}
+      onFocusCapture={onSelect}
     >
       <header className="mb-3 flex items-center justify-between">
         <h3 className="text-sm font-semibold" style={{ color }}>

@@ -11,7 +11,7 @@ import { useCallback, useId, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getLayoutPresets } from '../core/layoutPresets';
 import { notifyUndoable } from '../store/history';
-import { useWallStore } from '../store/useWallStore';
+import { useWallStore, type AreaTarget } from '../store/useWallStore';
 import { AreaEditor, type AreaEditorPatch } from './AreaEditor';
 import { Button, Select, Switch } from './ui';
 
@@ -33,6 +33,32 @@ export function LayoutEditor() {
   const applyLayout = useWallStore((s) => s.applyLayout);
   const setReplaceLockedInstances = useWallStore(
     (s) => s.setReplaceLockedInstances,
+  );
+  const selectedAreas = useWallStore((s) => s.ui.selectedAreas);
+  const selectAreas = useWallStore((s) => s.selectAreas);
+
+  // プレビューの選択とカードの強調を連動させる。カードを触ったら、そのエリアだけを選ぶ
+  // （既に単独で選ばれていれば store を書き換えない）。
+  const isSelected = (key: string) =>
+    selectedAreas.some(
+      (r) => (r.kind === 'preparing' ? `preparing:${r.index}` : r.kind) === key,
+    );
+  const selectOnly = useCallback(
+    (target: AreaTarget) => {
+      const cur = useWallStore.getState().ui.selectedAreas;
+      const same =
+        cur.length === 1 &&
+        cur[0].kind === target.kind &&
+        (target.kind !== 'preparing' ||
+          (cur[0].kind === 'preparing' && cur[0].index === target.index));
+      if (!same) selectAreas([target]);
+    },
+    [selectAreas],
+  );
+  const selectMain = useCallback(() => selectOnly({ kind: 'main' }), [selectOnly]);
+  const selectLocked = useCallback(
+    () => selectOnly({ kind: 'locked' }),
+    [selectOnly],
   );
 
   // プリセットは現在の解像度に合わせて実 px に展開する（解像度変更で再計算）。
@@ -61,8 +87,9 @@ export function LayoutEditor() {
           removePreparing(i);
           notifyUndoable(t('history.deleted.preparing', { n: i + 1 }));
         },
+        onSelect: () => selectOnly({ kind: 'preparing', index: i }),
       })),
-    [preparingCount, updatePreparing, removePreparing, t],
+    [preparingCount, updatePreparing, removePreparing, selectOnly, t],
   );
 
   return (
@@ -116,6 +143,8 @@ export function LayoutEditor() {
         resolution={resolution}
         onChange={setMain}
         allowGridToggle
+        selected={isSelected('main')}
+        onSelect={selectMain}
       />
 
       <AreaEditor
@@ -125,6 +154,8 @@ export function LayoutEditor() {
         resolution={resolution}
         onChange={setLocked}
         showVisibilityToggle
+        selected={isSelected('locked')}
+        onSelect={selectLocked}
       />
 
       <div className="space-y-3">
@@ -150,6 +181,8 @@ export function LayoutEditor() {
               resolution={resolution}
               onChange={preparingHandlers[i].onChange}
               onRemove={preparingHandlers[i].onRemove}
+              onSelect={preparingHandlers[i].onSelect}
+              selected={isSelected(`preparing:${i}`)}
               showVisibilityToggle
             />
           ))
