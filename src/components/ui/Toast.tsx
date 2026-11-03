@@ -92,9 +92,11 @@ export const toast = {
 };
 
 const STYLE: Record<ToastType, string> = {
-  info: 'bg-neutral-800 text-white',
+  // ダークでは info の地（neutral-800）が画面の地（neutral-900/950）に沈むので一段明るくし、
+  // 全種に薄い縁を足して面から切り離す。success は白字 4.5:1 を満たす emerald-700。
+  info: 'bg-neutral-800 text-white dark:bg-neutral-700',
   error: 'bg-red-600 text-white',
-  success: 'bg-emerald-600 text-white',
+  success: 'bg-emerald-700 text-white',
 };
 
 export function ToastRoot() {
@@ -137,7 +139,7 @@ export function ToastRoot() {
           key={item.id}
           role={item.type === 'error' ? 'alert' : undefined}
           className={cn(
-            'pointer-events-auto flex items-center gap-3 rounded-md px-4 py-2.5 text-sm shadow-lg',
+            'pointer-events-auto flex items-center gap-3 rounded-md px-4 py-2.5 text-sm shadow-lg dark:ring-1 dark:ring-white/15',
             STYLE[item.type],
           )}
         >
