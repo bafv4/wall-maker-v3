@@ -59,6 +59,10 @@
     "selectPlaceholder": "選択…",
     "noOptions": "選択肢なし"
   },
+  "history": {
+    "undo": "元に戻す",
+    "redo": "やり直す"
+  },
   "header": {
     "import": "インポート（.zip）",
     "importing": "読込中…",

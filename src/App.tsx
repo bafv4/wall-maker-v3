@@ -20,6 +20,7 @@ import { useTranslation } from 'react-i18next';
 import { isTauri } from './adapters';
 import { AppHeader } from './components/AppHeader';
 import { AppRail, type EditorTab } from './components/AppRail';
+import { HistoryControls } from './components/HistoryControls';
 import { WallPreview, type PreviewTarget } from './components/WallPreview';
 import {
   InfoTooltip,
@@ -192,9 +193,13 @@ function App() {
             aria-label={t(`tab.${tab}`)}
             className="flex flex-col border-b border-border bg-surface md:row-span-2 md:min-h-0 md:border-r md:border-b-0"
           >
-            <h2 className="flex h-12 flex-shrink-0 items-center border-b border-border px-4 text-sm font-semibold text-fg">
-              {t(`tab.${tab}`)}
-            </h2>
+            {/* 取り消し / やり直しはどのタブの編集にも効くので、パネル見出しに常に置く */}
+            <div className="flex h-12 flex-shrink-0 items-center justify-between gap-2 border-b border-border pr-2 pl-4">
+              <h2 className="text-sm font-semibold text-fg">
+                {t(`tab.${tab}`)}
+              </h2>
+              <HistoryControls />
+            </div>
             <div className="p-4 md:min-h-0 md:flex-1 md:overflow-y-auto">
               {/* TabsContent は非アクティブなタブを描画しないので、
                   Suspense はパネル領域にひとつあれば足りる。 */}

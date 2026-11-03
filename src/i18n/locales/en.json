@@ -59,6 +59,10 @@
     "selectPlaceholder": "Select…",
     "noOptions": "No options"
   },
+  "history": {
+    "undo": "Undo",
+    "redo": "Redo"
+  },
   "header": {
     "import": "Import (.zip)",
     "importing": "Loading…",

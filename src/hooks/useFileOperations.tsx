@@ -35,6 +35,12 @@
  *  - 同様に、Minecraft で再生できない custom 音声（Opus 等）があれば中止する
  *    （SeedQueue がゲームをクラッシュさせるため。`collectUnplayableSoundEvents`）。
  * インポートで表せなかったサウンドは既定に戻し、`parsePack` の `onSoundIssue` で集めて知らせる。
+ *
+ * 取り消し（`store/history.ts`）との関係:
+ *  - インポートは履歴を捨てる（取り消せない）。取り消せると、フォルダから開いた直後に
+ *    前の内容へ戻して「上書き保存」したとき、開いたパックを前の内容で消してしまうため。
+ *  - リセットは取り消せる。保存先の記憶は解除したままなので、戻した内容が意図せず
+ *    どこかへ上書きされることはない。
  */
 
 import {
@@ -75,6 +81,7 @@ import {
 } from '../core/parsePack';
 import type { Resolution, WallState } from '../core/state';
 import type { PackReadSource, VirtualPack } from '../core/types';
+import { clearHistory } from '../store/history';
 import {
   takeBinaryRestoreReport,
   type BinaryFieldCounts,
@@ -350,6 +357,7 @@ export function FileOperationsProvider({ children }: { children: ReactNode }) {
       const stem = payload.displayName.replace(/\.zip$/i, '').trim();
       if (stem) wall.packInfo.name = stem;
       replaceWallState(wall);
+      clearHistory();
       selectBackgroundLayer(null);
       setSourceFolder(payload.sourceFolder); // フォルダ起点なら覚える、.zip 起点なら null
       toast.success(t('toast.importSuccess', { filename: payload.displayName }));
