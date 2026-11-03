@@ -330,6 +330,12 @@
     }
   },
   "sound": {
+    "groups": {
+      "wall": "Wall actions",
+      "schedule": "Scheduled joins",
+      "other": "Benchmark & other"
+    },
+    "changedCount": "{{count}} changed",
     "modeOptions": {
       "default": "Default",
       "off": "Silent",

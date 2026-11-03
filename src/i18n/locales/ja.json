@@ -330,6 +330,12 @@
     }
   },
   "sound": {
+    "groups": {
+      "wall": "ウォールの操作",
+      "schedule": "予約参加",
+      "other": "ベンチマーク・その他"
+    },
+    "changedCount": "{{count}} 件変更",
     "modeOptions": {
       "default": "デフォルト",
       "off": "無音にする",

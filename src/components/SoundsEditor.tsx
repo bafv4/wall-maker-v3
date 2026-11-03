@@ -30,7 +30,6 @@ import {
 import { errMsg } from '../core/errors';
 import {
   BUILTIN_SOUND_KEYS,
-  SOUND_EVENT_KEYS,
   type SoundEntry,
   type SoundEventKey,
 } from '../core/state';
@@ -73,6 +72,32 @@ const HAS_BUILTIN: Record<SoundEventKey, boolean> = {
   open_wall: false,
   bypass_wall: false,
 };
+
+/**
+ * 13 イベントを一列に並べると見通しが悪いので、操作の場面ごとに分けて見出しを付ける。
+ * 並びは SOUND_EVENT_KEYS と同じ（全イベントがどこかの組にちょうど 1 回入る）。
+ */
+const EVENT_GROUPS: readonly {
+  id: 'wall' | 'schedule' | 'other';
+  keys: readonly SoundEventKey[];
+}[] = [
+  {
+    id: 'wall',
+    keys: [
+      'play_instance',
+      'lock_instance',
+      'reset_instance',
+      'reset_all',
+      'reset_column',
+      'reset_row',
+    ],
+  },
+  { id: 'schedule', keys: ['schedule_join', 'schedule_all', 'scheduled_join_warning'] },
+  {
+    id: 'other',
+    keys: ['start_benchmark', 'finish_benchmark', 'open_wall', 'bypass_wall'],
+  },
+];
 
 const RESET_KEYS: readonly SoundEventKey[] = [
   'reset_instance',
@@ -349,41 +374,63 @@ export function SoundsEditor() {
         />
       </div>
 
-      <ul className="space-y-2">
-        {SOUND_EVENT_KEYS.map((key) => {
-          // resetUnified: reset_instance の位置に unified 行を 1 つ出し、他 3 つは skip。
-          if (sounds.resetUnified && NON_INSTANCE_RESET_KEYS.has(key)) {
-            return null;
-          }
-          if (sounds.resetUnified && key === 'reset_instance') {
-            return (
-              <EventRow
-                key="__unified_reset__"
-                label={t('sound.unifiedRowLabel')}
-                info={t('sound.unifiedRowInfo')}
-                hasBuiltin
-                entry={sounds.events.reset_instance}
-                onChange={handleUnifiedChange}
-                disabled={eventDisabled}
-                highlight
-              />
-            );
-          }
-          return (
-            <EventRow
-              key={key}
-              label={t(`sound.events.${key}`)}
-              // eventInfo を持つイベント（スケジュール系 / バイパス）だけ ⓘ を表示。
-              // 未定義キーは空文字を返し、EventRow 側でアイコン非表示になる。
-              info={t(`sound.eventInfo.${key}`, { defaultValue: '' })}
-              hasBuiltin={HAS_BUILTIN[key]}
-              entry={sounds.events[key]}
-              onChange={(entry) => setSoundEvent(key, entry)}
-              disabled={eventDisabled}
-            />
-          );
-        })}
-      </ul>
+      {EVENT_GROUPS.map((group) => {
+        // 既定（何も出力しない）から変えたイベントの数。どの組を触ったかを一目で分かるように
+        const changed = group.keys.filter(
+          (key) => sounds.events[key].mode !== 'default',
+        ).length;
+        const headingId = `${resetUnifiedId}-${group.id}`;
+        return (
+          <section key={group.id} aria-labelledby={headingId} className="space-y-2">
+            <h3
+              id={headingId}
+              className="flex items-baseline justify-between px-1 text-xs font-semibold text-fg-muted"
+            >
+              {t(`sound.groups.${group.id}`)}
+              {changed > 0 && (
+                <span className="font-normal text-fg-subtle">
+                  {t('sound.changedCount', { count: changed })}
+                </span>
+              )}
+            </h3>
+            <ul className="space-y-2">
+              {group.keys.map((key) => {
+                // resetUnified: reset_instance の位置に unified 行を 1 つ出し、他 3 つは skip。
+                if (sounds.resetUnified && NON_INSTANCE_RESET_KEYS.has(key)) {
+                  return null;
+                }
+                if (sounds.resetUnified && key === 'reset_instance') {
+                  return (
+                    <EventRow
+                      key="__unified_reset__"
+                      label={t('sound.unifiedRowLabel')}
+                      info={t('sound.unifiedRowInfo')}
+                      hasBuiltin
+                      entry={sounds.events.reset_instance}
+                      onChange={handleUnifiedChange}
+                      disabled={eventDisabled}
+                      highlight
+                    />
+                  );
+                }
+                return (
+                  <EventRow
+                    key={key}
+                    label={t(`sound.events.${key}`)}
+                    // eventInfo を持つイベント（スケジュール系 / バイパス）だけ ⓘ を表示。
+                    // 未定義キーは空文字を返し、EventRow 側でアイコン非表示になる。
+                    info={t(`sound.eventInfo.${key}`, { defaultValue: '' })}
+                    hasBuiltin={HAS_BUILTIN[key]}
+                    entry={sounds.events[key]}
+                    onChange={(entry) => setSoundEvent(key, entry)}
+                    disabled={eventDisabled}
+                  />
+                );
+              })}
+            </ul>
+          </section>
+        );
+      })}
 
       <details className="text-xs text-fg-subtle">
         <summary className="cursor-pointer text-fg-muted">
