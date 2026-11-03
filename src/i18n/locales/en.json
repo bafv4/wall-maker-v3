@@ -225,6 +225,11 @@
       },
       "boundsTitle": "Position & size",
       "square": "Match height to width",
+      "fitTitle": "Fit to area",
+      "fitArea": "Area",
+      "fitPadding": "Padding",
+      "fitApply": "Fit",
+      "fitHint": "Sets the position and size to the selected area, expanded by the padding on every side (negative values shrink it). The shape does not follow the area, so fit it again after moving the area.",
       "cornerRadius": "Corner radius"
     },
     "toast": {

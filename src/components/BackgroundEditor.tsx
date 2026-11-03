@@ -23,6 +23,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { HexColorPicker } from 'react-colorful';
+import { MIN_COORDINATE, expandCell, toSafeInt } from '../core/coords';
 import { errMsg } from '../core/errors';
 import { maxCornerRadius } from '../core/renderBackground';
 import type {
@@ -584,11 +585,43 @@ function ShapeEditor({
   onUpdate: (patch: BackgroundLayerPatch) => void;
 }) {
   const { t } = useTranslation();
+  const layout = useWallStore((s) => s.wall.layout);
+  // エリアに合わせる: 対象と余白は図形を切り替えても引き継ぐ（同じ余白で並べる用途が多いため）
+  const [fitTarget, setFitTarget] = useState('main');
+  const [fitPadding, setFitPadding] = useState(0);
   const shapeOptions = [
     { value: 'rect', label: t('background.shape.kind.rect') },
     { value: 'triangle', label: t('background.shape.kind.triangle') },
     { value: 'ellipse', label: t('background.shape.kind.ellipse') },
   ];
+
+  // 非表示の locked / preparing はパックに出ない（ゲームに存在しない）ので候補から外す
+  const fitOptions = [
+    { value: 'main', label: 'main', cell: layout.main },
+    ...(layout.locked.show
+      ? [{ value: 'locked', label: 'locked', cell: layout.locked }]
+      : []),
+    ...layout.preparing.flatMap((p, i) =>
+      p.show
+        ? [
+            {
+              value: `preparing:${i}`,
+              label: t('layoutEditor.preparingNumbered', { n: i + 1 }),
+              cell: p,
+            },
+          ]
+        : [],
+    ),
+  ].map((o) => ({ ...o, hint: `${o.cell.width}×${o.cell.height}` }));
+  // 選んでいたエリアが非表示・削除になったら main に戻す
+  const fitSelected =
+    fitOptions.find((o) => o.value === fitTarget) ?? fitOptions[0];
+
+  const handleFit = () =>
+    onUpdate({
+      type: 'shape',
+      transform: expandCell(fitSelected.cell, fitPadding),
+    });
 
   const handleTransformField =
     (field: 'x' | 'y' | 'width' | 'height') =>
@@ -672,6 +705,40 @@ function ShapeEditor({
         >
           {t('background.shape.square')}
         </Button>
+      </div>
+
+      <div className="space-y-2 rounded-md bg-muted p-3">
+        <span className="text-xs font-medium text-fg-muted">
+          {t('background.shape.fitTitle')}
+        </span>
+        <Select
+          label={t('background.shape.fitArea')}
+          value={fitSelected.value}
+          onValueChange={setFitTarget}
+          options={fitOptions}
+        />
+        <div className="flex items-end gap-2">
+          <label className="flex-1 text-xs text-fg-muted">
+            {t('background.shape.fitPadding')}
+            <span className="mt-0.5 flex items-center gap-1">
+              <input
+                type="number"
+                value={fitPadding}
+                onChange={(e) =>
+                  setFitPadding(toSafeInt(e.target.value, 0, MIN_COORDINATE))
+                }
+                className="h-8 w-full rounded border border-border-strong bg-surface px-1.5 text-xs text-fg"
+              />
+              px
+            </span>
+          </label>
+          <Button size="sm" variant="outline" onClick={handleFit}>
+            {t('background.shape.fitApply')}
+          </Button>
+        </div>
+        <p className="text-[11px] text-fg-subtle">
+          {t('background.shape.fitHint')}
+        </p>
       </div>
 
       {/* 円には角が無いので出さない（値は保持し、種類を戻すと復帰する） */}

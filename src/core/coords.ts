@@ -143,6 +143,22 @@ export function floorArea<T extends Area>(area: T): T {
   return floored;
 }
 
+/**
+ * セルの四辺を `padding` px ずつ外側に広げる（負なら内側に縮める）。
+ * 背景の図形をエリアに合わせるのに使う。整数化・最小サイズ 1 は floorCell が担保する。
+ * 縮めすぎは短辺が 1px になる所で止める（止めないと幅が 1 に潰れた上で x だけが
+ * 進み、エリアの外に 1px の図形ができる）。
+ */
+export function expandCell(cell: AreaCell, padding: number): AreaCell {
+  const p = Math.max(padding, -(Math.min(cell.width, cell.height) - 1) / 2);
+  return floorCell({
+    x: cell.x - p,
+    y: cell.y - p,
+    width: cell.width + p * 2,
+    height: cell.height + p * 2,
+  });
+}
+
 /** 図形の角丸半径を 0 以上の整数にする。非有限は 0（角丸なし）に倒す。 */
 export function floorCornerRadius(radius: number): number {
   return toSafeInt(radius, 0, 0);
