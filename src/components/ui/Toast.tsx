@@ -11,6 +11,8 @@
  *   toast.info('削除しました', { action: { label: '元に戻す', onClick: undo } });
  *
  * 操作ボタン（`action`）付きは押す時間を残すため長めに出す。押すと閉じる。
+ * エラーは読み切る前に消えないよう、閉じるボタンで閉じるまで残す（読み上げは即時の alert）。
+ * それ以外は常設の polite なライブ領域に積んで読み上げさせる。
  *
  * `<ToastRoot />` は React ルート（`main.tsx`）に 1 度だけマウントする。App の中に置くと
  * ハイドレート待ちの early return より後ろになり、store 復元失敗の通知を出せなくなる。
@@ -18,6 +20,7 @@
 
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
 
 type ToastType = 'info' | 'error' | 'success';
@@ -94,6 +97,7 @@ const STYLE: Record<ToastType, string> = {
 };
 
 export function ToastRoot() {
+  const { t } = useTranslation();
   const [items, setItems] = useState<ToastItem[]>([]);
   const [mounted, setMounted] = useState(false);
 
@@ -103,6 +107,7 @@ export function ToastRoot() {
       setItems((prev) => prev.filter((i) => i.id !== id));
     const push: Pusher = (item) => {
       setItems((prev) => [...prev, item]);
+      if (item.type === 'error') return;
       window.setTimeout(
         () => dismiss(item.id),
         item.action ? ACTION_DURATION_MS : DURATION_MS,
@@ -122,17 +127,20 @@ export function ToastRoot() {
   if (!mounted) return null;
 
   return createPortal(
-    <div className="pointer-events-none fixed bottom-4 right-4 z-[60] flex flex-col gap-2">
+    <div
+      aria-live="polite"
+      className="pointer-events-none fixed bottom-4 right-4 z-[60] flex max-w-[min(32rem,calc(100vw-2rem))] flex-col gap-2"
+    >
       {items.map((item) => (
         <div
           key={item.id}
-          role="status"
+          role={item.type === 'error' ? 'alert' : undefined}
           className={cn(
             'pointer-events-auto flex items-center gap-3 rounded-md px-4 py-2.5 text-sm shadow-lg',
             STYLE[item.type],
           )}
         >
-          <span>{item.message}</span>
+          <span className="min-w-0 flex-1">{item.message}</span>
           {item.action && (
             <button
               type="button"
@@ -144,6 +152,16 @@ export function ToastRoot() {
               className="-my-1 -mr-2 shrink-0 cursor-pointer rounded px-2 py-1 font-semibold underline decoration-white/50 underline-offset-2 hover:bg-white/15 hover:decoration-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
             >
               {item.action.label}
+            </button>
+          )}
+          {item.type === 'error' && (
+            <button
+              type="button"
+              onClick={() => dismisser?.(item.id)}
+              aria-label={t('common.close')}
+              className="-my-1 -mr-2 shrink-0 cursor-pointer rounded p-1 text-lg leading-none text-white/80 hover:bg-white/15 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+            >
+              ×
             </button>
           )}
         </div>
