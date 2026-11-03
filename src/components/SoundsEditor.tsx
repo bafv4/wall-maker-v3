@@ -20,7 +20,7 @@
  *  - FFmpeg ライセンス表記は AboutModal と README に明記。
  */
 
-import { useRef, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   convertToOgg,
@@ -30,8 +30,6 @@ import {
 import { errMsg } from '../core/errors';
 import {
   BUILTIN_SOUND_KEYS,
-  SOUND_EVENT_KEYS,
-  type BuiltinSoundKey,
   type SoundEntry,
   type SoundEventKey,
 } from '../core/state';
@@ -39,18 +37,23 @@ import { useWallStore } from '../store/useWallStore';
 import { InfoTooltip, Select, Switch, toast } from './ui';
 import { cn } from './ui/cn';
 
-/** ドロップダウンの値。builtin は内蔵音ごとに 1 項目へ展開する。 */
-type ModeValue = 'default' | 'off' | 'custom' | `builtin:${BuiltinSoundKey}`;
-
-const MODE_VALUES: readonly ModeValue[] = [
-  'default',
-  'off',
-  ...BUILTIN_SOUND_KEYS.map((k) => `builtin:${k}` as const),
-  'custom',
+/**
+ * ドロップダウンの選択肢。builtin は内蔵音ごとに 1 項目へ展開する。
+ * value は `sound.modeOptions.` 以下の i18n キーを兼ねる（builtin は `builtin.<内蔵音>`）。
+ * custom は ogg が必須なので entry を持たず、選んだ時点では state を変えずにファイルピッカを開く。
+ */
+const MODE_OPTIONS: readonly { value: string; entry: SoundEntry | null }[] = [
+  { value: 'default', entry: { mode: 'default' } },
+  { value: 'off', entry: { mode: 'off' } },
+  ...BUILTIN_SOUND_KEYS.map((sound) => ({
+    value: `builtin.${sound}`,
+    entry: { mode: 'builtin' as const, sound },
+  })),
+  { value: 'custom', entry: null },
 ];
 
-function toModeValue(entry: SoundEntry): ModeValue {
-  return entry.mode === 'builtin' ? `builtin:${entry.sound}` : entry.mode;
+function toModeValue(entry: SoundEntry): string {
+  return entry.mode === 'builtin' ? `builtin.${entry.sound}` : entry.mode;
 }
 
 /** SeedQueue 既定で内蔵音が割り当てられているイベント（第6.6章）。 */
@@ -69,6 +72,32 @@ const HAS_BUILTIN: Record<SoundEventKey, boolean> = {
   open_wall: false,
   bypass_wall: false,
 };
+
+/**
+ * 13 イベントを一列に並べると見通しが悪いので、操作の場面ごとに分けて見出しを付ける。
+ * 並びは SOUND_EVENT_KEYS と同じ（全イベントがどこかの組にちょうど 1 回入る）。
+ */
+const EVENT_GROUPS: readonly {
+  id: 'wall' | 'schedule' | 'other';
+  keys: readonly SoundEventKey[];
+}[] = [
+  {
+    id: 'wall',
+    keys: [
+      'play_instance',
+      'lock_instance',
+      'reset_instance',
+      'reset_all',
+      'reset_column',
+      'reset_row',
+    ],
+  },
+  { id: 'schedule', keys: ['schedule_join', 'schedule_all', 'scheduled_join_warning'] },
+  {
+    id: 'other',
+    keys: ['start_benchmark', 'finish_benchmark', 'open_wall', 'bypass_wall'],
+  },
+];
 
 const RESET_KEYS: readonly SoundEventKey[] = [
   'reset_instance',
@@ -107,12 +136,9 @@ function EventRow({
   info,
 }: EventRowProps) {
   const { t } = useTranslation();
-  // i18next はキーの `:` を名前空間区切りとして扱うため、builtin のラベルは別キーで引く
-  const modeOptions = MODE_VALUES.map((value) => ({
+  const modeOptions = MODE_OPTIONS.map(({ value }) => ({
     value,
-    label: value.startsWith('builtin:')
-      ? t(`sound.modeOptions.builtin.${value.slice('builtin:'.length)}`)
-      : t(`sound.modeOptions.${value}`),
+    label: t(`sound.modeOptions.${value}`),
   }));
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [converting, setConverting] = useState(false);
@@ -169,17 +195,10 @@ function EventRow({
   };
 
   const handleModeChange = (value: string) => {
-    if (value === 'custom') {
-      // custom には ogg が必須。state は変えずにファイルピッカを開く。
-      promptFile();
-      return;
-    }
-    if (value === 'default' || value === 'off') {
-      onChange({ mode: value });
-      return;
-    }
-    const sound = BUILTIN_SOUND_KEYS.find((k) => value === `builtin:${k}`);
-    if (sound) onChange({ mode: 'builtin', sound });
+    const option = MODE_OPTIONS.find((o) => o.value === value);
+    if (!option) return;
+    if (option.entry) onChange(option.entry);
+    else promptFile(); // custom
   };
 
   const rowDisabled = disabled || converting;
@@ -188,15 +207,18 @@ function EventRow({
     <li
       className={cn(
         'flex flex-wrap items-center gap-2 rounded-md border bg-surface p-2 text-sm',
-        highlight ? 'border-blue-300 bg-accent-soft' : 'border-border',
+        highlight
+          ? 'border-blue-300 bg-accent-soft dark:border-blue-700'
+          : 'border-border',
         rowDisabled && 'opacity-60',
       )}
     >
-      <div className="flex min-w-[140px] flex-1 items-center gap-1.5">
-        <span className="font-medium text-fg">{label}</span>
+      {/* 狭いときは語の途中で折らず、バッジ→セレクトの順に次の行へ回す */}
+      <div className="flex min-w-[180px] flex-1 flex-wrap items-center gap-1.5">
+        <span className="whitespace-nowrap font-medium text-fg">{label}</span>
         {info && <InfoTooltip text={info} />}
         {hasBuiltin && (
-          <span className="rounded bg-muted px-1 py-0.5 text-[10px] text-fg-subtle">
+          <span className="whitespace-nowrap rounded bg-muted px-1 py-0.5 text-xs text-fg-subtle">
             {t('sound.builtinBadge')}
           </span>
         )}
@@ -208,6 +230,7 @@ function EventRow({
           onValueChange={handleModeChange}
           disabled={rowDisabled}
           options={modeOptions}
+          aria-label={label}
         />
       </div>
 
@@ -224,21 +247,21 @@ function EventRow({
       />
 
       {converting ? (
-        <div className="flex items-center gap-1 text-[10px] text-fg-subtle">
+        <div className="flex items-center gap-1 text-xs text-fg-subtle">
           <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-border-strong border-t-blue-500" />
           {t('sound.converting')}
         </div>
       ) : (
         entry.mode === 'custom' && (
           <div className="flex items-center gap-1">
-            <code className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-fg-muted">
+            <code className="rounded bg-muted px-1.5 py-0.5 text-xs text-fg-muted">
               {entry.originalFileName ?? t('sound.customDefault')}
             </code>
             <button
               type="button"
               onClick={promptFile}
               disabled={rowDisabled}
-              className="text-[10px] text-blue-600 underline hover:text-blue-800 disabled:opacity-40"
+              className="text-xs text-blue-600 underline hover:text-blue-800 disabled:opacity-40 dark:text-blue-400 dark:hover:text-blue-300"
             >
               {t('sound.replace')}
             </button>
@@ -261,6 +284,7 @@ const NON_INSTANCE_RESET_KEYS: ReadonlySet<SoundEventKey> = new Set([
 
 export function SoundsEditor() {
   const { t } = useTranslation();
+  const resetUnifiedId = useId();
   const sounds = useWallStore((s) => s.wall.sounds);
   const setSoundGlobalMode = useWallStore((s) => s.setSoundGlobalMode);
   const setSoundResetUnified = useWallStore((s) => s.setSoundResetUnified);
@@ -320,7 +344,7 @@ export function SoundsEditor() {
           })}
         </div>
         {eventDisabled && (
-          <p className="mt-2 text-[11px] text-amber-700 dark:text-amber-500">
+          <p className="mt-2 text-xs text-amber-700 dark:text-amber-500">
             {t('sound.allOffNote')}
           </p>
         )}
@@ -328,55 +352,85 @@ export function SoundsEditor() {
 
       <div className="flex items-center justify-between rounded-md bg-panel p-3">
         <div>
-          <span className="block text-sm font-medium text-fg">
+          <label
+            htmlFor={resetUnifiedId}
+            className="block text-sm font-medium text-fg"
+          >
             {t('sound.resetUnifiedTitle')}
-          </span>
-          <span className="block text-[11px] text-fg-subtle">
+          </label>
+          <span
+            id={`${resetUnifiedId}-desc`}
+            className="block text-xs text-fg-subtle"
+          >
             {t('sound.resetUnifiedDescription')}
           </span>
         </div>
         <Switch
+          id={resetUnifiedId}
           checked={sounds.resetUnified}
           onChange={handleResetUnifiedToggle}
           disabled={eventDisabled}
+          aria-describedby={`${resetUnifiedId}-desc`}
         />
       </div>
 
-      <ul className="space-y-2">
-        {SOUND_EVENT_KEYS.map((key) => {
-          // resetUnified: reset_instance の位置に unified 行を 1 つ出し、他 3 つは skip。
-          if (sounds.resetUnified && NON_INSTANCE_RESET_KEYS.has(key)) {
-            return null;
-          }
-          if (sounds.resetUnified && key === 'reset_instance') {
-            return (
-              <EventRow
-                key="__unified_reset__"
-                label={t('sound.unifiedRowLabel')}
-                info={t('sound.unifiedRowInfo')}
-                hasBuiltin
-                entry={sounds.events.reset_instance}
-                onChange={handleUnifiedChange}
-                disabled={eventDisabled}
-                highlight
-              />
-            );
-          }
-          return (
-            <EventRow
-              key={key}
-              label={t(`sound.events.${key}`)}
-              // eventInfo を持つイベント（スケジュール系 / バイパス）だけ ⓘ を表示。
-              // 未定義キーは空文字を返し、EventRow 側でアイコン非表示になる。
-              info={t(`sound.eventInfo.${key}`, { defaultValue: '' })}
-              hasBuiltin={HAS_BUILTIN[key]}
-              entry={sounds.events[key]}
-              onChange={(entry) => setSoundEvent(key, entry)}
-              disabled={eventDisabled}
-            />
-          );
-        })}
-      </ul>
+      {EVENT_GROUPS.map((group) => {
+        // 既定（何も出力しない）から変えたイベントの数。どの組を触ったかを一目で分かるように
+        const changed = group.keys.filter(
+          (key) => sounds.events[key].mode !== 'default',
+        ).length;
+        const headingId = `${resetUnifiedId}-${group.id}`;
+        return (
+          <section key={group.id} aria-labelledby={headingId} className="space-y-2">
+            <h3
+              id={headingId}
+              className="flex items-baseline justify-between px-1 text-xs font-semibold text-fg-muted"
+            >
+              {t(`sound.groups.${group.id}`)}
+              {changed > 0 && (
+                <span className="font-normal text-fg-subtle">
+                  {t('sound.changedCount', { count: changed })}
+                </span>
+              )}
+            </h3>
+            <ul className="space-y-2">
+              {group.keys.map((key) => {
+                // resetUnified: reset_instance の位置に unified 行を 1 つ出し、他 3 つは skip。
+                if (sounds.resetUnified && NON_INSTANCE_RESET_KEYS.has(key)) {
+                  return null;
+                }
+                if (sounds.resetUnified && key === 'reset_instance') {
+                  return (
+                    <EventRow
+                      key="__unified_reset__"
+                      label={t('sound.unifiedRowLabel')}
+                      info={t('sound.unifiedRowInfo')}
+                      hasBuiltin
+                      entry={sounds.events.reset_instance}
+                      onChange={handleUnifiedChange}
+                      disabled={eventDisabled}
+                      highlight
+                    />
+                  );
+                }
+                return (
+                  <EventRow
+                    key={key}
+                    label={t(`sound.events.${key}`)}
+                    // eventInfo を持つイベント（スケジュール系 / バイパス）だけ ⓘ を表示。
+                    // 未定義キーは空文字を返し、EventRow 側でアイコン非表示になる。
+                    info={t(`sound.eventInfo.${key}`, { defaultValue: '' })}
+                    hasBuiltin={HAS_BUILTIN[key]}
+                    entry={sounds.events[key]}
+                    onChange={(entry) => setSoundEvent(key, entry)}
+                    disabled={eventDisabled}
+                  />
+                );
+              })}
+            </ul>
+          </section>
+        );
+      })}
 
       <details className="text-xs text-fg-subtle">
         <summary className="cursor-pointer text-fg-muted">

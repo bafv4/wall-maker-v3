@@ -17,14 +17,75 @@ import type { PackReadResult, PackReadSource } from '../core/types';
 // `desktopSaveTarget`（= `@tauri-apps/*`）が引き込まれることはない。
 import type { SaveTargetRestore } from './desktopSaveTarget';
 import type { AppUpdateInfo, AppUpdateProgress } from './desktopUpdate';
+import type { WindowAction } from './desktopWindow';
+import type {
+  DialogBridge,
+  DialogWindowHandle,
+  DialogWindowHandlers,
+} from './desktopDialog';
+import type {
+  DialogPayload,
+  DialogSpec,
+  DialogState,
+} from '../components/dialogs/dialogSpec';
 
 export type { AppUpdateInfo, AppUpdateProgress } from './desktopUpdate';
+export type { DialogBridge } from './desktopDialog';
 
 export type { PackReadResult, PackReadSource } from '../core/types';
 
 /** Tauri webview 内で動作しているかの判定。SSR / Node では false。 */
 export const isTauri = (): boolean =>
   typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+
+/**
+ * Apple 系 OS（macOS / iOS / iPadOS）か。ショートカット表記（⌘ / Ctrl）の切り替えなどに使う。
+ * 同期で判定したいので、os プラグイン（動的 import が要る）ではなく UA を見る。
+ */
+export const isMacPlatform = (): boolean =>
+  typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.userAgent);
+
+/** macOS の Desktop 版か。ウィンドウ操作ボタンの扱い（OS の信号機ボタンを使う）を分けるのに使う。 */
+export const isMacDesktop = (): boolean => isTauri() && isMacPlatform();
+
+/**
+ * ウィンドウ操作（Windows / Linux の Desktop 版で、ヘッダの自前ボタンから呼ぶ）。
+ * Web では何もしない。
+ */
+export async function windowAction(action: WindowAction): Promise<void> {
+  if (!isTauri()) return;
+  const { windowActionDesktop } = await import('./desktopWindow');
+  await windowActionDesktop(action);
+}
+
+/**
+ * ダイアログを別ウィンドウで開く（Desktop 専用。Web はアプリ内のモーダルを使うので呼ばない）。
+ * 詳細は `desktopDialog.ts`。
+ */
+export async function openDialogWindow(
+  spec: DialogSpec,
+  state: DialogState,
+  handlers: DialogWindowHandlers,
+  payload?: DialogPayload,
+): Promise<DialogWindowHandle> {
+  const { openDialogWindowDesktop } = await import('./desktopDialog');
+  return openDialogWindowDesktop(spec, state, handlers, payload);
+}
+
+/** ダイアログウィンドウ側の窓口（Desktop 専用）。 */
+export async function getDialogBridge(id: string): Promise<DialogBridge> {
+  const { dialogBridgeDesktop } = await import('./desktopDialog');
+  return dialogBridgeDesktop(id);
+}
+
+/** 最大化状態の監視（Desktop 専用）。Web では何もせず、解除関数だけ返す。 */
+export async function watchWindowMaximized(
+  onChange: (maximized: boolean) => void,
+): Promise<() => void> {
+  if (!isTauri()) return () => {};
+  const { watchMaximizedDesktop } = await import('./desktopWindow');
+  return watchMaximizedDesktop(onChange);
+}
 
 /**
  * 完成済みの zip バイト列を環境固有の出力先に書き出す。

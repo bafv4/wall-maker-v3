@@ -9,7 +9,7 @@
  *  - サイズ自由（リサイズしない）。
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { errMsg } from '../core/errors';
 import { normalizeToPngBytes } from '../core/pngNormalize';
@@ -21,9 +21,12 @@ import {
   lockWeightShares,
 } from '../core/lockWeights';
 import type { LockImage } from '../core/state';
+import { useObjectUrl } from '../hooks/useObjectUrl';
+import { notifyUndoable } from '../store/history';
 import { useWallStore } from '../store/useWallStore';
 import { Button, Input, Switch, toast } from './ui';
 import { cn } from './ui/cn';
+import { ArrowDownIcon, ArrowUpIcon, PlusIcon } from './ui/icons';
 
 interface RowProps {
   image: LockImage;
@@ -72,21 +75,7 @@ function LockImageRow({
     }
     onWeightChange(Number(trimmed));
   };
-  const previewUrl = useMemo(() => {
-    if (image.source.kind !== 'inline') return null;
-    return URL.createObjectURL(
-      // Uint8Array<ArrayBufferLike> → BlobPart 非互換（TS 5.7+）。実 ArrayBuffer 由来なので絞り込む。
-      new Blob([image.source.bytes as Uint8Array<ArrayBuffer>], {
-        type: image.source.mimeType ?? 'image/png',
-      }),
-    );
-  }, [image.source]);
-
-  useEffect(() => {
-    return () => {
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
-    };
-  }, [previewUrl]);
+  const previewUrl = useObjectUrl(image.source);
 
   const filename = index === 0 ? 'lock.png' : `lock-${index}.png`;
   const weightInputId = `lock-weight-${image.id}`;
@@ -99,7 +88,9 @@ function LockImageRow({
     <li
       className={cn(
         'flex items-center gap-3 rounded-md border bg-surface p-2',
-        index === 0 ? 'border-blue-300 bg-accent-soft' : 'border-border',
+        index === 0
+          ? 'border-blue-300 bg-accent-soft dark:border-blue-700'
+          : 'border-border',
       )}
     >
       {previewUrl ? (
@@ -117,16 +108,17 @@ function LockImageRow({
             {filename}
           </code>
           {index === 0 && (
-            <span className="rounded bg-blue-600 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-white">
+            <span className="whitespace-nowrap rounded bg-primary px-1.5 py-0.5 text-xs font-semibold uppercase text-white">
               {t('lock.required')}
             </span>
           )}
         </div>
-        <p className="mt-0.5 truncate text-[11px] text-fg-subtle">
+        <p className="mt-0.5 truncate text-xs text-fg-subtle">
           {image.originalFileName ?? t('lock.noName')} · {sizeKb}
         </p>
-        <div className="mt-1 flex items-center gap-2">
-          <label className="text-[11px] text-fg-muted" htmlFor={weightInputId}>
+        {/* 狭いときは割合の表示だけ次の行へ回す（ラベルや入力欄を潰さない） */}
+        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+          <label className="whitespace-nowrap text-xs text-fg-muted" htmlFor={weightInputId}>
             {t('lock.weight.label')}
           </label>
           <Input
@@ -139,10 +131,10 @@ function LockImageRow({
             placeholder={String(defaultWeight)}
             onChange={(e) => setLocalWeight(e.target.value)}
             onBlur={commitWeight}
-            className="h-6 w-20 text-xs"
+            className="h-6 w-20 flex-shrink-0 text-xs"
             title={t('lock.weight.hint')}
           />
-          <span className="text-[11px] text-fg-subtle">
+          <span className="whitespace-nowrap text-xs text-fg-subtle">
             {image.weight === undefined
               ? t('lock.weight.inherited', { value: defaultWeight })
               : t('lock.weight.effective', {
@@ -158,21 +150,28 @@ function LockImageRow({
           type="button"
           disabled={index === 0}
           onClick={onMoveUp}
-          className="h-6 w-6 rounded text-xs text-fg-subtle hover:bg-muted disabled:opacity-30"
+          className="flex h-6 w-6 cursor-pointer items-center justify-center rounded text-fg-subtle hover:bg-muted hover:text-fg disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent"
           title={t('lock.moveUp')}
+          aria-label={t('lock.moveUp')}
         >
-          ↑
+          <ArrowUpIcon className="size-3.5" />
         </button>
         <button
           type="button"
           disabled={index === total - 1}
           onClick={onMoveDown}
-          className="h-6 w-6 rounded text-xs text-fg-subtle hover:bg-muted disabled:opacity-30"
+          className="flex h-6 w-6 cursor-pointer items-center justify-center rounded text-fg-subtle hover:bg-muted hover:text-fg disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent"
           title={t('lock.moveDown')}
+          aria-label={t('lock.moveDown')}
         >
-          ↓
+          <ArrowDownIcon className="size-3.5" />
         </button>
-        <Button variant="ghost" size="sm" onClick={onDelete}>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onDelete}
+          className="whitespace-nowrap"
+        >
           {t('lock.delete')}
         </Button>
       </div>
@@ -182,6 +181,7 @@ function LockImageRow({
 
 export function LockImagesEditor() {
   const { t } = useTranslation();
+  const enabledId = useId();
   const lockImages = useWallStore((s) => s.wall.lockImages);
   const setLockEnabled = useWallStore((s) => s.setLockEnabled);
   const addLockImage = useWallStore((s) => s.addLockImage);
@@ -259,17 +259,28 @@ export function LockImagesEditor() {
       : t('lock.status.active', { count: lockImages.images.length });
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-1 flex-col gap-4">
       <div className="flex items-center justify-between rounded-lg bg-panel p-3">
         <div>
-          <span className="block text-sm font-medium text-fg">
+          <label
+            htmlFor={enabledId}
+            className="block cursor-pointer text-sm font-medium text-fg"
+          >
             {t('lock.title')}
-          </span>
-          <span className="block text-[11px] text-fg-subtle">
+          </label>
+          <span
+            id={`${enabledId}-desc`}
+            className="block text-xs text-fg-subtle"
+          >
             {t('lock.description')}
           </span>
         </div>
-        <Switch checked={lockImages.enabled} onChange={setLockEnabled} />
+        <Switch
+          id={enabledId}
+          checked={lockImages.enabled}
+          onChange={setLockEnabled}
+          aria-describedby={`${enabledId}-desc`}
+        />
       </div>
 
       <p
@@ -278,34 +289,12 @@ export function LockImagesEditor() {
           !lockImages.enabled
             ? 'bg-muted text-fg-muted'
             : lockImages.images.length === 0
-              ? 'bg-amber-50 text-amber-700'
-              : 'bg-emerald-50 text-emerald-700',
+              ? 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300'
+              : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300',
         )}
       >
         {statusNote}
       </p>
-
-      <div>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          multiple
-          className="hidden"
-          onChange={(e) => {
-            const files = e.target.files;
-            if (files && files.length > 0) void handleFiles(files);
-            if (fileInputRef.current) fileInputRef.current.value = '';
-          }}
-        />
-        <Button
-          size="sm"
-          disabled={!lockImages.enabled || pickingNow}
-          onClick={() => fileInputRef.current?.click()}
-        >
-          {t('lock.addImage')}
-        </Button>
-      </div>
 
       {lockImages.enabled && lockImages.images.length > 1 && (
         <div className="rounded-lg bg-panel p-3">
@@ -334,7 +323,7 @@ export function LockImagesEditor() {
               className="h-7 w-24 text-sm"
             />
           </div>
-          <p className="mt-1 text-[11px] text-fg-subtle">
+          <p className="mt-1 text-xs text-fg-subtle">
             {t('lock.weight.defaultDescription')}
           </p>
         </div>
@@ -352,7 +341,10 @@ export function LockImagesEditor() {
               share={shares[i] ?? 0}
               onMoveUp={() => moveUp(i)}
               onMoveDown={() => moveDown(i)}
-              onDelete={() => removeLockImage(img.id)}
+              onDelete={() => {
+                removeLockImage(img.id);
+                notifyUndoable(t('history.deleted.lockImage'));
+              }}
               onWeightChange={(w) => setLockImageWeight(img.id, w)}
             />
           ))}
@@ -365,6 +357,30 @@ export function LockImagesEditor() {
         </summary>
         <p className="mt-2">{t('lock.specNote')}</p>
       </details>
+
+      {/* 追加はパネル下端に固定（一覧が長くてもスクロールせずに押せる） */}
+      <div className="sticky -bottom-4 z-10 -mx-4 -mb-4 mt-auto border-t border-border bg-surface px-4 py-3">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={(e) => {
+            const files = e.target.files;
+            if (files && files.length > 0) void handleFiles(files);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+          }}
+        />
+        <Button
+          className="w-full"
+          disabled={!lockImages.enabled || pickingNow}
+          onClick={() => fileInputRef.current?.click()}
+        >
+          <PlusIcon />
+          {t('lock.addImage')}
+        </Button>
+      </div>
     </div>
   );
 }

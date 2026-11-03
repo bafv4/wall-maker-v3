@@ -8,10 +8,12 @@
     "info": "パック情報",
     "layout": "レイアウト",
     "background": "背景",
-    "lock": "Lock",
-    "sound": "サウンド"
+    "lock": "ロック",
+    "sound": "サウンド",
+    "listLabel": "編集する項目"
   },
     "update": {
+      "title": "アップデート",
       "available": "新しいバージョン v{{version}} が公開されています（現在 v{{current}}）",
       "download": "{{name}} をダウンロード",
       "downloading": "ダウンロード中…",
@@ -31,11 +33,21 @@
     },
   "preview": {
     "title": "プレビュー",
-    "hint": "エリアをクリックで選択、Ctrl/⌘+クリックで複数選択。ドラッグで移動（複数選択時はまとめて移動し、スナップは選択全体の外接矩形で判定）、角・辺のハンドルでリサイズできます。操作値はすべて整数で記録されます。",
+    "hint": "エリアをクリックで選択、Ctrl/⌘+クリックで複数選択。ドラッグで移動、角・辺のハンドルでリサイズ。Tab でエリアに移り、矢印キーで 1px、Shift+矢印キーで 10px 動かせます。複数選択時はまとめて動き、スナップは選択全体の外接矩形で判定します。タイルの番号は SeedQueue がインスタンスを並べる順です。値はすべて整数で記録されます。",
+    "areaAria": "{{name}}（x {{x}}, y {{y}}, {{width}}×{{height}}）",
+    "keyboardHelp": "矢印キーで 1px、Shift+矢印キーで 10px 移動します。",
     "scale": "実解像度 {{realWidth}}×{{realHeight}} / プレビュー {{previewWidth}}×{{previewHeight}}",
     "snapHint": "Shift でスナップ無効",
     "boxes": "ボックス",
     "boxMode": {
+      "all": "すべて",
+      "background": "背景",
+      "layout": "レイアウト",
+      "none": "なし"
+    },
+    "snap": "スナップ",
+    "snapInfo": "ドラッグ時に吸着する先です。背景＝図形・手動配置の画像レイヤー、レイアウト＝エリアの辺と中央。キャンバスの端と中央は「なし」以外で常に対象です。ボックスを非表示にしている側には吸着しません。Shift を押している間はスナップしません。",
+    "snapMode": {
       "all": "すべて",
       "background": "背景",
       "layout": "レイアウト",
@@ -50,20 +62,38 @@
     "selectPlaceholder": "選択…",
     "noOptions": "選択肢なし"
   },
+  "history": {
+    "undo": "元に戻す",
+    "redo": "やり直す",
+    "resetDone": "リセットしました",
+    "deleted": {
+      "layer": "背景レイヤーを削除しました",
+      "lockImage": "ロック画像を削除しました",
+      "preparing": "preparing #{{n}} を削除しました"
+    }
+  },
+  "sidebar": {
+    "collapse": "サイドバーを閉じる",
+    "toggleTitle": "{{label}}（Ctrl+B）",
+    "expand": "サイドバーを開く",
+    "resize": "サイドバーの幅",
+    "resizeHint": "ドラッグで幅を変更（ダブルクリックで元の幅）。←/→ キーでも変えられます"
+  },
+  "window": {
+    "minimize": "最小化",
+    "maximize": "最大化",
+    "restore": "元に戻す（縮小）",
+    "close": "閉じる"
+  },
   "header": {
-    "import": "インポート（.zip）",
-    "importing": "読込中…",
-    "reset": "リセット",
-    "export": "エクスポート（.zip）",
     "exporting": "処理中…",
-    "aboutTooltip": "About / ライセンス情報",
-    "releases": "最新リリース",
-    "releasesTooltip": "GitHub の最新リリースページを開く"
+    "aboutTooltip": "About / ライセンス情報"
   },
   "fileEditor": {
     "import": {
       "title": "インポート",
       "description": ".zip ファイル または 展開済みのリソースパックフォルダから読み込みます。読込時に解像度を選択するダイアログが開きます。",
+      "descriptionWeb": ".zip のリソースパックを読み込みます。読込時に解像度を選択するダイアログが開きます。",
       "openZip": ".zip を開く",
       "openFolder": "フォルダを開く",
       "loading": "読込中…"
@@ -84,26 +114,29 @@
     "export": {
       "title": "エクスポート（.zip）",
       "description": "1 ファイルの .zip として保存します。共有・配布用。",
+      "descriptionWeb": "リソースパックを 1 ファイルの .zip としてダウンロードします。",
       "button": ".zip エクスポート…",
+      "buttonWeb": ".zip をダウンロード",
       "processing": "処理中…",
       "dialogTitle": ".zip としてエクスポート"
     },
     "reset": {
       "title": "リセット",
-      "description": "編集中の内容をデフォルトに戻します。保存されたレイアウト・設定も初期化されます。",
+      "description": "パック情報・レイアウト・背景・ロック画像・サウンドをすべて初期状態に戻し、上書き保存先の記憶も解除します。",
       "button": "リセット",
-      "confirm": "編集内容をデフォルトに戻します。よろしいですか？"
+      "descriptionWeb": "パック情報・レイアウト・背景・ロック画像・サウンドをすべて初期状態に戻します。",
+      "confirm": "編集内容（パック情報・レイアウト・背景・ロック画像・サウンド）をすべて初期状態に戻します。アプリを閉じるまでは「元に戻す」で戻せます。"
     },
-    "about": {
-      "title": "About / ライセンス",
-      "description": "バージョン、サードパーティライセンス（FFmpeg / ffmpeg.wasm）、関連リンクを表示します。",
-      "button": "About を開く"
+    "embed": {
+      "label": "背景の編集データを同梱する",
+      "hint": "背景レイヤーの構成（元画像・図形の位置・色・グラデーション）を wall-maker/ フォルダに保存し、.zip / フォルダの読み込み時にレイヤーごと復元します。オフのまま書き出したパックを読み込むと、背景は合成済みの 1 枚の画像として戻ります。Minecraft には影響しませんが、元画像の分だけファイルサイズが増えます。"
     }
   },
   "importDialog": {
     "title": "インポート — 解像度を選択",
     "fileLine": "<0>{{filename}}</0> を読み込みます。",
-    "warning": "現在の編集内容は上書きされます。続行するには解像度を選択してください。",
+    "warning": "現在の編集内容はインポートした内容に置き換わり、元に戻せません。残しておく場合は、先にエクスポートしてください。",
+    "exportFirst": "現在の内容をエクスポート（.zip）",
     "suggestedDetected": "リソースパック内の background.png のサイズは {{width}} × {{height}}（推定値として初期表示）。違う解像度を想定したリソースパックの場合は変更してください。",
     "suggestedMissing": "background.png が見つからなかったため、解像度を推定できませんでした。適切な解像度を指定してください。",
     "confirm": "インポート",
@@ -131,20 +164,29 @@
     "iconAria": "リソースパックアイコンを選択",
     "iconImageRequired": "画像ファイルを選択してください",
     "iconDefaultName": "pack.png",
-    "iconClear": "クリア",
-    "embedEditorData": "背景の編集データを同梱する",
-    "embedEditorDataHint": "背景レイヤの構成（元画像・図形の位置・色・グラデーション）を wall-maker/ フォルダに保存し、.zip / フォルダの読み込み時にレイヤごと復元します。Minecraft には影響しませんが、元画像の分だけファイルサイズが増えます。"
+    "iconClear": "クリア"
   },
   "layoutEditor": {
     "presetTitle": "レイアウトプリセット",
     "presetPlaceholder": "プリセットを選択…",
     "applyPreset": "適用",
-    "presetHint": "現在の解像度に合わせてスケールし、レイアウト全体（main / locked / preparing）を置き換えます。",
-    "replaceLockedInstances": "ロック済みインスタンスを置き換える",
-    "preparingTitle": "preparing ({{count}})",
-    "preparingEmpty": "preparing グループは現在ありません。",
-    "preparingNumbered": "preparing #{{n}}",
+    "presetHint": "現在の解像度に合わせて拡大縮小し、レイアウト全体（メイン・ロック欄・準備中）を置き換えます。",
+    "presetSummary": "メイン {{columns}}×{{rows}}",
+    "presetSummaryLocked": "ロック欄 {{count}}",
+    "presetSummaryPreparing": "準備中 {{columns}}×{{rows}}",
+    "replaceLockedInstances": "ロックで空いた枠をすぐ埋める",
+    "replaceLockedInstancesHint": "オフ: メインでロックしたインスタンスはロック欄へ移り、元の枠は「すべてリセット」まで空いたままになります。オン: 空いた枠に次のインスタンスが入ります。ロック欄を表示しているときだけ効きます。",
+    "preparingTitle": "準備中の欄 ({{count}})",
+    "preparingEmpty": "準備中の欄はありません。",
     "addPreparing": "+ 追加"
+  },
+  "areas": {
+    "main": "メイン",
+    "locked": "ロック欄",
+    "preparing": "準備中 #{{n}}",
+    "mainDescription": "リセットしたインスタンスが並ぶ、ウォールの本体です。",
+    "lockedDescription": "ロックしたインスタンスを並べる欄です。",
+    "preparingDescription": "まだ生成中のインスタンスを並べる欄です。"
   },
   "areaEditor": {
     "show": "表示",
@@ -158,25 +200,37 @@
     "centerV": "垂直中央",
     "grid": "グリッド",
     "useGrid": "グリッドを使う",
-    "rows": "rows",
-    "columns": "columns",
-    "padding": "padding (px)",
-    "tooManyCells": "グリッド分割が多すぎます（rows × columns > 30）"
+    "rows": "行数",
+    "columns": "列数",
+    "padding": "間隔 (px)",
+    "tooManyCells": "インスタンスが多すぎます（行数 × 列数 が 30 を超えています）",
+    "summary": "x {{x}}, y {{y}} · {{width}}×{{height}}"
   },
   "background": {
-    "addColor": "+ 色",
-    "addImage": "+ 画像",
-    "addGradient": "+ グラデーション",
-    "addShape": "+ 図形",
-    "drawOrderHint": "一覧で ↑=奥（先に描画） / ↓=手前（最後に描画）",
-    "layerListTitle": "レイヤ一覧 ({{count}})",
-    "layerListEmpty": "背景レイヤがありません。",
+    "addLayer": "レイヤーを追加",
+    "addMenu": {
+      "color": "一色で塗りつぶします。",
+      "image": "画像ファイルを読み込んで敷きます。",
+      "gradient": "2 色以上を滑らかにつなぎます。",
+      "shape": "四角形・三角形・円を置きます。"
+    },
+    "drawOrderHint": "一覧の上にあるレイヤーほど手前に描画されます。左端のつまみをドラッグして並び替えられます。",
+    "layerListTitle": "レイヤー一覧 ({{count}})",
+    "layerListEmpty": "背景レイヤーがありません。",
     "visibilityHint": "左のトグルでの非表示は、プレビューだけでなく書き出すリソースパックからも除外されます（background.png に含まれません）。",
-    "editLayer": "{{type}} レイヤを編集",
-    "selectLayer": "レイヤを選択",
-    "selectPrompt": "上の一覧からレイヤを選択すると、ここに編集画面が表示されます。",
-    "moveBack": "奥へ",
-    "moveFront": "手前へ",
+    "editLayer": "{{type}} レイヤーを編集",
+    "back": "戻る",
+    "openLayer": "{{name}} を編集",
+    "layerVisible": "「{{name}}」を表示",
+    "dragHandle": "「{{name}}」を並び替え",
+    "dnd": {
+      "roleDescription": "並び替えのつまみ",
+      "instructions": "並び替えるには、スペースキーで持ち上げ、上下の矢印キーで動かし、もう一度スペースキーで置きます。Escape キーでやめます。",
+      "picked": "「{{name}}」を持ち上げました。上から {{position}} 番目（全 {{total}}）です。",
+      "moved": "上から {{position}} 番目（全 {{total}}）に移動しました。",
+      "dropped": "「{{name}}」を上から {{position}} 番目（全 {{total}}）に置きました。",
+      "canceled": "「{{name}}」の並び替えをやめました。"
+    },
     "delete": "削除",
     "type": {
       "color": "色",
@@ -197,13 +251,23 @@
         "manual": "manual（自由配置）"
       },
       "manualTitle": "自由配置 (transform)",
-      "manualHint": "プレビューでも操作可"
+      "manualHint": "プレビューでも操作可",
+      "adjust": {
+        "title": "色調・ぼかし",
+        "reset": "リセット",
+        "lightness": "明度",
+        "saturation": "彩度",
+        "hue": "色相",
+        "blur": "ぼかし",
+        "hint": "明度は負の値で黒、正の値で白に近づきます。ぼかしは画像の外側を端の色で延ばして計算するので、縁は透けません。"
+      }
     },
     "gradient": {
       "angle": "角度",
       "stopsTitle": "ストップ ({{count}})",
       "addStop": "+ 追加",
       "selectStopAria": "ストップ {{n}} を選択",
+      "stopOffsetAria": "ストップ {{n}} の位置",
       "stopColorPrompt": "選択中のストップの色（#{{n}}）",
       "fileImage": "画像 ({{size}} KB)",
       "imageRef": "画像 (ref)"
@@ -216,7 +280,13 @@
         "ellipse": "円"
       },
       "boundsTitle": "位置・サイズ",
-      "square": "縦横を揃える（高さ＝幅）"
+      "square": "縦横を揃える（高さ＝幅）",
+      "fitTitle": "エリアに合わせる",
+      "fitArea": "エリア",
+      "fitPadding": "余白",
+      "fitApply": "合わせる",
+      "fitHint": "選んだエリアの四辺を余白ぶん外側に広げた位置・サイズにします（負の値で内側）。図形はエリアに追従しないので、エリアを動かしたらもう一度合わせてください。",
+      "cornerRadius": "角の丸み"
     },
     "toast": {
       "notRaster": "{{filename}}: 使用できない画像形式です（SVG などのベクタ形式は非対応。PNG / JPEG / GIF / WebP などを選んでください）",
@@ -230,9 +300,9 @@
     "reset": "リセット（全領域）"
   },
   "lock": {
-    "title": "Lock画像を使う",
+    "title": "ロック画像を使う",
     "description": "OFF にするとロック画像表示を無効化します。",
-    "addImage": "+ 画像を追加",
+    "addImage": "画像を追加",
     "specNote": "1 枚目は必ず lock.png として出力されます（パックが lock-1.png だけを入れると、1 枚目に MOD 既定の lock.png が使われてしまうため）。画像はリサイズせずそのまま格納されます（アスペクト比保持）。重みは抽選の当たりやすさで、実効値 ÷ 全体の合計が出現確率になります。",
     "specMemo": "仕様メモ（クリックで展開）",
     "required": "必須",
@@ -261,6 +331,12 @@
     }
   },
   "sound": {
+    "groups": {
+      "wall": "ウォールの操作",
+      "schedule": "予約参加",
+      "other": "ベンチマーク・その他"
+    },
+    "changedCount": "{{count}} 件変更",
     "modeOptions": {
       "default": "デフォルト",
       "off": "無音にする",
@@ -318,6 +394,7 @@
     }
   },
   "about": {
+    "latestRelease": "最新リリースを確認（GitHub）",
     "title": "SeedQueue Wall Maker について",
     "appHeading": "SeedQueue Wall Maker",
     "appDescription": "Minecraft Speedrunning 用 <0>SeedQueue</0> mod のリソースパックを GUI で作成・編集するツール。同一コードベースで Web 版（ブラウザ）と Desktop 版（Tauri）を提供します。",
@@ -339,15 +416,15 @@
     "packIcon": "パックアイコン",
     "backgroundImage": "背景画像",
     "extraTexture": "追加テクスチャ",
-    "lockImage": "Lock 画像",
+    "lockImage": "ロック画像",
     "sound": "サウンド"
   },
   "toast": {
-    "exportSuccess": "{{dest}} に書き出しました",
+    "exportSuccess": "{{dest}} に書き出しました。Minecraft の resourcepacks フォルダに入れ、リソースパック画面で有効にすると反映されます。",
     "exportFailed": "エクスポートに失敗しました: {{error}}",
-    "saveSuccess": "{{dest}} に保存しました",
+    "saveSuccess": "{{dest}} に保存しました。resourcepacks フォルダ内ならリソースパック画面で有効にすると反映されます。",
     "saveFailed": "保存に失敗しました: {{error}}",
-    "overwriteSuccess": "{{dest}} を上書き保存しました",
+    "overwriteSuccess": "{{dest}} を上書き保存しました。有効にしているパックなら、Minecraft で F3+T を押すと読み込み直します。",
     "overwriteFailed": "上書き保存に失敗しました: {{error}}",
     "overwriteNoTarget": "上書き保存先がありません（先に「保存」してください）",
     "importSuccess": "{{filename}} をインポートしました",

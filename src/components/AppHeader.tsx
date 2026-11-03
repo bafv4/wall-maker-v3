@@ -1,41 +1,53 @@
 /**
- * AppHeader — タイトル＋Import/Reset/Export（Web 用）。
+ * AppHeader — メイン領域上端のバー（Web / Desktop 共通）。タイトルとバージョン。
  *
- * Desktop ではこのコンポーネントは表示せず、ファイル操作は「ファイル」タブ
- * （`FileEditor`）に集約される（App.tsx で isTauri() 判定）。
+ * インポート / エクスポート / リセットは「ファイル」タブ（`FileEditor`）に集約している。
  *
- * 状態とハンドラはすべて `useFileOperations()` 越しに取得する。Provider が
- * Import 用の hidden `<input>` と解像度選択ダイアログをまとめてマウントしている
- * ため、本コンポーネントはボタンを並べるだけで済む。
+ * Desktop 版では OS のタイトルバーの代わりを兼ねる。空いている所を掴むとウィンドウを動かせ、
+ * ダブルクリックで最大化する（`data-tauri-drag-region`。ボタン・リンクの上では効かない）。
+ * Windows / Linux は右端に最小化・最大化・閉じる（`WindowControls`）を置き、macOS は
+ * OS の信号機ボタンが左上（レールの上端）に重なる。
  *
- * タイトル部分をクリックすると AboutModal が開き、FFmpeg ライセンス表記等を表示する。
- * タイトルの右隣には GitHub の最新リリースページ（/releases/latest）への外部リンクを置く。
+ * タイトル部分をクリックすると AboutModal が開き、FFmpeg ライセンス表記・最新リリースへの
+ * リンク等を表示する。
  */
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useFileOperations } from '../hooks/useFileOperations';
 import { AboutModal } from './AboutModal';
-import { Button } from './ui';
+import { WindowControls } from './WindowControls';
+import { cn } from './ui';
 
-/** GitHub の最新リリースページ。タグを固定しないよう /releases/latest を使う。 */
-const LATEST_RELEASE_URL =
-  'https://github.com/bafv4/wall-maker-v3/releases/latest';
-
-export function AppHeader() {
+export function AppHeader({
+  className,
+  leading,
+}: {
+  className?: string;
+  /** タイトルの左に置く操作（サイドバーを閉じている間の開閉ボタンなど）。 */
+  leading?: ReactNode;
+}) {
   const { t } = useTranslation();
-  const { busy, importPhase, openImport, doExportZip, doReset } =
-    useFileOperations();
   const [aboutOpen, setAboutOpen] = useState(false);
 
   return (
-    <header className="flex-shrink-0 border-b border-border bg-surface">
-      <div className="mx-auto flex h-16 max-w-[1920px] items-center justify-between gap-4 px-5">
-        <div className="flex items-center gap-3">
+    <header className={className}>
+      {/* 高さは罫線込みで 48px（左のエディタパネル見出しと揃える） */}
+      {/* leading があるとき（サイドバーを閉じている間）は左の余白をサイドバー見出しと揃え、
+          開閉ボタンが開閉の前後で同じ位置に来るようにする */}
+      <div
+        data-tauri-drag-region
+        className={cn(
+          'flex h-12 items-center gap-3 border-b border-border px-5',
+          leading ? 'md:pl-2' : undefined,
+        )}
+      >
+        {/* 1 行に収める（折り返すとウィンドウ操作ボタンが 2 行目に落ちる）。狭いときはタイトルを省略表示 */}
+        <div className="flex min-w-0 items-center gap-3">
+          {leading}
           <button
             type="button"
             onClick={() => setAboutOpen(true)}
-            className="cursor-pointer rounded text-left text-lg font-semibold text-fg hover:text-blue-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            className="min-w-0 cursor-pointer truncate rounded text-left text-base font-semibold text-fg hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
             title={t('header.aboutTooltip')}
           >
             {t('app.title')}
@@ -44,64 +56,9 @@ export function AppHeader() {
               {`v${__APP_VERSION__}`}
             </span>
           </button>
-
-          <a
-            href={LATEST_RELEASE_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            title={t('header.releasesTooltip')}
-            className="inline-flex items-center gap-1 rounded text-xs font-medium text-fg-muted hover:text-blue-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-          >
-            {t('header.releases')}
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              className="h-3.5 w-3.5"
-              aria-hidden
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M13.5 6H18v4.5M17.25 6.75L10.5 13.5M18 14.25V18a1.5 1.5 0 01-1.5 1.5H6A1.5 1.5 0 014.5 18V7.5A1.5 1.5 0 016 6h3.75"
-              />
-            </svg>
-          </a>
         </div>
-
-        <div className="flex items-center gap-3">
-          {/*
-            Import/Export と同じく busy 中は押せなくする。エクスポート中にリセット
-            されると worker が古い state のままパックを作り切り、空のエディタに対して
-            成功トーストが出てしまう（Desktop 側の FileEditor と挙動を揃える）。
-          */}
-          <Button
-            variant="danger-outline"
-            size="sm"
-            disabled={busy}
-            onClick={doReset}
-          >
-            {t('header.reset')}
-          </Button>
-          <span className="h-6 w-px bg-border" aria-hidden="true" />
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={busy}
-            onClick={openImport}
-          >
-            {importPhase === 'loading-zip'
-              ? t('header.importing')
-              : t('header.import')}
-          </Button>
-          <Button size="sm" disabled={busy} onClick={doExportZip}>
-            {busy && importPhase === 'idle'
-              ? t('header.exporting')
-              : t('header.export')}
-          </Button>
-        </div>
+        {/* 右端に詰める（右の余白を打ち消し、罫線を除いた高さいっぱいに伸ばす） */}
+        <WindowControls className="-mr-5 ml-auto flex-shrink-0 self-stretch" />
       </div>
 
       <AboutModal open={aboutOpen} onClose={() => setAboutOpen(false)} />

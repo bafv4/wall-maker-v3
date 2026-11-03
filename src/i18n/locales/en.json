@@ -9,9 +9,11 @@
     "layout": "Layout",
     "background": "Background",
     "lock": "Lock",
-    "sound": "Sound"
+    "sound": "Sound",
+    "listLabel": "Sections"
   },
     "update": {
+      "title": "Update available",
       "available": "A new version v{{version}} is available (current v{{current}})",
       "download": "Download {{name}}",
       "downloading": "Downloading…",
@@ -31,11 +33,21 @@
     },
   "preview": {
     "title": "Preview",
-    "hint": "Click an area to select; Ctrl/⌘+click for multi-select. Drag to move (a multi-selection moves together, snapping against the selection's bounding box); use corner / edge handles to resize. All values are stored as integers.",
+    "hint": "Click an area to select it; Ctrl/⌘+click to select several. Drag to move, drag a corner or edge handle to resize. Tab to an area and use the arrow keys to move it 1px (Shift+arrow: 10px). A multi-selection moves together and snaps by its bounding box. Tile numbers are the order SeedQueue places instances in. All values are stored as whole pixels.",
+    "areaAria": "{{name}} (x {{x}}, y {{y}}, {{width}}×{{height}})",
+    "keyboardHelp": "Arrow keys move by 1px, Shift+arrow keys by 10px.",
     "scale": "Real {{realWidth}}×{{realHeight}} / preview {{previewWidth}}×{{previewHeight}}",
     "snapHint": "Hold Shift to disable snapping",
     "boxes": "Boxes",
     "boxMode": {
+      "all": "All",
+      "background": "Background",
+      "layout": "Layout",
+      "none": "None"
+    },
+    "snap": "Snap",
+    "snapInfo": "What dragged items snap to. Background = shape and manually placed image layers; Layout = area edges and centers. Canvas edges and center are always included unless set to None. Nothing snaps to the side whose boxes are hidden. Hold Shift to disable snapping.",
+    "snapMode": {
       "all": "All",
       "background": "Background",
       "layout": "Layout",
@@ -50,20 +62,38 @@
     "selectPlaceholder": "Select…",
     "noOptions": "No options"
   },
+  "history": {
+    "undo": "Undo",
+    "redo": "Redo",
+    "resetDone": "Reset to defaults",
+    "deleted": {
+      "layer": "Background layer deleted",
+      "lockImage": "Lock image deleted",
+      "preparing": "preparing #{{n}} deleted"
+    }
+  },
+  "sidebar": {
+    "collapse": "Close sidebar",
+    "toggleTitle": "{{label}} (Ctrl+B)",
+    "expand": "Open sidebar",
+    "resize": "Sidebar width",
+    "resizeHint": "Drag to resize (double-click to reset). Arrow keys also work"
+  },
+  "window": {
+    "minimize": "Minimize",
+    "maximize": "Maximize",
+    "restore": "Restore down",
+    "close": "Close"
+  },
   "header": {
-    "import": "Import (.zip)",
-    "importing": "Loading…",
-    "reset": "Reset",
-    "export": "Export (.zip)",
     "exporting": "Working…",
-    "aboutTooltip": "About / Licenses",
-    "releases": "Latest release",
-    "releasesTooltip": "Open the latest release page on GitHub"
+    "aboutTooltip": "About / Licenses"
   },
   "fileEditor": {
     "import": {
       "title": "Import",
       "description": "Load a .zip resource pack or an already-extracted resource pack folder. A resolution selector will open during import.",
+      "descriptionWeb": "Load a .zip resource pack. A resolution selector will open during import.",
       "openZip": "Open .zip",
       "openFolder": "Open folder",
       "loading": "Loading…"
@@ -84,26 +114,29 @@
     "export": {
       "title": "Export (.zip)",
       "description": "Save a single .zip file. Useful for sharing / distribution.",
+      "descriptionWeb": "Download the resource pack as a single .zip file.",
       "button": "Export as .zip…",
+      "buttonWeb": "Download .zip",
       "processing": "Working…",
       "dialogTitle": "Export as .zip"
     },
     "reset": {
       "title": "Reset",
-      "description": "Revert all edits to defaults. Saved layout and settings are also cleared.",
+      "description": "Reset pack info, layout, background, lock images and sounds to their defaults, and forget the overwrite target.",
       "button": "Reset",
-      "confirm": "Revert edits to defaults. Continue?"
+      "descriptionWeb": "Reset pack info, layout, background, lock images and sounds to their defaults.",
+      "confirm": "Reset all edits (pack info, layout, background, lock images and sounds) to their defaults? You can undo this until you close the app."
     },
-    "about": {
-      "title": "About / Licenses",
-      "description": "Version, third-party licenses (FFmpeg / ffmpeg.wasm), and related links.",
-      "button": "Open About"
+    "embed": {
+      "label": "Include background editing data",
+      "hint": "Saves the background layer setup (original images, shape positions, colors, gradients) in a wall-maker/ folder so importing the .zip / folder restores each layer. If this is off, importing the exported pack brings the background back as a single flattened image. Minecraft ignores it, but original images increase the file size."
     }
   },
   "importDialog": {
     "title": "Import — Select resolution",
     "fileLine": "Loading <0>{{filename}}</0>.",
-    "warning": "Current edits will be overwritten. Select a resolution to continue.",
+    "warning": "Your current edits will be replaced by the imported pack, and this can't be undone. To keep them, export them first.",
+    "exportFirst": "Export current pack (.zip)",
     "suggestedDetected": "The resource pack's background.png is {{width}} × {{height}} (shown as the suggested default). Change it if the resource pack was made for a different resolution.",
     "suggestedMissing": "No background.png was found, so the resolution could not be estimated. Please specify one.",
     "confirm": "Import",
@@ -131,20 +164,29 @@
     "iconAria": "Choose resource pack icon",
     "iconImageRequired": "Please pick an image file",
     "iconDefaultName": "pack.png",
-    "iconClear": "Clear",
-    "embedEditorData": "Include background editing data",
-    "embedEditorDataHint": "Saves the background layer setup (original images, shape positions, colors, gradients) in a wall-maker/ folder so importing the .zip / folder restores each layer. Minecraft ignores it, but original images increase the file size."
+    "iconClear": "Clear"
   },
   "layoutEditor": {
     "presetTitle": "Layout preset",
     "presetPlaceholder": "Select a preset…",
     "applyPreset": "Apply",
-    "presetHint": "Scaled to the current resolution and replaces the whole layout (main / locked / preparing).",
-    "replaceLockedInstances": "Replace locked instances",
-    "preparingTitle": "preparing ({{count}})",
-    "preparingEmpty": "No preparing groups yet.",
-    "preparingNumbered": "preparing #{{n}}",
+    "presetHint": "Scaled to the current resolution and replaces the whole layout (main, locked and preparing).",
+    "presetSummary": "Main {{columns}}×{{rows}}",
+    "presetSummaryLocked": "Locked {{count}}",
+    "presetSummaryPreparing": "Preparing {{columns}}×{{rows}}",
+    "replaceLockedInstances": "Refill slots freed by locking",
+    "replaceLockedInstancesHint": "Off: an instance you lock on the main wall moves to the locked area, and its slot stays empty until you reset all. On: the next instance fills the slot. Only has an effect while the locked area is shown.",
+    "preparingTitle": "Preparing areas ({{count}})",
+    "preparingEmpty": "No preparing areas yet.",
     "addPreparing": "+ Add"
+  },
+  "areas": {
+    "main": "Main",
+    "locked": "Locked",
+    "preparing": "Preparing #{{n}}",
+    "mainDescription": "The wall itself, where reset instances appear.",
+    "lockedDescription": "Where locked instances are shown.",
+    "preparingDescription": "Shows instances that are still generating."
   },
   "areaEditor": {
     "show": "Show",
@@ -158,25 +200,37 @@
     "centerV": "Center vertically",
     "grid": "Grid",
     "useGrid": "Use grid",
-    "rows": "rows",
-    "columns": "columns",
-    "padding": "padding (px)",
-    "tooManyCells": "Too many grid cells (rows × columns > 30)"
+    "rows": "Rows",
+    "columns": "Columns",
+    "padding": "Gap (px)",
+    "tooManyCells": "Too many instances (rows × columns exceeds 30)",
+    "summary": "x {{x}}, y {{y}} · {{width}}×{{height}}"
   },
   "background": {
-    "addColor": "+ Color",
-    "addImage": "+ Image",
-    "addGradient": "+ Gradient",
-    "addShape": "+ Shape",
-    "drawOrderHint": "In the list, ↑ = back (drawn first), ↓ = front (drawn last)",
+    "addLayer": "Add layer",
+    "addMenu": {
+      "color": "Fill with a single color.",
+      "image": "Load an image file.",
+      "gradient": "Blend two or more colors.",
+      "shape": "Place a rectangle, triangle or ellipse."
+    },
+    "drawOrderHint": "Layers higher in the list are drawn in front. Drag the handle on the left to reorder.",
     "layerListTitle": "Layers ({{count}})",
     "layerListEmpty": "No background layers.",
     "visibilityHint": "The left toggle hides a layer in the preview and the exported resource pack — hidden layers are not written to background.png.",
     "editLayer": "Edit {{type}} layer",
-    "selectLayer": "Select a layer",
-    "selectPrompt": "Select a layer from the list above to edit it here.",
-    "moveBack": "Move back",
-    "moveFront": "Move front",
+    "back": "Back",
+    "openLayer": "Edit {{name}}",
+    "layerVisible": "Show “{{name}}”",
+    "dragHandle": "Reorder “{{name}}”",
+    "dnd": {
+      "roleDescription": "drag handle",
+      "instructions": "To reorder, press Space to pick up the layer, use the Up and Down arrow keys to move it, and press Space again to drop it. Press Escape to cancel.",
+      "picked": "Picked up “{{name}}”. Position {{position}} of {{total}} from the top.",
+      "moved": "Moved to position {{position}} of {{total}} from the top.",
+      "dropped": "Dropped “{{name}}” at position {{position}} of {{total}} from the top.",
+      "canceled": "Reordering “{{name}}” canceled."
+    },
     "delete": "Delete",
     "type": {
       "color": "Color",
@@ -197,13 +251,23 @@
         "manual": "manual (free placement)"
       },
       "manualTitle": "Free placement (transform)",
-      "manualHint": "Editable in preview too"
+      "manualHint": "Editable in preview too",
+      "adjust": {
+        "title": "Color & blur",
+        "reset": "Reset",
+        "lightness": "Lightness",
+        "saturation": "Saturation",
+        "hue": "Hue",
+        "blur": "Blur",
+        "hint": "Negative lightness moves toward black, positive toward white. Blur extends the image's edge pixels outward, so the edges stay opaque."
+      }
     },
     "gradient": {
       "angle": "Angle",
       "stopsTitle": "Stops ({{count}})",
       "addStop": "+ Add",
       "selectStopAria": "Select stop {{n}}",
+      "stopOffsetAria": "Stop {{n}} position",
       "stopColorPrompt": "Color of selected stop (#{{n}})",
       "fileImage": "Image ({{size}} KB)",
       "imageRef": "Image (ref)"
@@ -216,7 +280,13 @@
         "ellipse": "Ellipse"
       },
       "boundsTitle": "Position & size",
-      "square": "Match height to width"
+      "square": "Match height to width",
+      "fitTitle": "Fit to area",
+      "fitArea": "Area",
+      "fitPadding": "Padding",
+      "fitApply": "Fit",
+      "fitHint": "Sets the position and size to the selected area, expanded by the padding on every side (negative values shrink it). The shape does not follow the area, so fit it again after moving the area.",
+      "cornerRadius": "Corner radius"
     },
     "toast": {
       "notRaster": "{{filename}}: unsupported image format (vector formats such as SVG are not supported — use PNG / JPEG / GIF / WebP)",
@@ -232,7 +302,7 @@
   "lock": {
     "title": "Use lock images",
     "description": "Turn off to disable the lock overlay.",
-    "addImage": "+ Add image",
+    "addImage": "Add image",
     "specNote": "The first image is always written as lock.png (if a pack ships only lock-1.png, the mod's built-in lock.png ends up as the first entry). Images are stored as-is without resizing (aspect ratio preserved). Weight controls how often an image is picked: its effective weight divided by the total is the probability.",
     "specMemo": "Format notes (click to expand)",
     "required": "Required",
@@ -261,6 +331,12 @@
     }
   },
   "sound": {
+    "groups": {
+      "wall": "Wall actions",
+      "schedule": "Scheduled joins",
+      "other": "Benchmark & other"
+    },
+    "changedCount": "{{count}} changed",
     "modeOptions": {
       "default": "Default",
       "off": "Silent",
@@ -318,6 +394,7 @@
     }
   },
   "about": {
+    "latestRelease": "Check the latest release (GitHub)",
     "title": "About SeedQueue Wall Maker",
     "appHeading": "SeedQueue Wall Maker",
     "appDescription": "A GUI for creating and editing resource packs for the <0>SeedQueue</0> Minecraft Speedrunning mod. Same codebase ships a Web build (browser) and a Desktop build (Tauri).",
@@ -343,11 +420,11 @@
     "sound": "sound"
   },
   "toast": {
-    "exportSuccess": "Exported to {{dest}}",
+    "exportSuccess": "Exported to {{dest}}. Put it in your Minecraft resourcepacks folder and enable it on the Resource Packs screen.",
     "exportFailed": "Export failed: {{error}}",
-    "saveSuccess": "Saved to {{dest}}",
+    "saveSuccess": "Saved to {{dest}}. If it is inside your resourcepacks folder, enable it on the Resource Packs screen.",
     "saveFailed": "Save failed: {{error}}",
-    "overwriteSuccess": "Overwrote {{dest}}",
+    "overwriteSuccess": "Overwrote {{dest}}. If the pack is enabled, press F3+T in Minecraft to reload it.",
     "overwriteFailed": "Overwrite failed: {{error}}",
     "overwriteNoTarget": "No save target yet — use \"Save As\" first",
     "importSuccess": "Imported {{filename}}",

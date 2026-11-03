@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes } from 'react';
+import type { ButtonHTMLAttributes, Ref } from 'react';
 import { cn } from './cn';
 
 export type ButtonVariant =
@@ -13,14 +13,16 @@ export type ButtonSize = 'sm' | 'md';
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
   size?: ButtonSize;
+  /** フォーカスを移すときなどに使う（React 19 では ref を props として受け取れる）。 */
+  ref?: Ref<HTMLButtonElement>;
 }
 
 // 中立色（surface/fg/border/muted）はセマンティックトークン経由でライト/ダークが切り替わる
-// （実値は App.css）。青/赤のソリッドはモード非依存なのでそのまま、赤アウトラインだけ
-// ダーク時の見えづらさを補う dark: を局所的に付ける。
+// （実値は App.css）。主ボタンの青もトークン（ダークでは彩度を落とす）。赤のソリッドは
+// モード非依存なのでそのまま、赤アウトラインだけダーク時の見えづらさを補う dark: を付ける。
 const variantClasses: Record<ButtonVariant, string> = {
   primary:
-    'bg-blue-600 text-white hover:bg-blue-700 disabled:bg-blue-300 dark:disabled:bg-blue-900',
+    'bg-primary text-white hover:bg-primary-hover disabled:bg-primary-disabled',
   secondary:
     'bg-border text-fg hover:bg-border-strong disabled:bg-panel disabled:text-fg-subtle',
   outline:

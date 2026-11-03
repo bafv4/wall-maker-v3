@@ -5,11 +5,11 @@
  *  - 透過した crop 矩形を 8 ハンドル＋本体ドラッグで操作。
  *  - 全座標は画像の自然 px に変換し floor で整数化して適用。
  *  - 数値入力欄でも編集可能。
+ *  - Desktop 版では別ウィンドウで開く（`useDialogWindow`）。画像は data URL にして渡す。
  */
 
 import {
   useCallback,
-  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -18,7 +18,9 @@ import {
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { AreaCell, ImageLayer } from '../core/state';
-import { Button, Modal } from './ui';
+import { useObjectUrl } from '../hooks/useObjectUrl';
+import { useDialogWindow, opensDialogWindows } from './dialogs/useDialogWindow';
+import { Button, Modal, NumberInput } from './ui';
 import { cn } from './ui/cn';
 import type { Handle } from './snap';
 
@@ -98,21 +100,68 @@ export interface CropModalProps {
 
 export function CropModal({ layer, onClose, onApply }: CropModalProps) {
   const { t } = useTranslation();
-  const imageUrl = useMemo(() => {
-    if (layer.source.kind !== 'inline') return null;
-    return URL.createObjectURL(
-      // Uint8Array<ArrayBufferLike> → BlobPart 非互換（TS 5.7+）。実 ArrayBuffer 由来なので絞り込む。
-      new Blob([layer.source.bytes as Uint8Array<ArrayBuffer>], {
-        type: layer.source.mimeType ?? 'image/png',
-      }),
-    );
-  }, [layer.source]);
+  const imageUrl = useObjectUrl(opensDialogWindows ? null : layer.source);
+  useDialogWindow({
+    open: true,
+    spec: {
+      kind: 'crop',
+      title: t('cropModal.title'),
+      width: CROP_WINDOW_WIDTH,
+      crop: layer.crop ?? null,
+    },
+    payload: async () => ({ imageUrl: await sourceToDataUrl(layer.source) }),
+    onMessage: (m) => {
+      if (m.type === 'result') onApply(m.value as AreaCell);
+      else if (m.type === 'dismiss') onClose();
+    },
+  });
+  if (opensDialogWindows) return null;
 
-  useEffect(() => {
-    return () => {
-      if (imageUrl) URL.revokeObjectURL(imageUrl);
-    };
-  }, [imageUrl]);
+  return (
+    <Modal open onClose={onClose} title={t('cropModal.title')} className="max-w-3xl">
+      <CropEditor
+        imageUrl={imageUrl}
+        initialCrop={layer.crop ?? null}
+        onClose={onClose}
+        onApply={onApply}
+      />
+    </Modal>
+  );
+}
+
+/** 別ウィンドウの幅。画像の表示枠（最大 600px）＋余白。 */
+const CROP_WINDOW_WIDTH = DISPLAY_MAX + 80;
+
+/** ウィンドウをまたいで渡せるよう data URL にする（blob URL は作ったウィンドウでしか使えない）。 */
+async function sourceToDataUrl(source: ImageLayer['source']): Promise<string | undefined> {
+  if (source.kind !== 'inline') return undefined;
+  const blob = new Blob([source.bytes as Uint8Array<ArrayBuffer>], {
+    type: source.mimeType ?? 'image/png',
+  });
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+
+export interface CropEditorProps {
+  /** null なら画像が未ロード。 */
+  imageUrl: string | null;
+  initialCrop: AreaCell | null;
+  onClose: () => void;
+  onApply: (crop: AreaCell) => void;
+}
+
+/** 切り抜きの編集部分。アプリ内のモーダルと別ウィンドウの両方で使う。 */
+export function CropEditor({
+  imageUrl,
+  initialCrop,
+  onClose,
+  onApply,
+}: CropEditorProps) {
+  const { t } = useTranslation();
 
   const imgRef = useRef<HTMLImageElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -128,7 +177,7 @@ export function CropModal({ layer, onClose, onApply }: CropModalProps) {
 
   // crop 状態（画像の自然 px）
   const [crop, setCrop] = useState<AreaCell>(() =>
-    layer.crop ?? { x: 0, y: 0, width: 1, height: 1 },
+    initialCrop ?? { x: 0, y: 0, width: 1, height: 1 },
   );
 
   // 画像ロード時に natural / 初期 crop を計算
@@ -136,7 +185,7 @@ export function CropModal({ layer, onClose, onApply }: CropModalProps) {
     const img = imgRef.current;
     if (!img) return;
     setNatural({ w: img.naturalWidth, h: img.naturalHeight });
-    if (!layer.crop) {
+    if (!initialCrop) {
       setCrop({ x: 0, y: 0, width: img.naturalWidth, height: img.naturalHeight });
     }
   };
@@ -254,7 +303,7 @@ export function CropModal({ layer, onClose, onApply }: CropModalProps) {
   };
 
   return (
-    <Modal open onClose={onClose} title={t('cropModal.title')} className="max-w-3xl">
+    <>
       {!imageUrl ? (
         <p className="text-sm text-fg-muted">{t('cropModal.imageNotLoaded')}</p>
       ) : (
@@ -322,46 +371,46 @@ export function CropModal({ layer, onClose, onApply }: CropModalProps) {
           <div className="grid grid-cols-4 gap-2">
             <label className="text-xs text-fg-muted">
               {t('areaEditor.x')}
-              <input
-                type="number"
+              <NumberInput
                 value={Math.floor(crop.x)}
                 onChange={handleField('x')}
-                className="mt-0.5 h-8 w-full rounded border border-border-strong px-2 text-sm"
+                wrapperClassName="mt-0.5"
+                className="h-8 w-full rounded border border-border-strong px-2 text-sm"
               />
             </label>
             <label className="text-xs text-fg-muted">
               {t('areaEditor.y')}
-              <input
-                type="number"
+              <NumberInput
                 value={Math.floor(crop.y)}
                 onChange={handleField('y')}
-                className="mt-0.5 h-8 w-full rounded border border-border-strong px-2 text-sm"
+                wrapperClassName="mt-0.5"
+                className="h-8 w-full rounded border border-border-strong px-2 text-sm"
               />
             </label>
             <label className="text-xs text-fg-muted">
               {t('areaEditor.width')}
-              <input
-                type="number"
+              <NumberInput
                 min={1}
                 value={Math.floor(crop.width)}
                 onChange={handleField('width')}
-                className="mt-0.5 h-8 w-full rounded border border-border-strong px-2 text-sm"
+                wrapperClassName="mt-0.5"
+                className="h-8 w-full rounded border border-border-strong px-2 text-sm"
               />
             </label>
             <label className="text-xs text-fg-muted">
               {t('areaEditor.height')}
-              <input
-                type="number"
+              <NumberInput
                 min={1}
                 value={Math.floor(crop.height)}
                 onChange={handleField('height')}
-                className="mt-0.5 h-8 w-full rounded border border-border-strong px-2 text-sm"
+                wrapperClassName="mt-0.5"
+                className="h-8 w-full rounded border border-border-strong px-2 text-sm"
               />
             </label>
           </div>
 
           {natural && (
-            <p className="text-[11px] text-fg-subtle">
+            <p className="text-xs text-fg-subtle">
               {t('cropModal.imageSize', { width: natural.w, height: natural.h })}
             </p>
           )}
@@ -381,6 +430,6 @@ export function CropModal({ layer, onClose, onApply }: CropModalProps) {
           </div>
         </div>
       )}
-    </Modal>
+    </>
   );
 }

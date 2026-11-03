@@ -13,11 +13,16 @@
  *    ドラッグ入力側でも floor を適用し、state に小数を持ち込まない。
  */
 
-import { DEFAULT_RESOLUTION } from './state';
+import {
+  DEFAULT_RESOLUTION,
+  IMAGE_ADJUST_KEYS,
+  IMAGE_ADJUST_RANGES,
+} from './state';
 import type {
   Area,
   AreaCell,
   BackgroundLayer,
+  ImageAdjust,
   Resolution,
   WallState,
 } from './state';
@@ -143,6 +148,53 @@ export function floorArea<T extends Area>(area: T): T {
   return floored;
 }
 
+/**
+ * セルの四辺を `padding` px ずつ外側に広げる（負なら内側に縮める）。
+ * 背景の図形をエリアに合わせるのに使う。整数化・最小サイズ 1 は floorCell が担保する。
+ * 縮めすぎは短辺が 1px になる所で止める（止めないと幅が 1 に潰れた上で x だけが
+ * 進み、エリアの外に 1px の図形ができる）。
+ */
+export function expandCell(cell: AreaCell, padding: number): AreaCell {
+  const p = Math.max(padding, -(Math.min(cell.width, cell.height) - 1) / 2);
+  return floorCell({
+    x: cell.x - p,
+    y: cell.y - p,
+    width: cell.width + p * 2,
+    height: cell.height + p * 2,
+  });
+}
+
+/**
+ * 背景レイヤの数値（image / shape の transform、shape の角丸半径、image の色調補正・ぼかし）を
+ * 不変条件へ引き戻す。transform は floorCell と同じ（整数・非有限禁止・最小サイズ 1）、
+ * 角丸半径は 0 以上の整数（非有限は 0＝角丸なし）、色調補正は IMAGE_ADJUST_RANGES 内の整数
+ * （欠けた値・非有限は 0＝無補正）。store の patch・hydrate・解像度スケール・編集データの
+ * 読込はすべてここを通す（数値フィールドを足したらここだけ直せばよい）。
+ */
+export function floorLayerNumbers(layer: BackgroundLayer): BackgroundLayer {
+  if (layer.type !== 'image' && layer.type !== 'shape') return layer;
+  // shape の transform は型上必須だが、壊れた永続化 state の hydrate で落ちないよう確かめる
+  const floored = layer.transform
+    ? { ...layer, transform: floorCell(layer.transform) }
+    : { ...layer };
+  if (floored.type === 'shape' && floored.cornerRadius !== undefined) {
+    floored.cornerRadius = toSafeInt(floored.cornerRadius, 0, 0);
+  }
+  if (floored.type === 'image' && floored.adjust) {
+    floored.adjust = floorImageAdjust(floored.adjust);
+  }
+  return floored;
+}
+
+function floorImageAdjust(adjust: ImageAdjust): ImageAdjust {
+  const floored = { ...adjust };
+  for (const key of IMAGE_ADJUST_KEYS) {
+    const { min, max } = IMAGE_ADJUST_RANGES[key];
+    floored[key] = toSafeInt(adjust[key], 0, min, max);
+  }
+  return floored;
+}
+
 // ---------------------------------------------------------------------------
 // プレビュー ↔ 実解像度 の相互変換
 // 同一アスペクト比とは限らない（プレビュー側にフレームが入り得る）。
@@ -224,19 +276,29 @@ export function scaleBackgroundLayer(
   scaleX: number,
   scaleY: number,
 ): BackgroundLayer {
-  if ((layer.type === 'image' || layer.type === 'shape') && layer.transform) {
-    return {
-      ...layer,
-      // floorCell 経由でエリアと同じ不変条件（整数・非有限禁止・最小サイズ 1）を適用する。
-      transform: floorCell({
-        x: layer.transform.x * scaleX,
-        y: layer.transform.y * scaleY,
-        width: layer.transform.width * scaleX,
-        height: layer.transform.height * scaleY,
-      }),
+  if (layer.type !== 'image' && layer.type !== 'shape') return layer;
+  const scaled = { ...layer };
+  const t = layer.transform;
+  if (t) {
+    scaled.transform = {
+      x: t.x * scaleX,
+      y: t.y * scaleY,
+      width: t.width * scaleX,
+      height: t.height * scaleY,
     };
   }
-  return layer;
+  // 半径（角丸・ぼかし）は X/Y 非等倍時は相乗平均。padding のように小さい方を採ると、往復
+  // （1920x1080 → 2560x1080 → 1920x1080）で 40 → 40 → 30 と痩せていく。
+  // 角丸は描画時に図形の上限で丸めるので、大きめに出てもはみ出さない。
+  const radiusScale = Math.sqrt(scaleX * scaleY);
+  if (scaled.type === 'shape' && scaled.cornerRadius !== undefined) {
+    scaled.cornerRadius *= radiusScale;
+  }
+  if (scaled.type === 'image' && scaled.adjust) {
+    scaled.adjust = { ...scaled.adjust, blur: scaled.adjust.blur * radiusScale };
+  }
+  // エリアと同じ不変条件（整数・非有限禁止・最小サイズ 1）を適用する
+  return floorLayerNumbers(scaled);
 }
 
 export function scaleStateForResolution(
@@ -283,11 +345,7 @@ export function normalizeWallStateNumbers(state: WallState): WallState {
       preparing: state.layout.preparing.map((p) => floorArea(p)),
     },
     background: {
-      layers: state.background.layers.map((l) =>
-        (l.type === 'image' || l.type === 'shape') && l.transform
-          ? { ...l, transform: floorCell(l.transform) }
-          : l,
-      ),
+      layers: state.background.layers.map((l) => floorLayerNumbers(l)),
     },
   };
 }

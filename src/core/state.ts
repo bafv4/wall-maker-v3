@@ -129,7 +129,43 @@ export interface ImageLayer {
   crop?: { x: number; y: number; width: number; height: number };
   /** UI 表示用の元ファイル名（任意）。 */
   originalFileName?: string;
+  /** 色調補正とぼかし（描画は core/imageAdjust.ts）。省略・全 0 で無補正。 */
+  adjust?: ImageAdjust;
 }
+
+/**
+ * 画像レイヤの色調補正とぼかし。値はすべて整数で、範囲は `IMAGE_ADJUST_RANGES`。
+ * 色調は画像編集ソフトの「色相・彩度」に合わせる。
+ */
+export interface ImageAdjust {
+  /** 明度。負で黒、正で白に寄せる（±100 で真っ黒／真っ白）。 */
+  lightness: number;
+  /** 彩度。-100 でグレースケール、+100 で 2 倍。 */
+  saturation: number;
+  /** 色相の回転（度）。 */
+  hue: number;
+  /**
+   * ぼかしの強さ（ガウスぼかしの標準偏差・実解像度 px）。座標と同じく解像度変更でスケールする。
+   * 画像の外側は端の画素を延長して扱う（縁が透けない）。
+   */
+  blur: number;
+}
+
+/** ImageAdjust の各値の範囲。正規化（floorLayerNumbers）・検証・エディタのスライダで共有する。 */
+export const IMAGE_ADJUST_RANGES = {
+  lightness: { min: -100, max: 100 },
+  saturation: { min: -100, max: 100 },
+  hue: { min: -180, max: 180 },
+  blur: { min: 0, max: 100 },
+} as const satisfies Record<keyof ImageAdjust, { min: number; max: number }>;
+
+/** ImageAdjust のキー（エディタの表示順）。 */
+export const IMAGE_ADJUST_KEYS = [
+  'lightness',
+  'saturation',
+  'hue',
+  'blur',
+] as const satisfies readonly (keyof ImageAdjust)[];
 
 export interface GradientLayer {
   id: string;
@@ -148,7 +184,9 @@ export interface GradientStop {
 }
 
 /** 図形の種類。triangle は外接矩形の上辺中央を頂点とする二等辺三角形、ellipse は外接矩形に内接する楕円。 */
-export type ShapeKind = 'rect' | 'triangle' | 'ellipse';
+export const SHAPE_KINDS = ['rect', 'triangle', 'ellipse'] as const;
+
+export type ShapeKind = (typeof SHAPE_KINDS)[number];
 
 export interface ShapeLayer {
   id: string;
@@ -158,6 +196,12 @@ export interface ShapeLayer {
   color: string;
   /** 図形の外接矩形（絶対 px・整数）。image の transform と同じ不変条件で扱う。 */
   transform: { x: number; y: number; width: number; height: number };
+  /**
+   * 角丸の半径（絶対 px・0 以上の整数）。rect / triangle に適用し、ellipse では無視する。
+   * 省略・0 で角丸なし。描画時は図形に収まる上限（rect は短辺の半分、triangle は内接円の半径）に
+   * 丸めるので、保存値は上限を超えていてもよい（図形を縮めて戻したときに元の丸みへ戻る）。
+   */
+  cornerRadius?: number;
   opacity: number;
   visible: boolean;
 }
@@ -415,6 +459,28 @@ export function validateWallState(state: WallState): ValidationIssue[] {
           path: `background.layers[${i}].transform`,
           message: 'x/y/width/height must be integers and width/height >= 1',
         });
+      }
+    }
+    if (
+      layer.type === 'shape' &&
+      layer.cornerRadius !== undefined &&
+      (!Number.isInteger(layer.cornerRadius) || layer.cornerRadius < 0)
+    ) {
+      issues.push({
+        path: `background.layers[${i}].cornerRadius`,
+        message: 'cornerRadius must be an integer >= 0',
+      });
+    }
+    if (layer.type === 'image' && layer.adjust) {
+      for (const key of IMAGE_ADJUST_KEYS) {
+        const v = layer.adjust[key];
+        const { min, max } = IMAGE_ADJUST_RANGES[key];
+        if (!Number.isInteger(v) || v < min || v > max) {
+          issues.push({
+            path: `background.layers[${i}].adjust.${key}`,
+            message: `${key} must be an integer in [${min}, ${max}]`,
+          });
+        }
       }
     }
   });

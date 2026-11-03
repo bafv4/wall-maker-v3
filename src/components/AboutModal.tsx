@@ -4,12 +4,13 @@
  * 仕様: REWRITE_SPEC.md 第9章 / CLAUDE.md「FFmpeg ライセンス表記は README とアプリ内 About に必須」。
  *
  * FFmpeg / @ffmpeg/core (GPL v2+) と ffmpeg.wasm (MIT) を MP3/WAV → OGG 変換に使用しており、
- * その表記をユーザに対して可視に保つ。AppHeader（Web）と FileEditor（Desktop）から開く。
- * 言語切替（ja/en）もここに集約する。
+ * その表記をユーザに対して可視に保つ。AppHeader のタイトルから開く。最新リリースへのリンクも置く。
+ * 言語切替（ja/en）もここに集約する。Desktop 版では別ウィンドウで開く（`useDialogWindow`）。
  */
 
 import { useTranslation, Trans } from 'react-i18next';
 import { SUPPORTED_LANGUAGES, setLanguage, type SupportedLanguage } from '../i18n';
+import { useDialogWindow, opensDialogWindows } from './dialogs/useDialogWindow';
 import { ExternalLink, Modal } from './ui';
 
 export interface AboutModalProps {
@@ -19,12 +20,18 @@ export interface AboutModalProps {
 
 const SEEDQUEUE_REPO = 'https://github.com/contariaa/seedqueue';
 const PROJECT_REPO = 'https://github.com/bafv4/wall-maker-v3';
+/** GitHub の最新リリースページ。タグを固定しないよう /releases/latest を使う。 */
+const LATEST_RELEASE_URL = `${PROJECT_REPO}/releases/latest`;
 const FFMPEG_REPO = 'https://github.com/FFmpeg/FFmpeg';
 const FFMPEG_WASM_REPO = 'https://github.com/ffmpegwasm/ffmpeg.wasm';
 const GPL3_URL = 'https://www.gnu.org/licenses/gpl-3.0.html';
 const GPL2_URL = 'https://www.gnu.org/licenses/old-licenses/gpl-2.0.html';
 
-function LanguageSwitcher() {
+function LanguageSwitcher({
+  onChange,
+}: {
+  onChange: (lng: SupportedLanguage) => void;
+}) {
   const { t, i18n } = useTranslation();
   const current = (i18n.resolvedLanguage ??
     i18n.language) as SupportedLanguage;
@@ -43,7 +50,7 @@ function LanguageSwitcher() {
           <button
             key={lng}
             type="button"
-            onClick={() => void setLanguage(lng)}
+            onClick={() => onChange(lng)}
             className={
               current === lng
                 ? // 反転ピル（fg↔surface）。ライト=濃紺地に白、ダーク=明地に暗字で、
@@ -61,11 +68,16 @@ function LanguageSwitcher() {
   );
 }
 
-export function AboutModal({ open, onClose }: AboutModalProps) {
+/** About の本文。アプリ内のモーダルと別ウィンドウの両方で使う。 */
+export function AboutContent({
+  onLanguageChange = (lng) => void setLanguage(lng),
+}: {
+  /** 言語を切り替えたとき。別ウィンドウではメインウィンドウにも伝える。 */
+  onLanguageChange?: (lng: SupportedLanguage) => void;
+}) {
   const { t } = useTranslation();
 
   return (
-    <Modal open={open} onClose={onClose} title={t('about.title')}>
       <div className="space-y-5 text-sm text-fg-muted">
         <section className="space-y-1">
           <h3 className="text-base font-semibold text-fg">
@@ -75,13 +87,18 @@ export function AboutModal({ open, onClose }: AboutModalProps) {
               {`v${__APP_VERSION__}`}
             </span>
           </h3>
+          <p className="text-xs">
+            <ExternalLink href={LATEST_RELEASE_URL}>
+              {t('about.latestRelease')}
+            </ExternalLink>
+          </p>
           <p className="text-xs text-fg-muted">
             <Trans
               i18nKey="about.appDescription"
               components={[<ExternalLink href={SEEDQUEUE_REPO} />]}
             />
           </p>
-          <p className="text-[11px] text-fg-subtle">
+          <p className="text-xs text-fg-subtle">
             <Trans
               i18nKey="about.appLicenseLine"
               components={[<ExternalLink href={GPL3_URL} />]}
@@ -89,7 +106,7 @@ export function AboutModal({ open, onClose }: AboutModalProps) {
           </p>
         </section>
 
-        <LanguageSwitcher />
+        <LanguageSwitcher onChange={onLanguageChange} />
 
         <section className="space-y-2">
           <h4 className="text-sm font-semibold text-fg">
@@ -118,7 +135,7 @@ export function AboutModal({ open, onClose }: AboutModalProps) {
               </ExternalLink>
             </li>
           </ul>
-          <p className="text-[11px] text-fg-subtle">{t('about.ffmpegNote')}</p>
+          <p className="text-xs text-fg-subtle">{t('about.ffmpegNote')}</p>
         </section>
 
         <section className="space-y-1">
@@ -137,6 +154,25 @@ export function AboutModal({ open, onClose }: AboutModalProps) {
           </ul>
         </section>
       </div>
+  );
+}
+
+export function AboutModal({ open, onClose }: AboutModalProps) {
+  const { t } = useTranslation();
+  useDialogWindow({
+    open,
+    spec: { kind: 'about', title: t('about.title'), width: 640 },
+    onMessage: (m) => {
+      if (m.type === 'dismiss') onClose();
+      else if (m.type === 'action' && m.name === 'language')
+        void setLanguage(m.value as SupportedLanguage);
+    },
+  });
+  if (opensDialogWindows) return null;
+
+  return (
+    <Modal open={open} onClose={onClose} title={t('about.title')}>
+      <AboutContent />
     </Modal>
   );
 }

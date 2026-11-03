@@ -39,6 +39,7 @@ import { parseLockMcmeta } from './lockWeights';
 import { errMsg } from './errors';
 import { getDefaultPresetLayout } from './layoutPresets';
 import { isPlayableOggVorbis } from './oggVorbis';
+import { isRecord, readBytes, readString } from './packRead';
 import {
   BUILTIN_SOUND_KEYS,
   SOUND_EVENT_KEYS,
@@ -172,25 +173,25 @@ export async function parsePack(
   const metaLayers = parseEditorMeta(pack, resolution);
   const backgroundPath = `${PACK_PATHS.texturesGuiWall}/background.png`;
   const backgroundBytes = readBytes(pack, backgroundPath);
-  const backgroundLayers: BackgroundLayer[] = metaLayers
-    ? metaLayers
-    : backgroundBytes
-    ? [
-        {
-          id: crypto.randomUUID(),
-          type: 'image',
-          source: {
-            kind: 'inline',
-            bytes: backgroundBytes,
-            mimeType: 'image/png',
+  const backgroundLayers: BackgroundLayer[] =
+    metaLayers ??
+    (backgroundBytes
+      ? [
+          {
+            id: crypto.randomUUID(),
+            type: 'image',
+            source: {
+              kind: 'inline',
+              bytes: backgroundBytes,
+              mimeType: 'image/png',
+            },
+            opacity: 1,
+            visible: true,
+            fit: 'stretch',
+            originalFileName: 'background.png',
           },
-          opacity: 1,
-          visible: true,
-          fit: 'stretch',
-          originalFileName: 'background.png',
-        },
-      ]
-    : [];
+        ]
+      : []);
 
   // 6) layout（座標は parseLayoutJson で絶対 px 変換済み）
   //    パース不能／省略されたグループのフォールバック矩形は、`createDefaultWallState()` の
@@ -837,29 +838,6 @@ export async function detectBackgroundResolution(
 // ===========================================================================
 // 汎用ユーティリティ
 // ===========================================================================
-
-function readBytes(pack: VirtualPack, path: string): Uint8Array | null {
-  const v = pack.get(path);
-  if (v === undefined) return null;
-  if (typeof v === 'string') return null; // JSON テキスト相手にこの API は使わない
-  return v;
-}
-
-function readString(pack: VirtualPack, path: string): string | null {
-  const v = pack.get(path);
-  if (v === undefined) return null;
-  if (typeof v === 'string') return v;
-  // Uint8Array の場合は UTF-8 として decode（VirtualPack 内に JSON がバイナリで入っているケース）
-  try {
-    return new TextDecoder('utf-8').decode(v);
-  } catch {
-    return null;
-  }
-}
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null && !Array.isArray(v);
-}
 
 function toFiniteNumber(v: unknown): number | null {
   if (typeof v === 'number' && Number.isFinite(v)) return v;

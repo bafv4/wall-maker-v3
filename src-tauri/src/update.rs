@@ -286,8 +286,30 @@ pub async fn update_check(app: tauri::AppHandle) -> Result<Option<UpdateInfo>, S
     }))
 }
 
+/// 一時ファイルの後始末。スコープを抜けるとき（エラーでの早期 return を含む）に消す。
+/// 確定（rename）に成功した後は元のパスが無いので、削除は空振りする。
+/// Windows は開いたままのファイルを消せないので、File を先に閉じてから drop させること。
+struct RemoveOnDrop<'a>(&'a Path);
+
+impl Drop for RemoveOnDrop<'_> {
+    fn drop(&mut self) {
+        let _ = fs::remove_file(self.0);
+    }
+}
+
+/// リリースアセットの GET を開始する（HTTP エラーのステータスもここで弾く）。
+async fn start_download(url: &str) -> Result<reqwest::Response, String> {
+    github_client()?
+        .get(url)
+        .send()
+        .await
+        .map_err(|e| format!("ダウンロード開始に失敗: {e}"))?
+        .error_for_status()
+        .map_err(|e| format!("ダウンロードが HTTP エラー: {e}"))
+}
+
 /// レスポンス本体を `file` へ流し込み、受信バイト数を返す。各チャンクは `on_chunk`
-/// にも渡す（ハッシュ計算用）。失敗時の一時ファイル削除は呼び出し側の責務。
+/// にも渡す（ハッシュ計算用）。失敗時の一時ファイル削除は呼び出し側（RemoveOnDrop）の責務。
 async fn stream_download(
     resp: &mut reqwest::Response,
     file: &mut fs::File,
@@ -348,14 +370,7 @@ pub async fn update_download(
         return Err(format!("不正なファイル名: {file_name}"));
     }
 
-    let client = github_client()?;
-    let mut resp = client
-        .get(&url)
-        .send()
-        .await
-        .map_err(|e| format!("ダウンロード開始に失敗: {e}"))?
-        .error_for_status()
-        .map_err(|e| format!("ダウンロードが HTTP エラー: {e}"))?;
+    let mut resp = start_download(&url).await?;
 
     // 保存先: 実行ファイルと同じフォルダ。`.part` の作成自体が書き込み可否の判定を
     // 兼ねる（失敗したら OS のダウンロードフォルダで作り直す）。
@@ -374,13 +389,11 @@ pub async fn update_download(
     };
     let part = dir.join(format!("{file_name}.part"));
     let final_path = dir.join(&file_name);
+    let _cleanup = RemoveOnDrop(&part);
 
     let streamed = stream_download(&mut resp, &mut file, &part, &on_progress, |_| {}).await;
     drop(file);
-    if let Err(e) = streamed {
-        let _ = fs::remove_file(&part);
-        return Err(e);
-    }
+    streamed?;
 
     // 同名ファイルがあれば上書き（同じバージョンの再ダウンロード）。
     // fsync はしない: 中断は `.part` のままなので壊れたファイルが完成品に見える
@@ -449,15 +462,11 @@ async fn apply_portable(
     let old = replaced_exe_path(&exe).ok_or("実行ファイル名を取得できません")?;
     let part = old.with_extension("update.part");
 
-    let mut resp = github_client()?
-        .get(&asset.browser_download_url)
-        .send()
-        .await
-        .map_err(|e| format!("ダウンロード開始に失敗: {e}"))?
-        .error_for_status()
-        .map_err(|e| format!("ダウンロードが HTTP エラー: {e}"))?;
+    let mut resp = start_download(&asset.browser_download_url).await?;
     let mut file = fs::File::create(&part)
         .map_err(|e| format!("一時ファイル作成に失敗 {}: {e}", part.display()))?;
+    // 検証失敗・差し替え失敗のどちらでも .part を残さない（差し替え成功後は空振り）
+    let _cleanup = RemoveOnDrop(&part);
     let mut hasher = Sha256::new();
     let streamed = stream_download(&mut resp, &mut file, &part, on_progress, |b| {
         hasher.update(b)
@@ -470,16 +479,9 @@ async fn apply_portable(
             .map_err(|e| format!("書き込みに失敗 {}: {e}", part.display()))
     });
     drop(file);
-    let received = match synced {
-        Ok(n) => n,
-        Err(e) => {
-            let _ = fs::remove_file(&part);
-            return Err(e);
-        }
-    };
+    let received = synced?;
     let actual = to_hex(&hasher.finalize());
     if received != asset.size || actual != expected {
-        let _ = fs::remove_file(&part);
         return Err(format!(
             "ダウンロードしたファイルの検証に失敗しました（サイズ {received}/{} / SHA-256 {}）",
             asset.size,
@@ -495,23 +497,18 @@ async fn apply_portable(
 }
 
 /// `exe` を `old` へ退避し、`new_exe` を `exe` の位置へ置く。失敗したら元に戻す。
+/// 失敗時に残った `new_exe` の削除は呼び出し側（RemoveOnDrop）に任せる。
 fn swap_exe(exe: &Path, new_exe: &Path, old: &Path) -> Result<(), String> {
-    let fail = |msg: String| {
-        let _ = fs::remove_file(new_exe);
-        Err(msg)
-    };
     // 前回更新の残骸（起動時の削除が間に合わなかった等）
     if old.exists() {
-        if let Err(e) = fs::remove_file(old) {
-            return fail(format!("前回の更新ファイルを削除できません {}: {e}", old.display()));
-        }
+        fs::remove_file(old)
+            .map_err(|e| format!("前回の更新ファイルを削除できません {}: {e}", old.display()))?;
     }
-    if let Err(e) = fs::rename(exe, old) {
-        return fail(format!("実行中ファイルの退避に失敗 {}: {e}", exe.display()));
-    }
+    fs::rename(exe, old)
+        .map_err(|e| format!("実行中ファイルの退避に失敗 {}: {e}", exe.display()))?;
     if let Err(e) = fs::rename(new_exe, exe) {
         let _ = fs::rename(old, exe);
-        return fail(format!("新しい実行ファイルの配置に失敗 {}: {e}", exe.display()));
+        return Err(format!("新しい実行ファイルの配置に失敗 {}: {e}", exe.display()));
     }
     Ok(())
 }

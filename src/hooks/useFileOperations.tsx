@@ -33,8 +33,15 @@
  *  - 書き出し系は事前に `collectUnresolvedBinaryFields` を通し、未ロードのフィールドがあれば
  *    「どれが未ロードか」を示して中止する（欠けたパックを黙って書き出さない）。
  *  - 同様に、Minecraft で再生できない custom 音声（Opus 等）があれば中止する
- *    （SeedQueue がゲームをクラッシュさせるため。`core/oggVorbis.ts`）。
+ *    （SeedQueue がゲームをクラッシュさせるため。`collectUnplayableSoundEvents`）。
  * インポートで表せなかったサウンドは既定に戻し、`parsePack` の `onSoundIssue` で集めて知らせる。
+ *
+ * 取り消し（`store/history.ts`）との関係:
+ *  - インポートは履歴を捨てる（取り消せない）。取り消せると、フォルダから開いた直後に
+ *    前の内容へ戻して「上書き保存」したとき、開いたパックを前の内容で消してしまうため。
+ *    代わりにダイアログから現在の内容を先にエクスポートできるようにしている。
+ *  - リセットは取り消せる。保存先の記憶は解除したままなので、戻した内容が意図せず
+ *    どこかへ上書きされることはない。
  */
 
 import {
@@ -60,6 +67,7 @@ import { ImportResolutionDialog } from '../components/ImportResolutionDialog';
 import { ConfirmDialog, toast } from '../components/ui';
 import {
   BINARY_FIELD_KINDS,
+  collectUnplayableSoundEvents,
   collectUnresolvedBinaryFields,
 } from '../core/binaryFields';
 import { errMsg } from '../core/errors';
@@ -67,18 +75,14 @@ import {
   buildAndZipInWorker,
   buildPackInWorker,
 } from '../core/exportWorkerClient';
-import { isPlayableOggVorbis } from '../core/oggVorbis';
 import {
   detectBackgroundResolution,
   parsePack,
   type SoundImportIssue,
 } from '../core/parsePack';
-import {
-  SOUND_EVENT_KEYS,
-  type Resolution,
-  type WallState,
-} from '../core/state';
+import type { Resolution, WallState } from '../core/state';
 import type { PackReadSource, VirtualPack } from '../core/types';
+import { clearHistory, notifyUndoable } from '../store/history';
 import {
   takeBinaryRestoreReport,
   type BinaryFieldCounts,
@@ -277,41 +281,31 @@ export function FileOperationsProvider({ children }: { children: ReactNode }) {
     return () => window.clearTimeout(timer);
   }, [t]);
 
-  // ---- 書き出し前ガード: 未ロードのバイナリがあるまま書き出さない ----
-  // 欠けたパックは Minecraft 上で黙って効かなくなり目視で気づけないため、
-  // 「どのフィールドが未ロードか」を示して中止する（core/binaryFields.ts の契約）。
-  const ensureBinariesLoaded = (wall: WallState): boolean => {
+  // ---- 書き出し前ガード（書き出し経路はすべてこれを通す） ----
+  //  - 未ロードのバイナリがあるまま書き出さない。欠けたパックは Minecraft 上で黙って
+  //    効かなくなり目視で気づけないため、どのフィールドが未ロードかを示して中止する。
+  //  - Minecraft で再生できない音声を同梱しない（SeedQueue がゲームをクラッシュさせる）。
+  // 判定は core/binaryFields.ts（buildPack の出力条件と 1:1）。
+  const ensureExportable = (wall: WallState): boolean => {
     const kinds = collectUnresolvedBinaryFields(wall);
-    if (kinds.length === 0) return true;
-    toast.error(
-      t('toast.unresolvedBinaries', {
-        fields: kinds.map((k) => t(`binaryField.${k}`)).join(' / '),
-      }),
-    );
-    return false;
-  };
-
-  // ---- 書き出し前ガード: Minecraft で再生できない音声を同梱しない ----
-  // SeedQueue は seedqueue 名前空間の音声の読込失敗でゲームをクラッシュさせる。
-  // アップロード時に検査・変換しているが、検査導入前に保存された編集内容には
-  // Opus 等の .ogg がそのまま残りうるため、書き出し直前にも確かめる。
-  const ensureSoundsPlayable = (wall: WallState): boolean => {
-    if (wall.sounds.globalMode === 'off') return true; // custom は書き出されない
-    const events = SOUND_EVENT_KEYS.filter((key) => {
-      const e = wall.sounds.events[key];
-      return (
-        e.mode === 'custom' &&
-        e.ogg.kind === 'inline' &&
-        !isPlayableOggVorbis(e.ogg.bytes)
+    if (kinds.length > 0) {
+      toast.error(
+        t('toast.unresolvedBinaries', {
+          fields: kinds.map((k) => t(`binaryField.${k}`)).join(' / '),
+        }),
       );
-    });
-    if (events.length === 0) return true;
-    toast.error(
-      t('toast.unplayableSounds', {
-        events: events.map((k) => t(`sound.events.${k}`)).join(' / '),
-      }),
-    );
-    return false;
+      return false;
+    }
+    const events = collectUnplayableSoundEvents(wall);
+    if (events.length > 0) {
+      toast.error(
+        t('toast.unplayableSounds', {
+          events: events.map((k) => t(`sound.events.${k}`)).join(' / '),
+        }),
+      );
+      return false;
+    }
+    return true;
   };
 
   // ---- Import 共通: source を受け取って読込→解像度推定→ダイアログ表示 ----
@@ -364,6 +358,7 @@ export function FileOperationsProvider({ children }: { children: ReactNode }) {
       const stem = payload.displayName.replace(/\.zip$/i, '').trim();
       if (stem) wall.packInfo.name = stem;
       replaceWallState(wall);
+      clearHistory();
       selectBackgroundLayer(null);
       setSourceFolder(payload.sourceFolder); // フォルダ起点なら覚える、.zip 起点なら null
       toast.success(t('toast.importSuccess', { filename: payload.displayName }));
@@ -430,7 +425,7 @@ export function FileOperationsProvider({ children }: { children: ReactNode }) {
     setBusy(true);
     try {
       const wall = useWallStore.getState().wall;
-      if (!ensureBinariesLoaded(wall) || !ensureSoundsPlayable(wall)) return; // finally で busy は戻る
+      if (!ensureExportable(wall)) return; // finally で busy は戻る
       const zipBytes = await buildAndZipInWorker(wall);
       const dest = await saveZipBytes(zipBytes, packName);
       if (dest == null) return; // ユーザキャンセル
@@ -448,7 +443,7 @@ export function FileOperationsProvider({ children }: { children: ReactNode }) {
     setBusy(true);
     try {
       const wall = useWallStore.getState().wall;
-      if (!ensureBinariesLoaded(wall) || !ensureSoundsPlayable(wall)) return; // finally で busy は戻る
+      if (!ensureExportable(wall)) return; // finally で busy は戻る
       // フォルダ保存は zip 不要なので buildPack のみワーカで走らせる
       const pack = await buildPackInWorker(wall);
       const { saveAsFolder } = await import('../adapters/desktop');
@@ -468,7 +463,7 @@ export function FileOperationsProvider({ children }: { children: ReactNode }) {
     setBusy(true);
     try {
       const wall = useWallStore.getState().wall;
-      if (!ensureBinariesLoaded(wall) || !ensureSoundsPlayable(wall)) return; // finally で busy は戻る
+      if (!ensureExportable(wall)) return; // finally で busy は戻る
       const pack = await buildPackInWorker(wall);
       const { overwriteFolder } = await import('../adapters/desktop');
       const dest = await overwriteFolder(pack, root);
@@ -507,6 +502,7 @@ export function FileOperationsProvider({ children }: { children: ReactNode }) {
     reset();
     setSourceFolder(null);
     setConfirmResetOpen(false);
+    notifyUndoable(t('history.resetDone'));
   };
 
   const dialogOpen =
@@ -551,6 +547,9 @@ export function FileOperationsProvider({ children }: { children: ReactNode }) {
         suggested={dialogSuggested}
         current={currentResolution}
         busy={importState.kind === 'parsing'}
+        // ダイアログ表示中の busy は「先にエクスポート」の実行中だけ
+        exporting={busy && importState.kind === 'pick-resolution'}
+        onExportCurrent={() => void doExportZip()}
         onCancel={handleCancelImport}
         onConfirm={handleConfirmImport}
       />

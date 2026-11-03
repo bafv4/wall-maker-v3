@@ -14,15 +14,21 @@
  * 呼び出し側は従来どおり `background.png` を 1 枚の image レイヤとして復元する。
  */
 
-import { floorCell, scaleBackgroundLayer } from './coords';
-import type {
-  AreaCell,
-  BackgroundLayer,
-  GradientStop,
-  ImageLayer,
-  Resolution,
-  ShapeKind,
-  WallState,
+import { resolveInline } from './binaryFields';
+import { floorLayerNumbers, scaleBackgroundLayer } from './coords';
+import { isRecord, readBytes, readString } from './packRead';
+import {
+  IMAGE_ADJUST_KEYS,
+  SHAPE_KINDS,
+  type AreaCell,
+  type BackgroundLayer,
+  type GradientStop,
+  type ImageAdjust,
+  type ImageLayer,
+  type Resolution,
+  type ShapeKind,
+  type ShapeLayer,
+  type WallState,
 } from './state';
 import type { VirtualPack } from './types';
 
@@ -49,6 +55,8 @@ type MetaLayer =
       shape: ShapeKind;
       color: string;
       transform: AreaCell;
+      /** 省略時は角丸なし（角丸導入前に書き出したメタも同じ形で読める）。 */
+      cornerRadius?: number;
       opacity: number;
       visible: boolean;
     }
@@ -61,6 +69,8 @@ type MetaLayer =
       transform?: AreaCell;
       crop?: AreaCell;
       originalFileName?: string;
+      /** 省略時は無補正（色調補正の導入前に書き出したメタも同じ形で読める）。 */
+      adjust?: ImageAdjust;
       opacity: number;
       visible: boolean;
     };
@@ -115,16 +125,12 @@ export function addEditorMeta(pack: VirtualPack, state: WallState): void {
           shape: l.shape,
           color: l.color,
           transform: l.transform,
+          cornerRadius: l.cornerRadius,
           opacity: l.opacity,
           visible: l.visible,
         };
       case 'image': {
-        if (l.source.kind !== 'inline') {
-          throw new Error(
-            `addEditorMeta: received unresolved BinaryRef (storageKey=${l.source.storageKey}).`,
-          );
-        }
-        const bytes = l.source.bytes;
+        const bytes = resolveInline(l.source);
         let file = fileByBytes.get(bytes);
         if (!file) {
           const ext = EXT_BY_MIME[l.source.mimeType ?? 'image/png'] ?? 'bin';
@@ -140,6 +146,7 @@ export function addEditorMeta(pack: VirtualPack, state: WallState): void {
           transform: l.transform,
           crop: l.crop,
           originalFileName: l.originalFileName,
+          adjust: l.adjust,
           opacity: l.opacity,
           visible: l.visible,
         };
@@ -190,10 +197,9 @@ export function parseEditorMeta(
 }
 
 function readMetaFile(pack: VirtualPack): EditorMetaFile | null {
-  const v = pack.get(EDITOR_META_PATH);
-  if (v === undefined) return null;
+  const text = readString(pack, EDITOR_META_PATH);
+  if (text === null) return null;
   try {
-    const text = typeof v === 'string' ? v : new TextDecoder('utf-8').decode(v);
     const parsed: unknown = JSON.parse(text);
     if (!isRecord(parsed) || parsed.version !== EDITOR_META_VERSION) {
       console.warn('parseEditorMeta: unsupported meta version', parsed);
@@ -257,20 +263,24 @@ function parseMetaLayer(raw: unknown, pack: VirtualPack): BackgroundLayer | null
       ) {
         return null;
       }
-      return {
+      const layer: ShapeLayer = {
         id,
         type: 'shape',
         shape: raw.shape,
         color: raw.color,
-        transform: floorCell(transform),
+        transform,
         opacity,
         visible,
       };
+      if (isFiniteNumber(raw.cornerRadius) && raw.cornerRadius > 0) {
+        layer.cornerRadius = raw.cornerRadius;
+      }
+      return floorLayerNumbers(layer);
     }
     case 'image': {
       if (typeof raw.file !== 'string' || !isImageFit(raw.fit)) return null;
-      const bytes = pack.get(raw.file);
-      if (!(bytes instanceof Uint8Array)) return null;
+      const bytes = readBytes(pack, raw.file);
+      if (!bytes) return null;
       const mimeType =
         typeof raw.mimeType === 'string' ? raw.mimeType : 'image/png';
       const transform = toCell(raw.transform);
@@ -283,12 +293,22 @@ function parseMetaLayer(raw: unknown, pack: VirtualPack): BackgroundLayer | null
         opacity,
         visible,
       };
-      if (transform) layer.transform = floorCell(transform);
+      if (transform) layer.transform = transform;
       if (crop) layer.crop = crop;
       if (typeof raw.originalFileName === 'string') {
         layer.originalFileName = raw.originalFileName;
       }
-      return layer;
+      if (isRecord(raw.adjust)) {
+        // 範囲外・欠けた値は floorLayerNumbers が範囲内／0（無補正）に揃える
+        const rawAdjust = raw.adjust;
+        const adjust = { lightness: 0, saturation: 0, hue: 0, blur: 0 };
+        for (const key of IMAGE_ADJUST_KEYS) {
+          const v = rawAdjust[key];
+          if (isFiniteNumber(v)) adjust[key] = v;
+        }
+        layer.adjust = adjust;
+      }
+      return floorLayerNumbers(layer);
     }
     default:
       return null;
@@ -299,10 +319,6 @@ function parseMetaLayer(raw: unknown, pack: VirtualPack): BackgroundLayer | null
 // ユーティリティ
 // ===========================================================================
 
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null && !Array.isArray(v);
-}
-
 function isFiniteNumber(v: unknown): v is number {
   return typeof v === 'number' && Number.isFinite(v);
 }
@@ -312,7 +328,7 @@ function isPositiveNumber(v: unknown): v is number {
 }
 
 function isShapeKind(v: unknown): v is ShapeKind {
-  return v === 'rect' || v === 'triangle' || v === 'ellipse';
+  return SHAPE_KINDS.some((k) => k === v);
 }
 
 function isImageFit(v: unknown): v is ImageLayer['fit'] {

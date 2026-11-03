@@ -3,6 +3,8 @@
  *
  * 仕様: REWRITE_SPEC.md 第4.2章（Canvas 合成）/ 第7.1章（判別共用体）。
  *  - 配列の先頭が「奥」、末尾が「手前」（buildPack/renderBackground の描画順と一致）。
+ *    一覧は一般的な画像編集ツールと同じく**上ほど手前**に並べる（表示だけ反転する）。
+ *  - 並び替えは一覧のつまみのドラッグ（dnd-kit）。キーボードはつまみで Space → ↑↓ → Space。
  *  - 全ての state mutation は `updateBackgroundLayer(id, patch)` で型安全に。
  *  - color/image/gradient/shape の判別は patch.type で narrow される。
  *
@@ -20,26 +22,47 @@
  *    変わらないのに state / IndexedDB だけが肥大するため（JPEG 写真で数倍〜10 倍）。
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { RestrictToVerticalAxis } from '@dnd-kit/abstract/modifiers';
+import {
+  Accessibility,
+  defaultPreset,
+  type DragEndEvent,
+  type DragOverEvent,
+  type DragStartEvent,
+} from '@dnd-kit/dom';
+import { DragDropProvider } from '@dnd-kit/react';
+import { isSortable, useSortable } from '@dnd-kit/react/sortable';
 import { useTranslation } from 'react-i18next';
 import { HexColorPicker } from 'react-colorful';
+import { MIN_COORDINATE, expandCell, toSafeInt } from '../core/coords';
 import { errMsg } from '../core/errors';
-import type {
-  BackgroundLayer,
-  ColorLayer,
-  GradientLayer,
-  GradientStop,
-  ImageLayer,
-  ShapeKind,
-  ShapeLayer,
+import { hasImageAdjust } from '../core/imageAdjust';
+import { maxCornerRadius } from '../core/renderBackground';
+import {
+  IMAGE_ADJUST_KEYS,
+  IMAGE_ADJUST_RANGES,
+  SHAPE_KINDS,
+  type AreaCell,
+  type BackgroundLayer,
+  type ColorLayer,
+  type GradientLayer,
+  type GradientStop,
+  type ImageAdjust,
+  type ImageLayer,
+  type ShapeKind,
+  type ShapeLayer,
 } from '../core/state';
+import { useObjectUrl } from '../hooks/useObjectUrl';
+import { notifyUndoable } from '../store/history';
 import {
   useWallStore,
   type BackgroundLayerPatch,
 } from '../store/useWallStore';
 import { CropModal } from './CropModal';
-import { Button, Select, Switch, toast } from './ui';
+import { Button, NumberInput, RangeInput, Select, Switch, toast } from './ui';
 import { cn } from './ui/cn';
+import { ChevronLeftIcon, CloseIcon, PlusIcon } from './ui/icons';
 
 // ---------------------------------------------------------------------------
 // 共通: 画像ファイルの取り込み
@@ -94,15 +117,176 @@ function OpacityRow({ value, onChange }: OpacityRowProps) {
         </span>
         <span className="text-xs text-fg-subtle">{percent}%</span>
       </div>
-      <input
-        type="range"
+      <RangeInput
         min={0}
         max={100}
         value={percent}
         onChange={(e) => onChange(Number(e.target.value) / 100)}
-        className="w-full cursor-pointer accent-blue-600"
+        aria-label={t('background.opacity')}
+        aria-valuetext={`${percent}%`}
+        className="w-full cursor-pointer"
       />
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 共通: 整数のスライダ＋数値入力
+// ---------------------------------------------------------------------------
+
+interface SliderRowProps {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  /** 数値入力の後ろに付ける単位（px など）。 */
+  unit?: string;
+  onChange: (next: number) => void;
+}
+
+/** 数値入力は [min, max] の整数に丸めて渡す（空欄・不正値は 0）。 */
+function SliderRow({ label, value, min, max, unit, onChange }: SliderRowProps) {
+  return (
+    <div>
+      <div className="mb-1 flex items-center justify-between">
+        <span className="text-xs font-medium text-fg-muted">{label}</span>
+        <span className="flex items-center gap-1 text-xs text-fg-subtle">
+          <NumberInput
+            min={min}
+            max={max}
+            value={value}
+            onChange={(e) => onChange(toSafeInt(e.target.value, 0, min, max))}
+            aria-label={label}
+            wrapperClassName="w-16"
+            className="h-6 w-full rounded border border-border-strong bg-surface px-1.5 text-xs text-fg"
+          />
+          {unit}
+        </span>
+      </div>
+      <RangeInput
+        min={min}
+        max={max}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        aria-label={label}
+        className="w-full cursor-pointer"
+      />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Shape 用: 角丸スライダ
+// ---------------------------------------------------------------------------
+
+interface CornerRadiusRowProps {
+  value: number; // px
+  /** 図形に収まる上限 px（maxCornerRadius）。 */
+  max: number;
+  onChange: (next: number) => void;
+}
+
+function CornerRadiusRow({ value, max, onChange }: CornerRadiusRowProps) {
+  const { t } = useTranslation();
+  // 図形を縮めると保存値が上限を超え得る（描画は上限で丸める）。表示は実際に効いている値にする
+  return (
+    <SliderRow
+      label={t('background.shape.cornerRadius')}
+      value={Math.min(value, max)}
+      min={0}
+      max={max}
+      unit="px"
+      onChange={onChange}
+    />
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Image 用: 色調補正・ぼかし
+// ---------------------------------------------------------------------------
+
+const NO_IMAGE_ADJUST: ImageAdjust = {
+  lightness: 0,
+  saturation: 0,
+  hue: 0,
+  blur: 0,
+};
+
+const IMAGE_ADJUST_UNIT: Record<keyof ImageAdjust, string | undefined> = {
+  lightness: undefined,
+  saturation: undefined,
+  hue: '°',
+  blur: 'px',
+};
+
+function ImageAdjustBox({
+  adjust,
+  onChange,
+}: {
+  adjust: ImageAdjust | undefined;
+  /** `undefined` で補正なしに戻す。 */
+  onChange: (next: ImageAdjust | undefined) => void;
+}) {
+  const { t } = useTranslation();
+  const current = adjust ?? NO_IMAGE_ADJUST;
+  return (
+    <div className="space-y-2 rounded-md bg-muted p-3">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-medium text-fg-muted">
+          {t('background.image.adjust.title')}
+        </span>
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={!hasImageAdjust(adjust)}
+          onClick={() => onChange(undefined)}
+        >
+          {t('background.image.adjust.reset')}
+        </Button>
+      </div>
+      {IMAGE_ADJUST_KEYS.map((key) => (
+        <SliderRow
+          key={key}
+          label={t(`background.image.adjust.${key}`)}
+          value={current[key]}
+          min={IMAGE_ADJUST_RANGES[key].min}
+          max={IMAGE_ADJUST_RANGES[key].max}
+          unit={IMAGE_ADJUST_UNIT[key]}
+          onChange={(v) => onChange({ ...current, [key]: v })}
+        />
+      ))}
+      <p className="text-xs text-fg-subtle">
+        {t('background.image.adjust.hint')}
+      </p>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 共通: 単色の選択（color / shape レイヤ）
+// ---------------------------------------------------------------------------
+
+/** カラーピッカーと現在値（色見本 + hex）。親の `space-y-*` に 2 行として並ぶ。 */
+function ColorField({
+  color,
+  onChange,
+}: {
+  color: string;
+  onChange: (next: string) => void;
+}) {
+  return (
+    <>
+      <div className="flex justify-center">
+        <HexColorPicker color={color} onChange={onChange} />
+      </div>
+      <div className="flex items-center gap-2">
+        <span
+          className="h-7 w-7 rounded border border-border-strong"
+          style={{ background: color }}
+        />
+        <code className="rounded bg-muted px-2 py-1 text-xs">{color}</code>
+      </div>
+    </>
   );
 }
 
@@ -119,21 +303,10 @@ function ColorEditor({
 }) {
   return (
     <div className="space-y-3">
-      <div className="flex justify-center">
-        <HexColorPicker
-          color={layer.color}
-          onChange={(c) => onUpdate({ type: 'color', color: c })}
-        />
-      </div>
-      <div className="flex items-center gap-2">
-        <span
-          className="h-7 w-7 rounded border border-border-strong"
-          style={{ background: layer.color }}
-        />
-        <code className="rounded bg-muted px-2 py-1 text-xs">
-          {layer.color}
-        </code>
-      </div>
+      <ColorField
+        color={layer.color}
+        onChange={(c) => onUpdate({ type: 'color', color: c })}
+      />
       <OpacityRow
         value={layer.opacity}
         onChange={(v) => onUpdate({ type: 'color', opacity: v })}
@@ -164,21 +337,7 @@ function ImageEditor({
     { value: 'manual', label: t('background.image.fit.manual') },
   ];
 
-  const previewUrl = useMemo(() => {
-    if (layer.source.kind !== 'inline') return null;
-    return URL.createObjectURL(
-      // Uint8Array<ArrayBufferLike> → BlobPart 非互換（TS 5.7+）。実 ArrayBuffer 由来なので絞り込む。
-      new Blob([layer.source.bytes as Uint8Array<ArrayBuffer>], {
-        type: layer.source.mimeType ?? 'image/png',
-      }),
-    );
-  }, [layer.source]);
-
-  useEffect(() => {
-    return () => {
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
-    };
-  }, [previewUrl]);
+  const previewUrl = useObjectUrl(layer.source);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   // 読み取り + デコード検証中。大きい画像だと秒単位かかるため、二重ピックで
@@ -267,11 +426,12 @@ function ImageEditor({
             className="h-20 w-20 rounded border border-border-strong bg-surface object-cover"
           />
         ) : (
-          <div className="flex h-20 w-20 items-center justify-center rounded border border-dashed border-border-strong text-[10px] text-fg-subtle">
+          <div className="flex h-20 w-20 items-center justify-center rounded border border-dashed border-border-strong text-xs text-fg-subtle">
             {t('background.image.none')}
           </div>
         )}
-        <div className="flex-1 space-y-2">
+        {/* 他のボタン列（レイヤ追加など）と同じ gap-2 で並べる */}
+        <div className="flex flex-1 flex-wrap gap-2">
           <input
             ref={fileInputRef}
             type="file"
@@ -305,57 +465,66 @@ function ImageEditor({
       />
 
       {layer.fit === 'manual' && (
-        <div className="rounded-md bg-violet-50 p-3">
+        <div className="rounded-md bg-violet-50 p-3 dark:bg-violet-500/10">
           <div className="mb-2 flex items-center justify-between">
-            <span className="text-xs font-medium text-violet-800">
+            <span className="text-xs font-medium text-violet-800 dark:text-violet-200">
               {t('background.image.manualTitle')}
             </span>
-            <span className="text-[11px] text-violet-600">
+            <span className="text-xs text-violet-600 dark:text-violet-300">
               {t('background.image.manualHint')}
             </span>
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <label className="text-xs text-violet-700">
+            <label className="text-xs text-violet-700 dark:text-violet-300">
               {t('areaEditor.x')}
-              <input
-                type="number"
+              <NumberInput
                 value={layer.transform?.x ?? 0}
                 onChange={handleTransformField('x')}
-                className="mt-0.5 h-8 w-full rounded border border-violet-300 px-1.5 text-xs"
+                wrapperClassName="mt-0.5"
+                stepperClassName="border-violet-300 dark:border-violet-500/40"
+                className="h-8 w-full rounded border border-violet-300 bg-surface px-1.5 text-xs text-fg dark:border-violet-500/40"
               />
             </label>
-            <label className="text-xs text-violet-700">
+            <label className="text-xs text-violet-700 dark:text-violet-300">
               {t('areaEditor.y')}
-              <input
-                type="number"
+              <NumberInput
                 value={layer.transform?.y ?? 0}
                 onChange={handleTransformField('y')}
-                className="mt-0.5 h-8 w-full rounded border border-violet-300 px-1.5 text-xs"
+                wrapperClassName="mt-0.5"
+                stepperClassName="border-violet-300 dark:border-violet-500/40"
+                className="h-8 w-full rounded border border-violet-300 bg-surface px-1.5 text-xs text-fg dark:border-violet-500/40"
               />
             </label>
-            <label className="text-xs text-violet-700">
+            <label className="text-xs text-violet-700 dark:text-violet-300">
               {t('areaEditor.width')}
-              <input
-                type="number"
+              <NumberInput
                 min={1}
                 value={layer.transform?.width ?? resolution.width}
                 onChange={handleTransformField('width')}
-                className="mt-0.5 h-8 w-full rounded border border-violet-300 px-1.5 text-xs"
+                wrapperClassName="mt-0.5"
+                stepperClassName="border-violet-300 dark:border-violet-500/40"
+                className="h-8 w-full rounded border border-violet-300 bg-surface px-1.5 text-xs text-fg dark:border-violet-500/40"
               />
             </label>
-            <label className="text-xs text-violet-700">
+            <label className="text-xs text-violet-700 dark:text-violet-300">
               {t('areaEditor.height')}
-              <input
-                type="number"
+              <NumberInput
                 min={1}
                 value={layer.transform?.height ?? resolution.height}
                 onChange={handleTransformField('height')}
-                className="mt-0.5 h-8 w-full rounded border border-violet-300 px-1.5 text-xs"
+                wrapperClassName="mt-0.5"
+                stepperClassName="border-violet-300 dark:border-violet-500/40"
+                className="h-8 w-full rounded border border-violet-300 bg-surface px-1.5 text-xs text-fg dark:border-violet-500/40"
               />
             </label>
           </div>
         </div>
       )}
+
+      <ImageAdjustBox
+        adjust={layer.adjust}
+        onChange={(adjust) => onUpdate({ type: 'image', adjust })}
+      />
 
       <OpacityRow
         value={layer.opacity}
@@ -436,15 +605,16 @@ function GradientEditor({
           </span>
           <span className="text-xs text-fg-subtle">{layer.angle}°</span>
         </div>
-        <input
-          type="range"
+        <RangeInput
           min={0}
           max={360}
           value={layer.angle}
           onChange={(e) =>
             onUpdate({ type: 'gradient', angle: Number(e.target.value) })
           }
-          className="w-full cursor-pointer accent-blue-600"
+          aria-label={t('background.gradient.angle')}
+          aria-valuetext={`${layer.angle}°`}
+          className="w-full cursor-pointer"
         />
       </div>
 
@@ -475,15 +645,16 @@ function GradientEditor({
                 style={{ background: stop.color }}
                 aria-label={t('background.gradient.selectStopAria', { n: i + 1 })}
               />
-              <input
-                type="range"
+              <RangeInput
                 min={0}
                 max={100}
                 value={Math.round(stop.offset * 100)}
                 onChange={(e) =>
                   handleStopOffset(i, Number(e.target.value) / 100)
                 }
-                className="flex-1 cursor-pointer accent-blue-600"
+                aria-label={t('background.gradient.stopOffsetAria', { n: i + 1 })}
+                aria-valuetext={`${Math.round(stop.offset * 100)}%`}
+                className="flex-1 cursor-pointer"
               />
               <span className="w-10 text-right text-xs text-fg-subtle">
                 {Math.round(stop.offset * 100)}%
@@ -492,10 +663,10 @@ function GradientEditor({
                 type="button"
                 disabled={layer.stops.length <= 2}
                 onClick={() => handleRemoveStop(i)}
-                className="cursor-pointer text-xs text-red-600 disabled:cursor-not-allowed disabled:opacity-30"
+                className="flex h-6 w-6 cursor-pointer items-center justify-center rounded text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent dark:text-red-400 dark:hover:bg-red-500/15"
                 aria-label={t('background.delete')}
               >
-                ×
+                <CloseIcon className="size-3.5" />
               </button>
             </li>
           ))}
@@ -527,6 +698,81 @@ function GradientEditor({
 // Shape レイヤ
 // ---------------------------------------------------------------------------
 
+/**
+ * 図形をエリア（＋余白）に合わせる。適用時点のスナップショットで、エリアとは連動しない。
+ * layout の購読をここに閉じ、エリアのドラッグ中に ShapeEditor（カラーピッカー等）ごと
+ * 再描画しないようにする。
+ */
+function FitToAreaBox({ onFit }: { onFit: (transform: AreaCell) => void }) {
+  const { t } = useTranslation();
+  const layout = useWallStore((s) => s.wall.layout);
+  // 対象と余白は図形を切り替えても引き継ぐ（同じ余白で並べる用途が多いため）
+  const [fitTarget, setFitTarget] = useState('main');
+  const [fitPadding, setFitPadding] = useState(0);
+
+  // 非表示の locked / preparing はパックに出ない（ゲームに存在しない）ので候補から外す
+  const fitOptions = [
+    { value: 'main', label: t('areas.main'), cell: layout.main },
+    ...(layout.locked.show
+      ? [{ value: 'locked', label: t('areas.locked'), cell: layout.locked }]
+      : []),
+    ...layout.preparing.flatMap((p, i) =>
+      p.show
+        ? [
+            {
+              value: `preparing:${i}`,
+              label: t('areas.preparing', { n: i + 1 }),
+              cell: p,
+            },
+          ]
+        : [],
+    ),
+  ].map((o) => ({ ...o, hint: `${o.cell.width}×${o.cell.height}` }));
+  // 選んでいたエリアが非表示・削除になったら main に戻す
+  const fitSelected =
+    fitOptions.find((o) => o.value === fitTarget) ?? fitOptions[0];
+
+  return (
+    <div className="space-y-2 rounded-md bg-muted p-3">
+      <span className="text-xs font-medium text-fg-muted">
+        {t('background.shape.fitTitle')}
+      </span>
+      <Select
+        label={t('background.shape.fitArea')}
+        value={fitSelected.value}
+        onValueChange={setFitTarget}
+        options={fitOptions}
+      />
+      <div className="flex items-end gap-2">
+        <label className="flex-1 text-xs text-fg-muted">
+          {t('background.shape.fitPadding')}
+          <span className="mt-0.5 flex items-center gap-1">
+            <NumberInput
+              value={fitPadding}
+              onChange={(e) =>
+                setFitPadding(toSafeInt(e.target.value, 0, MIN_COORDINATE))
+              }
+              wrapperClassName="w-full"
+              className="h-8 w-full rounded border border-border-strong bg-surface px-1.5 text-xs text-fg"
+            />
+            px
+          </span>
+        </label>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => onFit(expandCell(fitSelected.cell, fitPadding))}
+        >
+          {t('background.shape.fitApply')}
+        </Button>
+      </div>
+      <p className="text-xs text-fg-subtle">
+        {t('background.shape.fitHint')}
+      </p>
+    </div>
+  );
+}
+
 function ShapeEditor({
   layer,
   onUpdate,
@@ -535,21 +781,19 @@ function ShapeEditor({
   onUpdate: (patch: BackgroundLayerPatch) => void;
 }) {
   const { t } = useTranslation();
-  const shapeOptions = [
-    { value: 'rect', label: t('background.shape.kind.rect') },
-    { value: 'triangle', label: t('background.shape.kind.triangle') },
-    { value: 'ellipse', label: t('background.shape.kind.ellipse') },
-  ];
+  const shapeOptions = SHAPE_KINDS.map((kind) => ({
+    value: kind,
+    label: t(`background.shape.kind.${kind}`),
+  }));
 
+  // 整数化と幅・高さ 1 以上はストア（floorLayerNumbers）が保証する
   const handleTransformField =
     (field: 'x' | 'y' | 'width' | 'height') =>
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const v = Math.floor(Number(e.target.value) || 0);
-      const next = { ...layer.transform, [field]: v };
-      if (next.width < 1) next.width = 1;
-      if (next.height < 1) next.height = 1;
-      onUpdate({ type: 'shape', transform: next });
-    };
+    (e: React.ChangeEvent<HTMLInputElement>) =>
+      onUpdate({
+        type: 'shape',
+        transform: { ...layer.transform, [field]: Number(e.target.value) },
+      });
 
   // 高さを幅に揃える（正方形・正円にする）
   const handleSquare = () =>
@@ -576,28 +820,17 @@ function ShapeEditor({
         options={shapeOptions}
       />
 
-      <div className="flex justify-center">
-        <HexColorPicker
-          color={layer.color}
-          onChange={(c) => onUpdate({ type: 'shape', color: c })}
-        />
-      </div>
-      <div className="flex items-center gap-2">
-        <span
-          className="h-7 w-7 rounded border border-border-strong"
-          style={{ background: layer.color }}
-        />
-        <code className="rounded bg-muted px-2 py-1 text-xs">
-          {layer.color}
-        </code>
-      </div>
+      <ColorField
+        color={layer.color}
+        onChange={(c) => onUpdate({ type: 'shape', color: c })}
+      />
 
       <div className="rounded-md bg-muted p-3">
         <div className="mb-2 flex items-center justify-between">
           <span className="text-xs font-medium text-fg-muted">
             {t('background.shape.boundsTitle')}
           </span>
-          <span className="text-[11px] text-fg-subtle">
+          <span className="text-xs text-fg-subtle">
             {t('background.image.manualHint')}
           </span>
         </div>
@@ -605,12 +838,12 @@ function ShapeEditor({
           {fields.map((f) => (
             <label key={f.key} className="text-xs text-fg-muted">
               {f.label}
-              <input
-                type="number"
+              <NumberInput
                 min={f.min}
                 value={layer.transform[f.key]}
                 onChange={handleTransformField(f.key)}
-                className="mt-0.5 h-8 w-full rounded border border-border-strong bg-surface px-1.5 text-xs text-fg"
+                wrapperClassName="mt-0.5"
+                className="h-8 w-full rounded border border-border-strong bg-surface px-1.5 text-xs text-fg"
               />
             </label>
           ))}
@@ -625,6 +858,19 @@ function ShapeEditor({
         </Button>
       </div>
 
+      <FitToAreaBox
+        onFit={(transform) => onUpdate({ type: 'shape', transform })}
+      />
+
+      {/* 円には角が無いので出さない（値は保持し、種類を戻すと復帰する） */}
+      {layer.shape !== 'ellipse' && (
+        <CornerRadiusRow
+          value={layer.cornerRadius ?? 0}
+          max={maxCornerRadius(layer)}
+          onChange={(v) => onUpdate({ type: 'shape', cornerRadius: v })}
+        />
+      )}
+
       <OpacityRow
         value={layer.opacity}
         onChange={(v) => onUpdate({ type: 'shape', opacity: v })}
@@ -638,10 +884,14 @@ function ShapeEditor({
 // ---------------------------------------------------------------------------
 
 const TYPE_COLOR: Record<BackgroundLayer['type'], string> = {
-  color: 'bg-emerald-100 text-emerald-700 border-emerald-300',
-  image: 'bg-violet-100 text-violet-700 border-violet-300',
-  gradient: 'bg-amber-100 text-amber-700 border-amber-300',
-  shape: 'bg-sky-100 text-sky-700 border-sky-300',
+  color:
+    'bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-emerald-500/40',
+  image:
+    'bg-violet-100 text-violet-700 border-violet-300 dark:bg-violet-500/15 dark:text-violet-300 dark:border-violet-500/40',
+  gradient:
+    'bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-500/15 dark:text-amber-300 dark:border-amber-500/40',
+  shape:
+    'bg-sky-100 text-sky-700 border-sky-300 dark:bg-sky-500/15 dark:text-sky-300 dark:border-sky-500/40',
 };
 
 /**
@@ -672,15 +922,34 @@ function layerHeadline(
   }
 }
 
+/** 並び替えの読み上げで使う、各行の sortable に載せる値。 */
+interface LayerDragData {
+  name: string;
+  total: number;
+}
+
+/** 縦 2 列 × 3 段の点。ドラッグのつまみ。 */
+function GripIcon() {
+  return (
+    <svg viewBox="0 0 10 16" className="h-4 w-2.5" fill="currentColor" aria-hidden>
+      {[3, 8, 13].map((cy) => (
+        <g key={cy}>
+          <circle cx="2.5" cy={cy} r="1.5" />
+          <circle cx="7.5" cy={cy} r="1.5" />
+        </g>
+      ))}
+    </svg>
+  );
+}
+
 interface LayerListItemProps {
   layer: BackgroundLayer;
+  /** 一覧での位置（0 = 一番上 = 最も手前）。 */
   index: number;
   total: number;
-  selected: boolean;
+  /** 編集画面を開く。 */
   onSelect: () => void;
   onVisibleChange: (next: boolean) => void;
-  onMoveUp: () => void;
-  onMoveDown: () => void;
   onDelete: () => void;
 }
 
@@ -688,104 +957,217 @@ function LayerListItem({
   layer,
   index,
   total,
-  selected,
   onSelect,
   onVisibleChange,
-  onMoveUp,
-  onMoveDown,
   onDelete,
 }: LayerListItemProps) {
   const { t } = useTranslation();
   const headline = layerHeadline(layer, t);
-  // アクション系（visible toggle / 並び替え / 削除）はクリックを行全体まで伝搬させない
-  const stop = (e: React.MouseEvent | React.PointerEvent | React.KeyboardEvent) => {
-    e.stopPropagation();
-  };
+  const typeLabel = t(`background.type.${layer.type}`);
+  const name = `${typeLabel} ${headline}`;
+  // つまみ（handleRef）からだけドラッグを始める。行全体にすると、Switch や見出しの
+  // クリック・テキスト選択とドラッグの開始がぶつかるため。
+  const { ref, handleRef, isDragging } = useSortable({
+    id: layer.id,
+    index,
+    data: { name, total } satisfies LayerDragData,
+  });
 
+  // 編集画面を開くのは「種別＋見出し」のボタン。行全体を role=button にすると、中の Switch や
+  // 並び替え・削除が入れ子の操作になり、支援技術から個別に扱えなくなるため。
   return (
     <li
-      role="button"
-      tabIndex={0}
-      aria-pressed={selected}
-      onClick={onSelect}
-      onKeyDown={(e) => {
-        // 子要素（Switch / 並び替え / 削除）からバブルしたキー操作は横取りしない
-        if (e.target !== e.currentTarget) return;
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onSelect();
-        }
-      }}
+      ref={ref}
       className={cn(
-        'group flex cursor-pointer items-center gap-2 rounded-md border bg-surface p-2 transition-colors',
-        'focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500',
-        selected
-          ? // ring-blue-100 はダーク面（neutral-900）で白く浮くため、
-            // ダークのみ半透明ブルーのハローに切り替える。
-            'border-blue-400 ring-2 ring-blue-100 dark:border-blue-500 dark:ring-blue-500/30'
-          : 'border-border hover:border-border-strong hover:bg-muted',
+        'group flex items-center gap-2 rounded-md border bg-surface p-2 transition-colors',
+        isDragging && 'relative z-10 shadow-lg',
+        'border-border hover:border-border-strong hover:bg-muted',
       )}
       title={headline}
     >
+      <button
+        ref={handleRef}
+        type="button"
+        data-drag-handle={layer.id}
+        aria-label={t('background.dragHandle', { name })}
+        // 未指定だと dnd-kit が英語の "draggable" を入れる
+        aria-roledescription={t('background.dnd.roleDescription')}
+        className="-ml-1 flex h-7 w-5 flex-shrink-0 cursor-grab items-center justify-center rounded text-fg-subtle hover:bg-muted hover:text-fg focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 active:cursor-grabbing"
+      >
+        <GripIcon />
+      </button>
       {/* ラッパーを flex 化。inline のままだと中の Switch がベースラインに乗り、
           下にディセンダ分の余白ができて上寄りに見えるため。 */}
-      <span
-        className="flex flex-shrink-0 items-center"
-        onClick={stop}
-        onPointerDown={stop}
-      >
-        <Switch checked={layer.visible} onChange={onVisibleChange} />
+      <span className="flex flex-shrink-0 items-center">
+        <Switch
+          checked={layer.visible}
+          onChange={onVisibleChange}
+          aria-label={t('background.layerVisible', { name })}
+        />
       </span>
-      <span
-        className={cn(
-          'flex-shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-semibold',
-          TYPE_COLOR[layer.type],
-        )}
+      <button
+        type="button"
+        data-layer-open={layer.id}
+        aria-label={t('background.openLayer', { name })}
+        onClick={onSelect}
+        className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 self-stretch rounded text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
       >
-        {t(`background.type.${layer.type}`)}
-      </span>
-      <span className="flex-1 truncate text-left text-xs text-fg-muted group-hover:text-fg">
-        {headline}
-      </span>
-      <div
-        className="flex flex-shrink-0 items-center gap-0.5"
-        onClick={stop}
-        onPointerDown={stop}
+        <span
+          className={cn(
+            'flex-shrink-0 rounded border px-1.5 py-0.5 text-xs font-semibold',
+            TYPE_COLOR[layer.type],
+          )}
+        >
+          {typeLabel}
+        </span>
+        {/* 読み上げ名で種別と見出しがつながらないように（flex 内の空白は描画されない） */}{' '}
+        <span className="flex-1 truncate text-xs text-fg-muted group-hover:text-fg">
+          {headline}
+        </span>
+      </button>
+      <button
+        type="button"
+        onClick={onDelete}
+        className="flex h-7 w-7 flex-shrink-0 cursor-pointer items-center justify-center rounded text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/15"
+        title={t('background.delete')}
+        aria-label={t('background.delete')}
       >
-        <button
-          type="button"
-          disabled={index === 0}
-          onClick={onMoveUp}
-          className="h-7 w-7 cursor-pointer rounded text-xs text-fg-subtle hover:bg-muted disabled:cursor-not-allowed disabled:opacity-30"
-          title={t('background.moveBack')}
-        >
-          ↑
-        </button>
-        <button
-          type="button"
-          disabled={index === total - 1}
-          onClick={onMoveDown}
-          className="h-7 w-7 cursor-pointer rounded text-xs text-fg-subtle hover:bg-muted disabled:cursor-not-allowed disabled:opacity-30"
-          title={t('background.moveFront')}
-        >
-          ↓
-        </button>
-        <button
-          type="button"
-          onClick={onDelete}
-          className="h-7 w-7 cursor-pointer rounded text-xs text-red-600 hover:bg-red-50"
-          title={t('background.delete')}
-        >
-          ×
-        </button>
-      </div>
+        <CloseIcon className="size-3.5" />
+      </button>
     </li>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// レイヤ追加メニュー
+// ---------------------------------------------------------------------------
+
+type AddLayerKind = 'color' | 'image' | 'gradient' | 'shape';
+const ADD_LAYER_KINDS: readonly AddLayerKind[] = [
+  'color',
+  'image',
+  'gradient',
+  'shape',
+];
+
+interface AddLayerMenuProps {
+  disabled?: boolean;
+  onPick: (kind: AddLayerKind) => void;
+  /** 追加ボタン。親が一覧に戻ったときのフォーカス先にも使う。 */
+  buttonRef: React.RefObject<HTMLButtonElement | null>;
+}
+
+/**
+ * 「レイヤを追加」ボタンと、押すと上に開く 4 種類の選択肢（メニュー）。
+ * キーボード: ↑/↓ で移動、Enter/Space で決定、Esc / 外側クリックで閉じてボタンへ戻る。
+ */
+function AddLayerMenu({ disabled, onPick, buttonRef }: AddLayerMenuProps) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const menuId = useId();
+
+  const close = (refocus: boolean) => {
+    setOpen(false);
+    if (refocus) buttonRef.current?.focus();
+  };
+
+  // 開いたら先頭の選択肢へ。外側を押したら閉じる
+  useEffect(() => {
+    if (!open) return;
+    itemRefs.current[0]?.focus();
+    const onDown = (e: PointerEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('pointerdown', onDown);
+    return () => document.removeEventListener('pointerdown', onDown);
+  }, [open]);
+
+  const onMenuKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const items = itemRefs.current.filter(
+      (el): el is HTMLButtonElement => el != null,
+    );
+    const i = items.indexOf(document.activeElement as HTMLButtonElement);
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const d = e.key === 'ArrowDown' ? 1 : -1;
+      items[(i + d + items.length) % items.length]?.focus();
+    } else if (e.key === 'Home' || e.key === 'End') {
+      e.preventDefault();
+      items[e.key === 'Home' ? 0 : items.length - 1]?.focus();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      close(true);
+    } else if (e.key === 'Tab') {
+      setOpen(false);
+    }
+  };
+
+  return (
+    <div ref={rootRef} className="relative">
+      <Button
+        ref={buttonRef}
+        disabled={disabled}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-controls={open ? menuId : undefined}
+        onClick={() => setOpen((v) => !v)}
+        className="w-full"
+      >
+        <PlusIcon />
+        {t('background.addLayer')}
+      </Button>
+      {open && (
+        <div
+          id={menuId}
+          role="menu"
+          aria-label={t('background.addLayer')}
+          onKeyDown={onMenuKeyDown}
+          // フッターに固定したボタンの上に開く
+          className="absolute right-0 bottom-full left-0 z-30 mb-2 overflow-hidden rounded-lg border border-border bg-surface py-1 shadow-lg"
+        >
+          {ADD_LAYER_KINDS.map((kind, i) => (
+            <button
+              key={kind}
+              ref={(el) => {
+                itemRefs.current[i] = el;
+              }}
+              type="button"
+              role="menuitem"
+              tabIndex={-1}
+              onClick={() => {
+                close(true);
+                onPick(kind);
+              }}
+              className="flex w-full cursor-pointer items-start gap-3 px-3 py-2 text-left hover:bg-muted focus:bg-muted focus:outline-none"
+            >
+              <span
+                className={cn(
+                  'mt-0.5 flex-shrink-0 rounded border px-1.5 py-0.5 text-xs font-semibold',
+                  TYPE_COLOR[kind],
+                )}
+              >
+                {t(`background.type.${kind}`)}
+              </span>
+              <span className="text-xs leading-relaxed text-fg-muted">
+                {t(`background.addMenu.${kind}`)}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
 // ---------------------------------------------------------------------------
 // BackgroundEditor 本体
 // ---------------------------------------------------------------------------
+
+// DragDropProvider は modifiers / plugins が別の配列になるたびに manager へ入れ直すので、
+// 毎レンダー作らない。
+const DND_MODIFIERS = [RestrictToVerticalAxis];
 
 export function BackgroundEditor() {
   const { t } = useTranslation();
@@ -908,18 +1290,56 @@ export function BackgroundEditor() {
     selectBackgroundLayer(id);
   };
 
-  const moveUp = (i: number) => {
-    if (i === 0) return;
-    const ids = layers.map((l) => l.id);
-    [ids[i - 1], ids[i]] = [ids[i], ids[i - 1]];
-    reorderBackgroundLayers(ids);
-  };
-  const moveDown = (i: number) => {
-    if (i === layers.length - 1) return;
-    const ids = layers.map((l) => l.id);
-    [ids[i + 1], ids[i]] = [ids[i], ids[i + 1]];
-    reorderBackgroundLayers(ids);
-  };
+  // 一覧は上ほど手前。state（描画順）は先頭が奥なので、表示だけ反転する。
+  const listedLayers = useMemo(() => layers.slice().reverse(), [layers]);
+
+  // 置いた後、行の並び替えでつまみからフォーカスが外れるので、動かした行のつまみへ戻す
+  // （キーボードで続けて操作できるように）。
+  const refocusHandleRef = useRef<string | null>(null);
+  useEffect(() => {
+    const id = refocusHandleRef.current;
+    if (!id) return;
+    refocusHandleRef.current = null;
+    document
+      .querySelector<HTMLElement>(`[data-drag-handle="${CSS.escape(id)}"]`)
+      ?.focus();
+  }, [layers]);
+
+  // 読み上げの文言。レイヤ名と総数は各行の sortable の data（LayerDragData）から読む
+  // （plugins を作り直すと manager のプラグインが差し替わるため、依存は t だけにする）。
+  const dndPlugins = useMemo(() => {
+    const announce = (
+      key: 'picked' | 'moved' | 'dropped',
+      source: DragStartEvent['operation']['source'],
+    ) => {
+      if (!isSortable(source)) return undefined;
+      const data = source.data as LayerDragData;
+      return t(`background.dnd.${key}`, {
+        name: data.name,
+        position: source.index + 1,
+        total: data.total,
+      });
+    };
+    return [
+      ...defaultPreset.plugins.filter((p) => p !== Accessibility),
+      Accessibility.configure({
+        screenReaderInstructions: { draggable: t('background.dnd.instructions') },
+        announcements: {
+          dragstart: ({ operation }: DragStartEvent) =>
+            announce('picked', operation.source),
+          dragover: ({ operation }: DragOverEvent) =>
+            announce('moved', operation.source),
+          dragend: ({ operation, canceled }: DragEndEvent) =>
+            canceled
+              ? t('background.dnd.canceled', {
+                  name: (operation.source?.data as LayerDragData | undefined)
+                    ?.name,
+                })
+              : announce('dropped', operation.source),
+        },
+      }),
+    ];
+  }, [t]);
 
   const handleVisibleChange = (layer: BackgroundLayer, next: boolean) => {
     // 判別共用体の `type` ごとに patch 型が変わるが、`visible` 単独更新は
@@ -930,22 +1350,165 @@ export function BackgroundEditor() {
     } as BackgroundLayerPatch);
   };
 
-  // Editor 部分の見出し
-  const editorTitle = selectedLayer
-    ? t('background.editLayer', {
-        type: t(`background.type.${selectedLayer.type}`),
-      })
-    : t('background.selectLayer');
+  // 一覧 ⇄ 編集の切り替えでフォーカスを運ぶ。編集画面に入ったら「戻る」へ、一覧に戻ったら
+  // 開いていた行（削除した場合は「レイヤを追加」）へ。画面ごと入れ替わるので、そのままだと
+  // フォーカスが body に落ちてキーボード操作の位置を見失う。
+  const backButtonRef = useRef<HTMLButtonElement>(null);
+  const addLayerRef = useRef<HTMLButtonElement>(null);
+  const lastOpenedRef = useRef<string | null>(null);
+  const editingId = selectedLayer?.id ?? null;
+  useEffect(() => {
+    if (editingId) {
+      lastOpenedRef.current = editingId;
+      backButtonRef.current?.focus();
+      return;
+    }
+    const prev = lastOpenedRef.current;
+    if (!prev) return;
+    lastOpenedRef.current = null;
+    const row = document.querySelector<HTMLElement>(
+      `[data-layer-open="${CSS.escape(prev)}"]`,
+    );
+    (row ?? addLayerRef.current)?.focus();
+  }, [editingId]);
 
   return (
     <>
-      <div className="flex h-full flex-col gap-3">
-        {/* 上段: 追加ボタン群（固定） */}
-        <section className="flex-shrink-0 space-y-2">
-          <div className="flex flex-wrap gap-2">
-            <Button size="sm" onClick={handleAddColor}>
-              {t('background.addColor')}
+      {selectedLayer ? (
+        // 編集画面: 一覧と入れ替わる（サイドバーの見出し・取り消しはそのまま）
+        <div className="flex flex-col gap-3">
+          <div>
+            <Button
+              ref={backButtonRef}
+              size="sm"
+              variant="ghost"
+              onClick={() => selectBackgroundLayer(null)}
+              className="-ml-2 gap-1 pl-1.5"
+            >
+              <ChevronLeftIcon />
+              {t('background.back')}
             </Button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span
+              className={cn(
+                'flex-shrink-0 rounded border px-1.5 py-0.5 text-xs font-semibold',
+                TYPE_COLOR[selectedLayer.type],
+              )}
+            >
+              {t(`background.type.${selectedLayer.type}`)}
+            </span>
+            <h3 className="min-w-0 flex-1 truncate text-[15px] font-semibold text-fg">
+              {layerHeadline(selectedLayer, t)}
+            </h3>
+            <Switch
+              checked={selectedLayer.visible}
+              onChange={(b) => handleVisibleChange(selectedLayer, b)}
+              aria-label={t('background.layerVisible', {
+                name: t(`background.type.${selectedLayer.type}`),
+              })}
+            />
+            <button
+              type="button"
+              onClick={() => {
+                removeBackgroundLayer(selectedLayer.id);
+                notifyUndoable(t('history.deleted.layer'));
+              }}
+              className="flex h-7 w-7 flex-shrink-0 cursor-pointer items-center justify-center rounded text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/15"
+              title={t('background.delete')}
+              aria-label={t('background.delete')}
+            >
+              <CloseIcon className="size-3.5" />
+            </button>
+          </div>
+
+          <div className="border-t border-border pt-3">
+            {selectedLayer.type === 'color' && (
+              <ColorEditor
+                layer={selectedLayer}
+                onUpdate={(p) => updateBackgroundLayer(selectedLayer.id, p)}
+              />
+            )}
+            {selectedLayer.type === 'image' && (
+              <ImageEditor
+                layer={selectedLayer}
+                onUpdate={(p) => updateBackgroundLayer(selectedLayer.id, p)}
+                onOpenCrop={() => setCropTargetId(selectedLayer.id)}
+              />
+            )}
+            {selectedLayer.type === 'gradient' && (
+              <GradientEditor
+                layer={selectedLayer}
+                onUpdate={(p) => updateBackgroundLayer(selectedLayer.id, p)}
+              />
+            )}
+            {selectedLayer.type === 'shape' && (
+              <ShapeEditor
+                layer={selectedLayer}
+                onUpdate={(p) => updateBackgroundLayer(selectedLayer.id, p)}
+              />
+            )}
+          </div>
+        </div>
+      ) : (
+        // 一覧画面: レイヤ一覧＋下端に固定した「レイヤを追加」。行を選ぶと編集画面に切り替わる
+        <div className="flex flex-1 flex-col gap-3">
+          <section className="flex flex-col gap-2">
+            <h3 className="text-[15px] font-semibold text-fg">
+              {t('background.layerListTitle', { count: layers.length })}
+            </h3>
+            {layers.length > 0 && (
+              <p className="text-xs text-fg-subtle">
+                {t('background.visibilityHint')}
+              </p>
+            )}
+            {layers.length === 0 ? (
+              <p className="rounded border border-dashed border-border-strong p-3 text-xs text-fg-subtle">
+                {t('background.layerListEmpty')}
+              </p>
+            ) : (
+              <DragDropProvider
+                modifiers={DND_MODIFIERS}
+                plugins={dndPlugins}
+                onDragEnd={(event) => {
+                  if (event.canceled) return;
+                  const { source } = event.operation;
+                  if (!isSortable(source) || source.initialIndex === source.index)
+                    return;
+                  const ids = listedLayers.map((l) => l.id);
+                  const [moved] = ids.splice(source.initialIndex, 1);
+                  ids.splice(source.index, 0, moved);
+                  refocusHandleRef.current = moved;
+                  reorderBackgroundLayers(ids.reverse());
+                }}
+              >
+                <ul className="flex flex-col gap-2">
+                  {listedLayers.map((layer, i) => (
+                    <LayerListItem
+                      key={layer.id}
+                      layer={layer}
+                      index={i}
+                      total={listedLayers.length}
+                      onSelect={() => selectBackgroundLayer(layer.id)}
+                      onVisibleChange={(b) => handleVisibleChange(layer, b)}
+                      onDelete={() => {
+                        removeBackgroundLayer(layer.id);
+                        notifyUndoable(t('history.deleted.layer'));
+                      }}
+                    />
+                  ))}
+                </ul>
+              </DragDropProvider>
+            )}
+            <p className="text-xs text-fg-subtle">
+              {t('background.drawOrderHint')}
+            </p>
+          </section>
+
+          {/* 追加はパネル下端に固定（一覧が長くてもスクロールせずに押せる）。
+              パネルの余白まで広げ、区切り線と地の色で一覧と分ける */}
+          <div className="sticky -bottom-4 z-10 -mx-4 -mb-4 mt-auto border-t border-border bg-surface px-4 py-3">
             <input
               ref={addImageInputRef}
               type="file"
@@ -958,103 +1521,19 @@ export function BackgroundEditor() {
                   addImageInputRef.current.value = '';
               }}
             />
-            <Button
-              size="sm"
+            <AddLayerMenu
+              buttonRef={addLayerRef}
               disabled={addingImage}
-              onClick={() => addImageInputRef.current?.click()}
-            >
-              {t('background.addImage')}
-            </Button>
-            <Button size="sm" onClick={handleAddGradient}>
-              {t('background.addGradient')}
-            </Button>
-            <Button size="sm" onClick={handleAddShape}>
-              {t('background.addShape')}
-            </Button>
+              onPick={(kind) => {
+                if (kind === 'color') handleAddColor();
+                else if (kind === 'image') addImageInputRef.current?.click();
+                else if (kind === 'gradient') handleAddGradient();
+                else handleAddShape();
+              }}
+            />
           </div>
-          <p className="text-[11px] text-fg-subtle">
-            {t('background.drawOrderHint')}
-          </p>
-        </section>
-
-        {/* 中段: レイヤ一覧（スクロール） */}
-        <section className="flex min-h-0 flex-1 flex-col gap-2">
-          <h3 className="flex-shrink-0 text-xs font-semibold uppercase tracking-wide text-fg-subtle">
-            {t('background.layerListTitle', { count: layers.length })}
-          </h3>
-          {layers.length > 0 && (
-            <p className="flex-shrink-0 text-[11px] text-fg-subtle">
-              {t('background.visibilityHint')}
-            </p>
-          )}
-          {layers.length === 0 ? (
-            <p className="flex-shrink-0 rounded border border-dashed border-border-strong p-3 text-xs text-fg-subtle">
-              {t('background.layerListEmpty')}
-            </p>
-          ) : (
-            <ul className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
-              {layers.map((layer, i) => (
-                <LayerListItem
-                  key={layer.id}
-                  layer={layer}
-                  index={i}
-                  total={layers.length}
-                  selected={selectedLayerId === layer.id}
-                  onSelect={() =>
-                    selectBackgroundLayer(
-                      selectedLayerId === layer.id ? null : layer.id,
-                    )
-                  }
-                  onVisibleChange={(b) => handleVisibleChange(layer, b)}
-                  onMoveUp={() => moveUp(i)}
-                  onMoveDown={() => moveDown(i)}
-                  onDelete={() => removeBackgroundLayer(layer.id)}
-                />
-              ))}
-            </ul>
-          )}
-        </section>
-
-        {/* 下段: エディタ（固定・必要なら内部スクロール） */}
-        <section className="flex max-h-[55%] flex-shrink-0 flex-col gap-2 border-t border-border pt-3">
-          <h3 className="flex-shrink-0 text-xs font-semibold uppercase tracking-wide text-fg-subtle">
-            {editorTitle}
-          </h3>
-          {selectedLayer ? (
-            <div className="min-h-0 flex-1 overflow-y-auto rounded-md border border-border bg-panel p-3">
-              {selectedLayer.type === 'color' && (
-                <ColorEditor
-                  layer={selectedLayer}
-                  onUpdate={(p) => updateBackgroundLayer(selectedLayer.id, p)}
-                />
-              )}
-              {selectedLayer.type === 'image' && (
-                <ImageEditor
-                  layer={selectedLayer}
-                  onUpdate={(p) => updateBackgroundLayer(selectedLayer.id, p)}
-                  onOpenCrop={() => setCropTargetId(selectedLayer.id)}
-                />
-              )}
-              {selectedLayer.type === 'gradient' && (
-                <GradientEditor
-                  layer={selectedLayer}
-                  onUpdate={(p) => updateBackgroundLayer(selectedLayer.id, p)}
-                />
-              )}
-              {selectedLayer.type === 'shape' && (
-                <ShapeEditor
-                  layer={selectedLayer}
-                  onUpdate={(p) => updateBackgroundLayer(selectedLayer.id, p)}
-                />
-              )}
-            </div>
-          ) : (
-            <p className="flex-shrink-0 rounded border border-dashed border-border-strong p-3 text-xs text-fg-subtle">
-              {t('background.selectPrompt')}
-            </p>
-          )}
-        </section>
-      </div>
+        </div>
+      )}
 
       {cropTarget && (
         <CropModal

@@ -15,15 +15,25 @@ export interface ExternalLinkProps {
   children?: React.ReactNode;
   /** 省略時は本文中リンクの既定スタイル。 */
   className?: string;
+  title?: string;
 }
 
-export function ExternalLink({ href, children, className }: ExternalLinkProps) {
+export function ExternalLink({
+  href,
+  children,
+  className,
+  title,
+}: ExternalLinkProps) {
   return (
     <a
       href={href}
+      title={title}
       target="_blank"
       rel="noopener noreferrer"
-      className={className ?? 'text-blue-600 underline hover:text-blue-800'}
+      className={
+        className ??
+        'text-blue-600 underline hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300'
+      }
       onClick={(e) => {
         e.preventDefault();
         void openExternalUrl(href).catch((err: unknown) => {

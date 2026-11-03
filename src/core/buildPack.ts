@@ -13,6 +13,7 @@
  *    adapter 側で resolve して inline に戻してから buildPack を呼ぶ責務。
  */
 
+import { resolveInline } from './binaryFields';
 import { floorArea } from './coords';
 import { addEditorMeta } from './editorMeta';
 import { buildLockMcmeta, effectiveDefaultWeight } from './lockWeights';
@@ -21,7 +22,6 @@ import { silentOggBytes } from './silentOgg';
 import {
   SOUND_EVENT_KEYS,
   type AreaCell,
-  type BinaryRef,
   type MainArea,
   type SoundEntry,
   type SoundEventKey,
@@ -403,24 +403,6 @@ function addSounds(pack: VirtualPack, state: WallState): void {
 // ===========================================================================
 // 内部ユーティリティ
 // ===========================================================================
-
-/**
- * 未解決 ref（＝未ロード）を黙って落とさない。欠けたまま書き出すと
- * 「見た目は普通なのにゲーム内で効かないパック」になり目視で気づけないため。
- *
- * ここに到達するのは不変条件違反（開発時のバグ）で、メッセージは開発者向け。
- * ユーザ操作の経路では、書き出しハンドラが `collectUnresolvedBinaryFields` で
- * 事前に検出し、翻訳済みの具体的なメッセージで中止する（契約は core/binaryFields.ts）。
- */
-function resolveInline(ref: BinaryRef): Uint8Array {
-  if (ref.kind === 'inline') {
-    return ref.bytes;
-  }
-  throw new Error(
-    `buildPack: received unresolved BinaryRef (storageKey=${ref.storageKey}). ` +
-      'Callers must check collectUnresolvedBinaryFields() before calling buildPack.',
-  );
-}
 
 /**
  * `OffscreenCanvas` を使うことで main thread / Web Worker のどちらでも同じコードで動かせる。

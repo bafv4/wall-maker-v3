@@ -8,6 +8,9 @@
  *  - width/height は 1 以上。空欄や 0/負は blur で 1 に丸める（x/y は負も許容、空欄は 0）。
  *  - 非有限値（"1e999" → Infinity、"abc" → NaN）は `toSafeInt`（coords.ts）で弾く。
  *
+ * 選択の連動: プレビューで選ばれているエリアのカードは強調し、見えていなければ一覧を
+ * スクロールして見せる。カード内を操作（クリック / フォーカス）するとそのエリアを選ぶ。
+ *
  * 再描画:
  *  - `memo` 済み。親は `area` / `onChange` / `onRemove` を安定参照で渡すこと
  *    （LayoutEditor 側で store の細粒度購読と useCallback/useMemo により担保）。
@@ -18,6 +21,7 @@ import {
   memo,
   useCallback,
   useEffect,
+  useRef,
   useState,
   type Dispatch,
   type SetStateAction,
@@ -25,7 +29,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { MAX_GRID_COUNT, MIN_COORDINATE, toSafeInt } from '../core/coords';
 import type { MainArea, Resolution, VisibleArea } from '../core/state';
-import { Button, Input, Switch } from './ui';
+import { Button, Input, RangeInput, Switch, cn } from './ui';
 
 export type AreaEditorTarget = MainArea | VisibleArea;
 
@@ -34,12 +38,20 @@ export type AreaEditorPatch = Partial<MainArea & VisibleArea>;
 export interface AreaEditorProps {
   area: AreaEditorTarget;
   title: string;
+  /** custom_layout.json 上のキー（main / locked / preparing）。見出しに補足として出す。 */
+  formatKey: string;
+  /** 見出しの下に出す、このエリアの役割の説明。 */
+  description: string;
   color: string;
   resolution: Resolution;
   onChange: (patch: AreaEditorPatch) => void;
   onRemove?: () => void;
   allowGridToggle?: boolean;
   showVisibilityToggle?: boolean;
+  /** プレビューで選択中か。 */
+  selected?: boolean;
+  /** カード内を操作したときにこのエリアを選ぶ。安定参照で渡すこと。 */
+  onSelect?: () => void;
 }
 
 function hasShow(a: AreaEditorTarget): a is VisibleArea {
@@ -61,14 +73,27 @@ function syncLocalNumber(
 function AreaEditorImpl({
   area,
   title,
+  formatKey,
+  description,
   color,
   resolution,
   onChange,
   onRemove,
   allowGridToggle = false,
   showVisibilityToggle = false,
+  selected = false,
+  onSelect,
 }: AreaEditorProps) {
   const { t } = useTranslation();
+  const sectionRef = useRef<HTMLElement>(null);
+
+  // プレビュー側で選ばれたら、カードの見出しが見える位置へ。自分の中を操作して選ばれたときは
+  // 既に見えているので動かさない（入力中に一覧が跳ねないように）。
+  useEffect(() => {
+    const el = sectionRef.current;
+    if (!selected || !el || el.contains(document.activeElement)) return;
+    el.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }, [selected]);
   // 数値入力（x/y/width/height/rows/columns/padding）は空欄入力を許すためローカル管理
   const [localX, setLocalX] = useState(String(area.x));
   const [localY, setLocalY] = useState(String(area.y));
@@ -172,14 +197,54 @@ function AreaEditorImpl({
 
   return (
     <section
-      className="rounded-lg border p-4"
-      style={{ borderColor: color }}
+      ref={sectionRef}
+      className="scroll-mt-4 rounded-lg border p-4 transition-shadow"
+      style={{
+        borderColor: color,
+        // 選択中は枠を太く見せる（エリア色の内側の線を足す）
+        boxShadow: selected ? `inset 0 0 0 1px ${color}` : undefined,
+      }}
+      onPointerDownCapture={onSelect}
+      onFocusCapture={onSelect}
     >
-      <header className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-semibold" style={{ color }}>
-          {title}
-        </h3>
-        <div className="flex items-center gap-3">
+      <header
+        className={cn('flex items-start justify-between gap-3', selected && 'mb-3')}
+      >
+        <div className="min-w-0">
+          <h3 className="text-[15px] font-semibold text-fg">
+            {/* 選択中のエリアだけ入力欄を開く。他は見出しと現在値の要約だけにして、
+                プレビューで選んだエリアのカードがどれかをすぐ見つけられるようにする */}
+            <button
+              type="button"
+              aria-expanded={selected}
+              onClick={onSelect}
+              className="flex cursor-pointer items-center gap-2 rounded text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            >
+              <span
+                aria-hidden
+                className="size-2.5 flex-shrink-0 rounded-full"
+                style={{ background: color }}
+              />
+              {title}
+              <code className="font-mono text-xs font-normal text-fg-subtle">
+                {formatKey}
+              </code>
+            </button>
+          </h3>
+          {selected ? (
+            <p className="mt-0.5 text-xs text-fg-subtle">{description}</p>
+          ) : (
+            <p className="mt-0.5 font-mono text-xs text-fg-subtle tabular-nums">
+              {t('areaEditor.summary', {
+                x: area.x,
+                y: area.y,
+                width: area.width,
+                height: area.height,
+              })}
+            </p>
+          )}
+        </div>
+        <div className="flex flex-shrink-0 items-center gap-3">
           {showVisibilityToggle && hasShow(area) && (
             <Switch
               checked={area.show}
@@ -195,136 +260,140 @@ function AreaEditorImpl({
         </div>
       </header>
 
-      <div className="rounded-md bg-panel p-3 mb-3">
-        <p className="mb-2 text-xs font-medium text-fg-muted">
-          {t('areaEditor.positionSize')}
-        </p>
-        <div className="grid grid-cols-2 gap-2">
-          <Input
-            label={t('areaEditor.x')}
-            type="number"
-            value={localX}
-            onChange={(e) => setLocalX(e.target.value)}
-            onBlur={commitX}
-          />
-          <Input
-            label={t('areaEditor.y')}
-            type="number"
-            value={localY}
-            onChange={(e) => setLocalY(e.target.value)}
-            onBlur={commitY}
-          />
-          <Input
-            label={t('areaEditor.width')}
-            type="number"
-            min={1}
-            value={localWidth}
-            onChange={(e) => setLocalWidth(e.target.value)}
-            onBlur={commitWidth}
-          />
-          <Input
-            label={t('areaEditor.height')}
-            type="number"
-            min={1}
-            value={localHeight}
-            onChange={(e) => setLocalHeight(e.target.value)}
-            onBlur={commitHeight}
-          />
-        </div>
-        <div className="mt-2 flex gap-2">
-          <Button variant="outline" size="sm" onClick={centerH}>
-            {t('areaEditor.centerH')}
-          </Button>
-          <Button variant="outline" size="sm" onClick={centerV}>
-            {t('areaEditor.centerV')}
-          </Button>
-        </div>
-      </div>
-
-      <div className="rounded-md bg-panel p-3">
-        <div className="mb-2 flex items-center justify-between">
-          <p className="text-xs font-medium text-fg-muted">
-            {t('areaEditor.grid')}
-          </p>
-          {allowGridToggle && (
-            <Switch
-              checked={useGrid}
-              onChange={(b) => onChange({ useGrid: b })}
-              label={t('areaEditor.useGrid')}
-            />
-          )}
-        </div>
-        {gridWarning && (
-          <p className="mb-2 rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-700">
-            {gridWarning}
-          </p>
-        )}
-        {showGridSection && (
-          <div className="space-y-3">
+      {selected && (
+        <>
+          <div className="rounded-md bg-panel p-3 mb-3">
+            <p className="mb-2 text-xs font-medium text-fg-muted">
+              {t('areaEditor.positionSize')}
+            </p>
             <div className="grid grid-cols-2 gap-2">
-              <div>
-                <Input
-                  label={t('areaEditor.rows')}
-                  type="number"
-                  min={1}
-                  value={localRows}
-                  onChange={(e) => setLocalRows(e.target.value)}
-                  onBlur={commitRows}
-                />
-                <input
-                  type="range"
-                  min={1}
-                  max={10}
-                  value={area.rows}
-                  onChange={(e) => onChange({ rows: Number(e.target.value) })}
-                  className="mt-2 w-full accent-blue-600"
-                />
-              </div>
-              <div>
-                <Input
-                  label={t('areaEditor.columns')}
-                  type="number"
-                  min={1}
-                  value={localColumns}
-                  onChange={(e) => setLocalColumns(e.target.value)}
-                  onBlur={commitColumns}
-                />
-                <input
-                  type="range"
-                  min={1}
-                  max={10}
-                  value={area.columns}
-                  onChange={(e) =>
-                    onChange({ columns: Number(e.target.value) })
-                  }
-                  className="mt-2 w-full accent-blue-600"
-                />
-              </div>
-            </div>
-            <div>
               <Input
-                label={t('areaEditor.padding')}
+                label={t('areaEditor.x')}
                 type="number"
-                min={0}
-                max={64}
-                value={localPadding}
-                onChange={(e) => setLocalPadding(e.target.value)}
-                onBlur={commitPadding}
+                value={localX}
+                onChange={(e) => setLocalX(e.target.value)}
+                onBlur={commitX}
               />
-              <input
-                type="range"
-                min={0}
-                max={64}
-                value={area.padding ?? 0}
-                onChange={(e) =>
-                  onChange({ padding: Number(e.target.value) })
-                }
-                className="mt-2 w-full accent-blue-600"
+              <Input
+                label={t('areaEditor.y')}
+                type="number"
+                value={localY}
+                onChange={(e) => setLocalY(e.target.value)}
+                onBlur={commitY}
               />
+              <Input
+                label={t('areaEditor.width')}
+                type="number"
+                min={1}
+                value={localWidth}
+                onChange={(e) => setLocalWidth(e.target.value)}
+                onBlur={commitWidth}
+              />
+              <Input
+                label={t('areaEditor.height')}
+                type="number"
+                min={1}
+                value={localHeight}
+                onChange={(e) => setLocalHeight(e.target.value)}
+                onBlur={commitHeight}
+              />
+            </div>
+            <div className="mt-2 flex gap-2">
+              <Button variant="outline" size="sm" onClick={centerH}>
+                {t('areaEditor.centerH')}
+              </Button>
+              <Button variant="outline" size="sm" onClick={centerV}>
+                {t('areaEditor.centerV')}
+              </Button>
             </div>
           </div>
-        )}
-      </div>
+
+          <div className="rounded-md bg-panel p-3">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-xs font-medium text-fg-muted">
+                {t('areaEditor.grid')}
+              </p>
+              {allowGridToggle && (
+                <Switch
+                  checked={useGrid}
+                  onChange={(b) => onChange({ useGrid: b })}
+                  label={t('areaEditor.useGrid')}
+                />
+              )}
+            </div>
+            {gridWarning && (
+              <p className="mb-2 rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300">
+                {gridWarning}
+              </p>
+            )}
+            {showGridSection && (
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Input
+                      label={t('areaEditor.rows')}
+                      type="number"
+                      min={1}
+                      value={localRows}
+                      onChange={(e) => setLocalRows(e.target.value)}
+                      onBlur={commitRows}
+                    />
+                    <RangeInput
+                      min={1}
+                      max={10}
+                      value={area.rows}
+                      onChange={(e) => onChange({ rows: Number(e.target.value) })}
+                      aria-label={t('areaEditor.rows')}
+                      className="mt-2 w-full"
+                    />
+                  </div>
+                  <div>
+                    <Input
+                      label={t('areaEditor.columns')}
+                      type="number"
+                      min={1}
+                      value={localColumns}
+                      onChange={(e) => setLocalColumns(e.target.value)}
+                      onBlur={commitColumns}
+                    />
+                    <RangeInput
+                      min={1}
+                      max={10}
+                      value={area.columns}
+                      onChange={(e) =>
+                        onChange({ columns: Number(e.target.value) })
+                      }
+                      aria-label={t('areaEditor.columns')}
+                      className="mt-2 w-full"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <Input
+                    label={t('areaEditor.padding')}
+                    type="number"
+                    min={0}
+                    max={64}
+                    value={localPadding}
+                    onChange={(e) => setLocalPadding(e.target.value)}
+                    onBlur={commitPadding}
+                  />
+                  <RangeInput
+                    min={0}
+                    max={64}
+                    value={area.padding ?? 0}
+                    onChange={(e) =>
+                      onChange({ padding: Number(e.target.value) })
+                    }
+                    aria-label={t('areaEditor.padding')}
+                    className="mt-2 w-full"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </section>
   );
 }

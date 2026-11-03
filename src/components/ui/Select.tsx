@@ -1,26 +1,37 @@
 /**
  * Select — カスタムポップオーバー版ドロップダウン。
  *
- * ネイティブ `<select>` ではなくボタン + 浮遊リストで実装。
+ * ネイティブ `<select>` ではなくトリガー + 浮遊リストで実装。
  *  - Portal で `document.body` 直下にレンダリングするため、深い stacking context や
  *    `overflow:hidden` の親の影響を受けない。
  *  - 外側クリック / Escape / スクロール / リサイズで自動的に閉じる。
- *  - 選択中の項目には ✓ を表示。hover とフォーカスでスタイルが変わる。
+ *  - 選択中の項目には ✓ を表示。hover とキーボードの現在位置でスタイルが変わる。
  *  - 旧 API（`onChange: ChangeEvent`）から `onValueChange(value: string)` に変更。
+ *
+ * キーボード（WAI-ARIA の select-only combobox）:
+ *  - フォーカスはトリガーに置いたまま、現在位置を `aria-activedescendant` で示す
+ *    （リストは body 直下にあり、Tab 順ではトリガーから遠いため）。
+ *  - 閉: ↓ / ↑ / Enter / Space で開く。Home / End は端を指して開く。
+ *  - 開: ↓ / ↑ / Home / End で移動、Enter / Space で決定、Escape / Tab で閉じる。
+ *  - トリガーを `<button>` にしないのは、Enter / Space のキー操作とネイティブの click
+ *    （Space は keyup で発火）が二重に開閉させるため。
  */
 
 import {
   forwardRef,
   useCallback,
   useEffect,
+  useId,
   useImperativeHandle,
   useLayoutEffect,
   useRef,
   useState,
+  type KeyboardEvent,
 } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
+import { CheckIcon, ChevronDownIcon } from './icons';
 
 export interface SelectOption {
   value: string;
@@ -36,9 +47,10 @@ export interface SelectProps {
   onValueChange: (next: string) => void;
   disabled?: boolean;
   id?: string;
-  name?: string;
   className?: string;
   placeholder?: string;
+  /** `label` を出さないときの読み上げ名（見出しが別の場所にある行など）。 */
+  'aria-label'?: string;
 }
 
 interface PopoverRect {
@@ -73,7 +85,7 @@ const OPTION_HEIGHT_ESTIMATE = 36;
 /** `<ul>` の上下 padding（`py-1` = 4px × 2）。 */
 const POPOVER_VERTICAL_PADDING = 8;
 
-export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select(
+export const Select = forwardRef<HTMLDivElement, SelectProps>(function Select(
   {
     label,
     options,
@@ -81,22 +93,36 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
     onValueChange,
     disabled,
     id,
-    name,
     className,
     placeholder,
+    'aria-label': ariaLabel,
   },
   forwardedRef,
 ) {
   // `placeholder` 未指定時の既定文言と空リスト時の文言は翻訳から取る。
   const { t } = useTranslation();
-  const triggerRef = useRef<HTMLButtonElement>(null);
+  const triggerRef = useRef<HTMLDivElement>(null);
   const popoverRef = useRef<HTMLUListElement>(null);
   const [open, setOpen] = useState(false);
   const [rect, setRect] = useState<PopoverRect | null>(null);
+  /** キーボード / hover の現在位置（開いている間だけ意味を持つ）。 */
+  const [activeIndex, setActiveIndex] = useState(-1);
+  /**
+   * 現在位置をキーボードで動かしているか。キーボード中は現在位置に枠を出す
+   * （フォーカスの代わりなので、背景色の差だけでは見分けられない）。hover では出さない。
+   */
+  const [keyboardNav, setKeyboardNav] = useState(false);
 
-  useImperativeHandle(forwardedRef, () => triggerRef.current as HTMLButtonElement);
+  useImperativeHandle(forwardedRef, () => triggerRef.current as HTMLDivElement);
 
-  const selectedLabel = options.find((o) => o.value === value)?.label;
+  const autoId = useId();
+  const triggerId = id ?? autoId;
+  const labelId = `${triggerId}-label`;
+  const listboxId = `${triggerId}-listbox`;
+  const optionId = (i: number) => `${triggerId}-option-${i}`;
+
+  const selectedIndex = options.findIndex((o) => o.value === value);
+  const selectedLabel = options[selectedIndex]?.label;
 
   // 実際のコンテンツ高さを見積もって、それが収まる側を優先する。
   // `PREFERRED_MAX_HEIGHT` (256px) をしきい値にすると 4 項目（~150px）でも
@@ -144,11 +170,70 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
         };
   }, [estimatedContentHeight]);
 
-  const handleOpen = useCallback(() => {
+  /** `initial` は開いたときの現在位置（省略時は選択中の項目）。 */
+  const handleOpen = useCallback(
+    (initial?: number) => {
+      if (disabled) return;
+      setRect(computeRect());
+      setActiveIndex(initial ?? Math.max(0, selectedIndex));
+      setOpen(true);
+    },
+    [disabled, computeRect, selectedIndex],
+  );
+
+  const choose = (i: number) => {
+    const option = options[i];
+    if (option) onValueChange(option.value);
+    setOpen(false);
+  };
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (disabled) return;
-    setRect(computeRect());
-    setOpen(true);
-  }, [disabled, computeRect]);
+    const last = options.length - 1;
+    if (e.key !== 'Tab' && e.key !== 'Escape') setKeyboardNav(true);
+    if (!open) {
+      if (['ArrowDown', 'ArrowUp', 'Enter', ' '].includes(e.key)) {
+        e.preventDefault();
+        handleOpen();
+      } else if (e.key === 'Home' || e.key === 'End') {
+        e.preventDefault();
+        handleOpen(e.key === 'Home' ? 0 : last);
+      }
+      return;
+    }
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setActiveIndex((i) => Math.min(last, i + 1));
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setActiveIndex((i) => Math.max(0, i - 1));
+        break;
+      case 'Home':
+        e.preventDefault();
+        setActiveIndex(0);
+        break;
+      case 'End':
+        e.preventDefault();
+        setActiveIndex(last);
+        break;
+      case 'Enter':
+      case ' ':
+        e.preventDefault();
+        choose(activeIndex);
+        break;
+      case 'Escape':
+        // Modal の Escape（window で拾う）まで届かせない。リストだけ閉じる。
+        e.preventDefault();
+        e.stopPropagation();
+        setOpen(false);
+        break;
+      case 'Tab':
+        setOpen(false);
+        break;
+    }
+  };
 
   // 開いている間: 外側操作で閉じる
   useEffect(() => {
@@ -159,12 +244,6 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
       if (popoverRef.current?.contains(t)) return;
       setOpen(false);
     };
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.stopPropagation();
-        setOpen(false);
-      }
-    };
     const onResize = () => setOpen(false);
     const onScroll = (e: Event) => {
       // popover 内部のスクロールでは閉じない
@@ -173,12 +252,10 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
       setOpen(false);
     };
     window.addEventListener('pointerdown', onPointerDown);
-    window.addEventListener('keydown', onKeyDown);
     window.addEventListener('resize', onResize);
     window.addEventListener('scroll', onScroll, true);
     return () => {
       window.removeEventListener('pointerdown', onPointerDown);
-      window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('resize', onResize);
       window.removeEventListener('scroll', onScroll, true);
     };
@@ -191,30 +268,51 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
     if (r) setRect(r);
   }, [open, computeRect]);
 
+  // キーボードで動かした現在位置をリスト内に見せる
+  useEffect(() => {
+    if (!open || activeIndex < 0) return;
+    document
+      .getElementById(`${triggerId}-option-${activeIndex}`)
+      ?.scrollIntoView({ block: 'nearest' });
+  }, [open, activeIndex, triggerId]);
+
   return (
     <div className={cn('flex flex-col gap-1', className)}>
       {label && (
-        <label
-          htmlFor={id}
+        // トリガーは <div> なので htmlFor が効かない。クリックでフォーカスだけ移す。
+        <span
+          id={labelId}
+          onClick={() => triggerRef.current?.focus()}
           className="text-xs font-medium text-fg-muted"
         >
           {label}
-        </label>
+        </span>
       )}
-      <button
+      <div
         ref={triggerRef}
-        id={id}
-        name={name}
-        type="button"
-        disabled={disabled}
+        id={triggerId}
+        role="combobox"
+        tabIndex={disabled ? -1 : 0}
+        aria-disabled={disabled || undefined}
         aria-haspopup="listbox"
         aria-expanded={open}
-        onClick={() => (open ? setOpen(false) : handleOpen())}
+        aria-controls={open ? listboxId : undefined}
+        aria-labelledby={label ? labelId : undefined}
+        aria-label={label ? undefined : ariaLabel}
+        aria-activedescendant={
+          open && activeIndex >= 0 ? optionId(activeIndex) : undefined
+        }
+        onClick={() => {
+          setKeyboardNav(false);
+          if (open) setOpen(false);
+          else handleOpen();
+        }}
+        onKeyDown={handleKeyDown}
         className={cn(
-          'inline-flex h-10 w-full items-center justify-between gap-2 rounded-md border border-border-strong bg-surface px-3 text-sm text-fg transition-colors',
+          'inline-flex h-10 w-full select-none items-center justify-between gap-2 rounded-md border border-border-strong bg-surface px-3 text-sm text-fg transition-colors',
           'cursor-pointer hover:border-slate-400 dark:hover:border-neutral-500',
           'focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:border-transparent',
-          'disabled:cursor-not-allowed disabled:bg-panel disabled:text-fg-subtle',
+          'aria-disabled:cursor-not-allowed aria-disabled:bg-panel aria-disabled:text-fg-subtle aria-disabled:hover:border-border-strong',
           open && 'border-blue-400 ring-2 ring-blue-500',
         )}
       >
@@ -226,23 +324,25 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
         >
           {selectedLabel ?? placeholder ?? t('common.selectPlaceholder')}
         </span>
-        <span
+        <ChevronDownIcon
           className={cn(
-            'flex-shrink-0 text-fg-subtle transition-transform',
+            'text-fg-subtle transition-transform',
             open && 'rotate-180',
           )}
-          aria-hidden
-        >
-          ▾
-        </span>
-      </button>
+        />
+      </div>
 
       {open &&
         rect &&
         createPortal(
           <ul
             ref={popoverRef}
+            id={listboxId}
             role="listbox"
+            aria-labelledby={label ? labelId : undefined}
+            aria-label={label ? undefined : ariaLabel}
+            // フォーカスはトリガーに残す（aria-activedescendant 方式）
+            onMouseDown={(e) => e.preventDefault()}
             className="fixed z-[70] overflow-y-auto rounded-md border border-border bg-surface py-1 shadow-lg ring-1 ring-black/5 dark:ring-white/10"
             style={{
               // mode に応じて top または bottom を排他で指定する。
@@ -260,39 +360,40 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
                 {t('common.noOptions')}
               </li>
             ) : (
-              options.map((o) => {
-                const active = o.value === value;
+              options.map((o, i) => {
+                const selected = o.value === value;
                 return (
-                  <li key={o.value}>
-                    <button
-                      type="button"
-                      role="option"
-                      aria-selected={active}
-                      onClick={() => {
-                        onValueChange(o.value);
-                        setOpen(false);
-                      }}
-                      className={cn(
-                        'flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm text-fg transition-colors',
-                        'cursor-pointer hover:bg-muted focus:bg-muted focus:outline-none',
-                        active &&
-                          'bg-accent-soft text-accent-soft-fg hover:bg-accent-soft',
-                      )}
-                    >
-                      <span className="flex flex-1 items-center gap-2 truncate">
-                        <span className="truncate">{o.label}</span>
-                        {o.hint && (
-                          <span className="text-[11px] text-fg-subtle">
-                            {o.hint}
-                          </span>
-                        )}
-                      </span>
-                      {active && (
-                        <span className="text-accent-soft-fg" aria-hidden>
-                          ✓
+                  <li
+                    key={o.value}
+                    id={optionId(i)}
+                    role="option"
+                    aria-selected={selected}
+                    onClick={() => choose(i)}
+                    onPointerMove={() => {
+                      setKeyboardNav(false);
+                      setActiveIndex(i);
+                    }}
+                    className={cn(
+                      'flex w-full cursor-pointer items-center justify-between gap-2 px-3 py-2 text-left text-sm text-fg',
+                      i === activeIndex && 'bg-muted',
+                      selected && 'bg-accent-soft text-accent-soft-fg',
+                      i === activeIndex &&
+                        keyboardNav &&
+                        'ring-2 ring-inset ring-blue-500',
+                    )}
+                  >
+                    {/* 補足が長いと名前が潰れるので、収まらなければ補足を次の行へ折り返す */}
+                    <span className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2">
+                      <span className="min-w-0 break-words">{o.label}</span>
+                      {o.hint && (
+                        <span className="break-keep text-xs text-fg-subtle">
+                          {o.hint}
                         </span>
                       )}
-                    </button>
+                    </span>
+                    {selected && (
+                      <CheckIcon className="text-accent-soft-fg" />
+                    )}
                   </li>
                 );
               })

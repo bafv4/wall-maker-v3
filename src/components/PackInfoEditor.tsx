@@ -6,13 +6,14 @@
  * icon バイトは IndexedDB 永続化（Phase 3 persistAdapter 経由）。
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MAX_DIMENSION, toSafeInt } from '../core/coords';
 import { normalizeToPngBytes } from '../core/pngNormalize';
+import { useObjectUrl } from '../hooks/useObjectUrl';
 import { useWallStore } from '../store/useWallStore';
 import { presetValueOf, useResolutionPresets } from './resolutionPresets';
-import { Button, Input, Select, Switch, toast } from './ui';
+import { Button, Input, Select, toast } from './ui';
 import { cn } from './ui/cn';
 
 // ---------------------------------------------------------------------------
@@ -70,7 +71,7 @@ function ResolutionSection() {
 
   return (
     <section className="space-y-3 rounded-lg border border-border bg-panel p-3">
-      <h3 className="text-sm font-semibold text-fg">
+      <h3 className="text-[15px] font-semibold text-fg">
         {t('resolution.title')}
       </h3>
       {/*
@@ -120,7 +121,7 @@ function ResolutionSection() {
           </div>
         </div>
       )}
-      <p className="text-[11px] text-fg-subtle">
+      <p className="text-xs text-fg-subtle">
         {t('resolution.current', {
           width: resolution.width,
           height: resolution.height,
@@ -225,7 +226,7 @@ function IconDropZone({
                 d="M3 16.5l4.5-4.5 3 3 6-6 4.5 4.5M3 4.5h18v15H3v-15z"
               />
             </svg>
-            <span className="text-[11px] leading-tight whitespace-pre-line">
+            <span className="text-xs leading-tight whitespace-pre-line">
               {t('packInfo.iconDropHint')}
             </span>
           </div>
@@ -257,22 +258,7 @@ export function PackInfoEditor() {
   // 元ファイル名（メモリ内のみ・保存不要）
   const [iconFileName, setIconFileName] = useState<string | null>(null);
 
-  const iconPreviewUrl = useMemo(() => {
-    const icon = packInfo.icon;
-    if (!icon || icon.kind !== 'inline') return null;
-    return URL.createObjectURL(
-      // Uint8Array<ArrayBufferLike> → BlobPart 非互換（TS 5.7+）。実 ArrayBuffer 由来なので絞り込む。
-      new Blob([icon.bytes as Uint8Array<ArrayBuffer>], {
-        type: icon.mimeType ?? 'image/png',
-      }),
-    );
-  }, [packInfo.icon]);
-
-  useEffect(() => {
-    return () => {
-      if (iconPreviewUrl) URL.revokeObjectURL(iconPreviewUrl);
-    };
-  }, [iconPreviewUrl]);
+  const iconPreviewUrl = useObjectUrl(packInfo.icon);
 
   const handleIconUpload = async (file: File) => {
     try {
@@ -319,21 +305,6 @@ export function PackInfoEditor() {
             }}
           />
         </div>
-      </section>
-
-      <section className="space-y-1.5 rounded-lg bg-panel p-3">
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-sm font-medium text-fg">
-            {t('packInfo.embedEditorData')}
-          </span>
-          <Switch
-            checked={packInfo.embedEditorData ?? false}
-            onChange={(b) => setPackInfo({ embedEditorData: b })}
-          />
-        </div>
-        <p className="text-[11px] text-fg-subtle">
-          {t('packInfo.embedEditorDataHint')}
-        </p>
       </section>
 
       <ResolutionSection />
