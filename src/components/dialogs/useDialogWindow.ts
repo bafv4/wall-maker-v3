@@ -36,7 +36,6 @@ export function useDialogWindow({
     latest.current = { spec, state, payload, onMessage };
   });
   const handleRef = useRef<{ update(s: DialogState): void } | null>(null);
-  const stateKey = JSON.stringify(state);
 
   useEffect(() => {
     if (!opensDialogWindows || !open) return;
@@ -68,7 +67,8 @@ export function useDialogWindow({
     };
   }, [open]);
 
+  const { busy, exporting } = state;
   useEffect(() => {
-    handleRef.current?.update(JSON.parse(stateKey) as DialogState);
-  }, [stateKey]);
+    handleRef.current?.update({ busy, exporting });
+  }, [busy, exporting]);
 }

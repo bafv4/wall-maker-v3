@@ -39,11 +39,14 @@ export const isTauri = (): boolean =>
   typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
 /**
- * macOS の Desktop 版か。ウィンドウ操作ボタンの扱い（OS の信号機ボタンを使う）を分けるのに使う。
- * 同期で判定したいので、os プラグイン（動的 import が要る）ではなく WKWebView の UA を見る。
+ * Apple 系 OS（macOS / iOS / iPadOS）か。ショートカット表記（⌘ / Ctrl）の切り替えなどに使う。
+ * 同期で判定したいので、os プラグイン（動的 import が要る）ではなく UA を見る。
  */
-export const isMacDesktop = (): boolean =>
-  isTauri() && /Macintosh|Mac OS X/.test(navigator.userAgent);
+export const isMacPlatform = (): boolean =>
+  typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.userAgent);
+
+/** macOS の Desktop 版か。ウィンドウ操作ボタンの扱い（OS の信号機ボタンを使う）を分けるのに使う。 */
+export const isMacDesktop = (): boolean => isTauri() && isMacPlatform();
 
 /**
  * ウィンドウ操作（Windows / Linux の Desktop 版で、ヘッダの自前ボタンから呼ぶ）。

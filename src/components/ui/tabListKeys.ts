@@ -22,19 +22,13 @@ export function handleTabListKeyDown(e: KeyboardEvent<HTMLElement>): void {
   const current = tabs.findIndex((tab) => tab === document.activeElement);
   if (current < 0) return;
   e.preventDefault();
-  const last = tabs.length - 1;
+  const step = NEXT_KEYS.has(e.key) ? 1 : -1;
   const next =
     e.key === 'Home'
       ? 0
       : e.key === 'End'
-        ? last
-        : NEXT_KEYS.has(e.key)
-          ? current === last
-            ? 0
-            : current + 1
-          : current === 0
-            ? last
-            : current - 1;
+        ? tabs.length - 1
+        : (current + step + tabs.length) % tabs.length;
   tabs[next].focus();
   tabs[next].click();
 }

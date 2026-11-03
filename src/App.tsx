@@ -216,7 +216,7 @@ function App() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  });
+  }, [collapsed, setCollapsed]);
 
   useEffect(() => {
     const unsub = useWallStore.persist.onFinishHydration(() => setHydrated(true));

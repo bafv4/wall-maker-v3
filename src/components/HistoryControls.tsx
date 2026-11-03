@@ -9,6 +9,7 @@
 
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { isMacPlatform } from '../adapters';
 import { redo, undo, useHistoryStore } from '../store/history';
 import { cn } from './ui/cn';
 
@@ -30,8 +31,7 @@ function isTextEditing(target: EventTarget | null): boolean {
   return target instanceof HTMLInputElement && TEXT_INPUT_TYPES.has(target.type);
 }
 
-const IS_MAC =
-  typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.userAgent);
+const IS_MAC = isMacPlatform();
 const UNDO_KEYS = IS_MAC ? '⌘Z' : 'Ctrl+Z';
 const REDO_KEYS = IS_MAC ? '⇧⌘Z' : 'Ctrl+Shift+Z';
 

@@ -6,7 +6,7 @@
  * （ウィンドウを縮めたときに保存値が大きすぎてもプレビューが潰れない）。
  */
 
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 
 const STORAGE_KEY = 'wall-maker:sidebar-width';
 const COLLAPSED_KEY = 'wall-maker:sidebar-collapsed';
@@ -17,7 +17,7 @@ export const MAX_SIDEBAR_WIDTH = 720;
 const MIN_MAIN_WIDTH = 360;
 const RAIL_WIDTH = 84;
 /** 未設定時の幅（画面幅の 30%、320〜420px）。 */
-export const DEFAULT_SIDEBAR_WIDTH_CSS = 'clamp(320px, 30vw, 420px)';
+const DEFAULT_SIDEBAR_WIDTH_CSS = 'clamp(320px, 30vw, 420px)';
 
 export const clampSidebarWidth = (w: number) =>
   Math.round(Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, w)));
@@ -55,7 +55,7 @@ function loadCollapsed(): boolean {
 export function useSidebarWidth() {
   const [width, setWidth] = useState<number | null>(loadWidth);
   const [collapsed, setCollapsedState] = useState(loadCollapsed);
-  const setCollapsed = (next: boolean) => {
+  const setCollapsed = useCallback((next: boolean) => {
     setCollapsedState(next);
     try {
       if (next) localStorage.setItem(COLLAPSED_KEY, '1');
@@ -63,7 +63,7 @@ export function useSidebarWidth() {
     } catch {
       // 保存できなくても開閉自体は続ける
     }
-  };
+  }, []);
   const cssWidth = collapsed
     ? '0px'
     : width == null
